@@ -9,6 +9,7 @@ wheels/
 # Virtual environments
 .venv
 /instance
-*db
+*.db
 /Output
 /veri_setleri
+*.csv
