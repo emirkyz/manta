@@ -121,7 +121,11 @@ def process_file(
         # Add to main database
 
         # INSTEAD OF SAVING WHOLE TABLE TO DATABASE, SAVE ONLY THE DESIRED COLUMNS
-        df = df[desired_columns]  # Use double brackets to select columns
+        app_col = "PACKAGE_NAME"
+        # get only bip
+        df = df[df[app_col] == "com.turkcell.bip"]
+        df = df[desired_columns]
+        # Use double brackets to select columns
         df = df.dropna()
 
         # remove duplicates
@@ -279,12 +283,12 @@ def run_standalone_nmf(
 if __name__ == "__main__":
     LEMMATIZE = True
     N_WORDS = 15
-    DESIRED_TOPIC_COUNT = 12
+    DESIRED_TOPIC_COUNT = 5
     tokenizer_type = "bpe"  # "wordpiece" or "bpe"
     nmf_type = "nmf"
     LANGUAGE = "TR"
     separator = ";"
-    filepath = "veri_setleri/playstore.csv"
+    filepath = "veri_setleri/PLAYSTORE_APP_REVIEWS.csv"
     table_name = "PLAYSTORE" + f"_{nmf_type}_"+ tokenizer_type +"_"+str(DESIRED_TOPIC_COUNT)
     desired_columns = "REVIEW_TEXT"
 
