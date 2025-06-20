@@ -13,3 +13,4 @@ wheels/
 /Output
 /veri_setleri
 *.csv
+.idea/dataSources.xml

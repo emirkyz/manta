@@ -24,7 +24,7 @@ from utils.export_excel import export_topics_to_excel
 import numpy as np
 import gensim
 
-def process_turkish_file(df,desired_columns: str, tokenizer=None, tokenizer_type="bpe"):
+def process_turkish_file(df,desired_columns: str, tokenizer=None, tokenizer_type=None):
     
     metin_array = metin_temizle(df, desired_columns)
     print(f"Number of documents: {len(metin_array)}")
@@ -114,27 +114,48 @@ def process_file(
         print("Reading input file...")
         # if file is csv, read it with read_csv
         if filepath.endswith(".csv"):
-            df = pd.read_csv(filepath, on_bad_lines="skip", encoding="utf-8", sep=separator)
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = f.read()
+                # replace "|" with ";"
+                data = data.replace("|", ";")
+                # remove tab and null characters
+                data = data.replace("\t", "")
+                data = data.replace("\x00", "")
+                # save the modified data back to the new file
+            new_filepath = filepath.replace(".csv", "_new.csv")
+            with open(new_filepath, 'w', encoding='utf-8') as f_out:
+                f_out.write(data)
+            filepath = new_filepath
+            # Read the CSV file with the specified separator
+
+            df = pd.read_csv(filepath,encoding="utf-8", sep=None,engine = "python", on_bad_lines="skip")
+            # get rows where it is country is TR
+            df = df[df['COUNTRY'] == 'TR']
         else:
             df = pd.read_excel(filepath)
 
         # Add to main database
 
         # INSTEAD OF SAVING WHOLE TABLE TO DATABASE, SAVE ONLY THE DESIRED COLUMNS
-        app_col = "PACKAGE_NAME"
+        #app_col = "PACKAGE_NAME"
         # get only bip
-        df = df[df[app_col] == "com.turkcell.bip"]
+        #df = df[df[app_col] == "com.turkcell.bip"]
+        # drop duplicates based on ID column
+        
+        df = df.drop_duplicates(subset=['ID'])
         df = df[desired_columns]
         # Use double brackets to select columns
         df = df.dropna()
 
+        '''
         # remove duplicates
         count_of_duplicates = df.duplicated().sum()
         total_rows = len(df)
         if total_rows*0.9 < count_of_duplicates:
             print(f"Warning: {count_of_duplicates} duplicates found in the data, which is more than 90% of the total rows ({total_rows}).")
             df = df.drop_duplicates()
-        df = df.drop_duplicates()
+        '''
+        #df = df.drop_duplicates()
         print(f"File has {len(df)} rows.")
 
         print("Adding data to main database...")    
@@ -246,7 +267,7 @@ def process_file(
 
 
 def run_standalone_nmf(
-        filepath, table_name, desired_columns, desired_topic_count, LEMMATIZE, N_TOPICS, tokenizer_type, LANGUAGE, nmf_type,separator=","
+        filepath, table_name, desired_columns, options
 ):
     """
     Run the standalone NMF process with the given parameters.
@@ -264,15 +285,16 @@ def run_standalone_nmf(
     start_time = time.time()
     print("Starting standalone NMF process...")
     # Initialize tokenizer once before processing
-    tokenizer = init_tokenizer(tokenizer_type=tokenizer_type)
+    tokenizer = init_tokenizer(tokenizer_type=options["tokenizer_type"])
 
     result = process_file(
-        filepath, table_name, desired_columns, desired_topic_count, LEMMATIZE, N_TOPICS,
+        filepath, table_name, desired_columns, options["DESIRED_TOPIC_COUNT"], options["LEMMATIZE"], options["N_TOPICS"],
         tokenizer=tokenizer,
-        LANGUAGE=LANGUAGE,
-        gen_topic_distribution=True,
-        nmf_type=nmf_type,
-        separator = separator
+        LANGUAGE=options["LANGUAGE"],
+        gen_topic_distribution=options["gen_topic_distribution"],
+        nmf_type=options["nmf_type"],
+        separator = options["separator"],
+        tokenizer_type=options["tokenizer_type"]
     )
 
     end_time = time.time()
@@ -288,11 +310,28 @@ if __name__ == "__main__":
     nmf_type = "nmf"
     LANGUAGE = "TR"
     separator = ";"
-    filepath = "veri_setleri/PLAYSTORE_APP_REVIEWS.csv"
-    table_name = "PLAYSTORE" + f"_{nmf_type}_"+ tokenizer_type +"_"+str(DESIRED_TOPIC_COUNT)
-    desired_columns = "REVIEW_TEXT"
+    filepath = "veri_setleri/APPSTORE_APP_REVIEWSyeni_orj.csv"
+    table_name = "APPSTORE" + f"_{nmf_type}_"+ tokenizer_type +"_"+str(DESIRED_TOPIC_COUNT)
+    desired_columns = "REVIEW"
+
+
+    options = {
+        "LEMMATIZE": LEMMATIZE,
+        "N_TOPICS": N_WORDS,
+        "DESIRED_TOPIC_COUNT": DESIRED_TOPIC_COUNT,
+        "tokenizer_type": tokenizer_type,
+        "nmf_type": nmf_type,
+        "LANGUAGE": LANGUAGE,
+        "separator": separator,
+        "gen_cloud": True,
+        "save_excel": True,
+        "word_pairs_out": False
+    }
+
+
+
 
     # Single run example
     run_standalone_nmf(
-        filepath, table_name, desired_columns, DESIRED_TOPIC_COUNT, LEMMATIZE, N_WORDS, tokenizer_type, LANGUAGE, nmf_type,separator
+        filepath, table_name, desired_columns, options
     )
