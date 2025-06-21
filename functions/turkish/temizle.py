@@ -20,15 +20,15 @@ def process_text(text: str) -> str:
     """
     ## TODO: Emojileri kaldırmadan veri setine dahil edebiliriz.
 
-    if text == "YORUM ÜSTTE GOZUKSUN DİYE 5 YİLDİZ VERDİM TEK KELİMEYLE BERBAT ÇOK CİMRİ BİR OPERATÖR VE UYGULAMA OLMUŞ ESKİDEN İNTERNET VERİRDİ ARTİK YOUTUBE VE İNSTAGRAM VEYA TİKTOK VERİYOR ALLAH BİRAKMASİN":
+    if text == "TÜM BİP UYGULAMALARI HATALARLA DOLU. SÖZDE HEDİYELER VERİP MİLLETİ CEZBETMEYE ÇALIŞIYORLAR AMA BEŞ KURUŞ ETMEZ Bİ UYGULAMA. SİZ BU GİDİŞLE DEĞİL WHATSAPPLA UYDURUK PROGRAMLARLA BİLE BOY ÖLÇÜŞEMEZSİNİZ. BİPTEN HER SANİYE ARAMA YAP PUAN KAZAN DİYORLAR. Bİ TON ARIYORSUN PUAN FALAN ORTADA YOK. LİFECELLE HER AYIN 14 ü 14:40 ta sözde hediye veriyor. AMA HAK GETİRE KISACA BİP BÜYÜK BİR FİYASKO... FAZLADAN 1 2GB İÇİN TELEFONUNUZDA YER KAPLAMASINA VE KULLANMAYA DEĞMEZ BİLE...":
 
         print("hmmmm")
 
     metin = str(text)  # Metni string'e çevir
-    secilen_kategoriler = ['Ll']
+    secilen_kategoriler = ['Ll',"Mn"]
     metin = metin.lower()
     zamirler = nltk.corpus.stopwords.words('turkish')
-
+    metin = unicodedata.normalize('NFD', metin)
     kategoriler = [unicodedata.category(karakter) for karakter in metin]
     yeni_metin = "".join([metin[j] if kategoriler[j] in secilen_kategoriler
                           else ' ' for j in range(len(metin))])

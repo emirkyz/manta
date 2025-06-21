@@ -142,9 +142,10 @@ def process_file(
         #df = df[df[app_col] == "com.turkcell.bip"]
         # drop duplicates based on ID column
         
-        df = df.drop_duplicates(subset=['ID'])
+        #df = df.drop_duplicates(subset=['ID'])
         df = df[desired_columns]
         # Use double brackets to select columns
+        df = df.drop_duplicates()
         df = df.dropna()
 
         '''
@@ -310,7 +311,7 @@ if __name__ == "__main__":
     nmf_type = "nmf"
     LANGUAGE = "TR"
     separator = ";"
-    filepath = "veri_setleri/APPSTORE_APP_REVIEWSyeni_orj.csv"
+    filepath = "veri_setleri/APPSTORE_APP_REVIEWSyeni_yeni.csv"
     table_name = "APPSTORE" + f"_{nmf_type}_"+ tokenizer_type +"_"+str(DESIRED_TOPIC_COUNT)
     desired_columns = "REVIEW"
 
@@ -325,7 +326,8 @@ if __name__ == "__main__":
         "separator": separator,
         "gen_cloud": True,
         "save_excel": True,
-        "word_pairs_out": False
+        "word_pairs_out": False,
+        "gen_topic_distribution": True
     }
 
 
