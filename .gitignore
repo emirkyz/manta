@@ -14,3 +14,5 @@ wheels/
 /veri_setleri
 *.csv
 .idea/dataSources.xml
+webapp/node_modules
+webapp/client/node_modules
