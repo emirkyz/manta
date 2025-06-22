@@ -3,6 +3,23 @@ import nltk
 import re
 import pandas as pd
 
+class TurkishStr(str):
+    lang = 'tr'
+
+    _case_lookup_upper = {'İ': 'i', 'I': 'ı', 'Ğ': 'ğ', 'Ş': 'ş', 'Ü': 'ü', 'Ö': 'ö', 'Ç': 'ç'}  # lookup uppercase letters
+    _case_lookup_lower = {v: k for (k, v) in _case_lookup_upper.items()}
+
+    # here we override the lower() and upper() methods
+    def lower(self):
+        chars = [self._case_lookup_upper.get(c, c) for c in self]
+        result = ''.join(chars).lower()
+        return TurkishStr(result)
+
+    def upper(self):
+        chars = [self._case_lookup_lower.get(c, c) for c in self]
+        result = ''.join(chars).upper()
+        return TurkishStr(result)
+
 
 def process_text(text: str) -> str:
     """
@@ -20,15 +37,11 @@ def process_text(text: str) -> str:
     """
     ## TODO: Emojileri kaldırmadan veri setine dahil edebiliriz.
 
-    if text == "TÜM BİP UYGULAMALARI HATALARLA DOLU. SÖZDE HEDİYELER VERİP MİLLETİ CEZBETMEYE ÇALIŞIYORLAR AMA BEŞ KURUŞ ETMEZ Bİ UYGULAMA. SİZ BU GİDİŞLE DEĞİL WHATSAPPLA UYDURUK PROGRAMLARLA BİLE BOY ÖLÇÜŞEMEZSİNİZ. BİPTEN HER SANİYE ARAMA YAP PUAN KAZAN DİYORLAR. Bİ TON ARIYORSUN PUAN FALAN ORTADA YOK. LİFECELLE HER AYIN 14 ü 14:40 ta sözde hediye veriyor. AMA HAK GETİRE KISACA BİP BÜYÜK BİR FİYASKO... FAZLADAN 1 2GB İÇİN TELEFONUNUZDA YER KAPLAMASINA VE KULLANMAYA DEĞMEZ BİLE...":
-
-        print("hmmmm")
 
     metin = str(text)  # Metni string'e çevir
-    secilen_kategoriler = ['Ll',"Mn"]
-    metin = metin.lower()
+    secilen_kategoriler = ['Ll']
+    metin = TurkishStr(metin).lower()
     zamirler = nltk.corpus.stopwords.words('turkish')
-    metin = unicodedata.normalize('NFD', metin)
     kategoriler = [unicodedata.category(karakter) for karakter in metin]
     yeni_metin = "".join([metin[j] if kategoriler[j] in secilen_kategoriler
                           else ' ' for j in range(len(metin))])
