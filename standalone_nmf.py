@@ -24,8 +24,8 @@ from utils.export_excel import export_topics_to_excel
 import numpy as np
 import gensim
 
-def process_turkish_file(df,desired_columns: str, tokenizer=None, tokenizer_type=None):
-    
+
+def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_type=None):
     metin_array = metin_temizle(df, desired_columns)
     print(f"Number of documents: {len(metin_array)}")
 
@@ -44,29 +44,20 @@ def process_turkish_file(df,desired_columns: str, tokenizer=None, tokenizer_type
     return tdm, sozluk, sayisal_veri, tokenizer
 
 
-
-def process_english_file(df,desired_columns: str, lemmatize: bool):
+def process_english_file(df, desired_columns: str, lemmatize: bool):
     sozluk, N = sozluk_yarat(df, desired_columns, lemmatize=lemmatize)
-    sayisal_veri = tfidf_hesapla(N, sozluk=sozluk, data=df, alanadi=desired_columns, output_dir=None, lemmatize=lemmatize)
+    sayisal_veri = tfidf_hesapla(N, sozluk=sozluk, data=df, alanadi=desired_columns, output_dir=None,
+                                 lemmatize=lemmatize)
     tdm = sayisal_veri
 
     return tdm, sozluk, sayisal_veri
-
 
 
 def process_file(
         filepath: str,
         table_name: str,
         desired_columns: str,
-        desired_topic_count: int,
-        LEMMATIZE: bool,
-        N_TOPICS: int,
-        tokenizer=None,
-        LANGUAGE="TR",
-        tokenizer_type="bpe",
-        gen_topic_distribution=True,
-        separator=",",
-        nmf_type="nmf"
+        options: dict
 ) -> dict:
     """
     Process a file and perform topic modeling without Celery/Redis dependencies
@@ -128,21 +119,24 @@ def process_file(
             filepath = new_filepath
             # Read the CSV file with the specified separator
 
-            df = pd.read_csv(filepath,encoding="utf-8", sep=None,engine = "python", on_bad_lines="skip")
+            df = pd.read_csv(filepath, encoding="utf-8", sep=None, engine="python", on_bad_lines="skip")
             # get rows where it is country is TR
             df = df[df['COUNTRY'] == 'TR']
+            if options["filter_app"]:
+                df = df[df['APP_NAME_ABBR'] == options["filter_app_name"]]
+
         else:
             df = pd.read_excel(filepath)
 
         # Add to main database
 
         # INSTEAD OF SAVING WHOLE TABLE TO DATABASE, SAVE ONLY THE DESIRED COLUMNS
-        #app_col = "PACKAGE_NAME"
+        # app_col = "PACKAGE_NAME"
         # get only bip
-        #df = df[df[app_col] == "com.turkcell.bip"]
+        # df = df[df[app_col] == "com.turkcell.bip"]
         # drop duplicates based on ID column
-        
-        #df = df.drop_duplicates(subset=['ID'])
+
+        # df = df.drop_duplicates(subset=['ID'])
         df = df[desired_columns]
         # Use double brackets to select columns
         df = df.drop_duplicates()
@@ -156,15 +150,17 @@ def process_file(
             print(f"Warning: {count_of_duplicates} duplicates found in the data, which is more than 90% of the total rows ({total_rows}).")
             df = df.drop_duplicates()
         '''
-        #df = df.drop_duplicates()
+        # df = df.drop_duplicates()
         print(f"File has {len(df)} rows.")
 
-        print("Adding data to main database...")    
+        print("Adding data to main database...")
         # Check if table exists using a SQL query instead of direct table read
         tables_query = "SELECT name FROM sqlite_master WHERE type='table'"
         existing_tables = pd.read_sql_query(tables_query, main_db_eng)
-        if table_name not in existing_tables['name'].tolist():
+        if table_name in existing_tables['name'].tolist():
             # Use the main_db_eng directly
+            df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
+        elif table_name not in existing_tables['name'].tolist():
             df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
         del df
 
@@ -175,61 +171,63 @@ def process_file(
         # Read directly using the main_db_eng
         df = pd.read_sql_table(table_name, main_db_eng)
 
-        if LANGUAGE == "TR":
+        if options["LANGUAGE"] == "TR":
             # temizle
-            tdm, sozluk, sayisal_veri, tokenizer = process_turkish_file(df, desired_columns, tokenizer,tokenizer_type=tokenizer_type)
+            tdm, sozluk, sayisal_veri, tokenizer = process_turkish_file(df, desired_columns, options["tokenizer"],
+                                                                        tokenizer_type=options["tokenizer_type"])
 
-        elif LANGUAGE == "EN":
-            tdm, sozluk, sayisal_veri = process_english_file(df, desired_columns, LEMMATIZE)
+        elif options["LANGUAGE"] == "EN":
+            tdm, sozluk, sayisal_veri = process_english_file(df, desired_columns, options["LEMMATIZE"])
 
         else:
-            raise ValueError(f"Invalid language: {LANGUAGE}")
+            raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
         # nmf
         W, H = run_nmf(
-            num_of_topics=int(desired_topic_count),
+            num_of_topics=int(options["DESIRED_TOPIC_COUNT"]),
             sparse_matrix=tdm,
             norm_thresh=0.005,
-            nmf_method=nmf_type
+            nmf_method=options["nmf_type"]
         )
 
         word_pairs_out = False
         if word_pairs_out:
             # Calculate word co-occurrence matrix and save to output dir
-            top_pairs = calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score=1, language=LANGUAGE, tokenizer=tokenizer)
+            top_pairs = calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score=1,
+                                               language=options["LANGUAGE"], tokenizer=tokenizer)
 
         # generate topic distribution plot
-        if gen_topic_distribution:
+        if options["gen_topic_distribution"]:
             gen_topic_dist(W, output_dir, table_name)
 
         # Find dominant words for each topic and dominant documents for each topic
         print("Generating topic groups...")
-        if LANGUAGE == "TR":
-            result = konu_analizi(
-                H=H, 
-                W=W, 
-                konu_sayisi=int(desired_topic_count), 
-                tokenizer=tokenizer, 
-                documents=df[desired_columns], 
-                topics_db_eng=topics_db_eng, 
-                data_frame_name=table_name,
-                word_per_topic=N_TOPICS,
-                include_documents=True
-            )
-        elif LANGUAGE == "EN":
+        if options["LANGUAGE"] == "TR":
             result = konu_analizi(
                 H=H,
                 W=W,
-                konu_sayisi=int(desired_topic_count),
+                konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
+                tokenizer=tokenizer,
+                documents=df[desired_columns],
+                topics_db_eng=topics_db_eng,
+                data_frame_name=table_name,
+                word_per_topic=options["N_TOPICS"],
+                include_documents=True
+            )
+        elif options["LANGUAGE"] == "EN":
+            result = konu_analizi(
+                H=H,
+                W=W,
+                konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
                 sozluk=sozluk,
                 documents=df[desired_columns],
                 topics_db_eng=topics_db_eng,
                 data_frame_name=table_name,
-                word_per_topic=N_TOPICS,
+                word_per_topic=options["N_TOPICS"],
                 include_documents=True
             )
         else:
-            raise ValueError(f"Invalid language: {LANGUAGE}")
+            raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
         # save result to json
         # Convert the topics_data format to the desired format
@@ -242,12 +240,10 @@ def process_file(
 
         coherence_scores = calculate_coherence_scores(topic_word_scores, output_dir, table_name)
 
-        gen_cloud = True
-        if gen_cloud:
+        if options["gen_cloud"]:
             generate_wordclouds(result, output_dir, table_name)
 
-        save_excel = True
-        if save_excel:
+        if options["save_excel"]:
             export_topics_to_excel(topic_word_scores, output_dir, table_name)
 
         print("Topic modeling completed successfully!")
@@ -287,15 +283,10 @@ def run_standalone_nmf(
     print("Starting standalone NMF process...")
     # Initialize tokenizer once before processing
     tokenizer = init_tokenizer(tokenizer_type=options["tokenizer_type"])
+    options["tokenizer"] = tokenizer
 
     result = process_file(
-        filepath, table_name, desired_columns, options["DESIRED_TOPIC_COUNT"], options["LEMMATIZE"], options["N_TOPICS"],
-        tokenizer=tokenizer,
-        LANGUAGE=options["LANGUAGE"],
-        gen_topic_distribution=options["gen_topic_distribution"],
-        nmf_type=options["nmf_type"],
-        separator = options["separator"],
-        tokenizer_type=options["tokenizer_type"]
+        filepath, table_name, desired_columns, options
     )
 
     end_time = time.time()
@@ -306,32 +297,32 @@ def run_standalone_nmf(
 if __name__ == "__main__":
     LEMMATIZE = True
     N_WORDS = 15
-    DESIRED_TOPIC_COUNT = 5
+    DESIRED_TOPIC_COUNT = 3
     tokenizer_type = "bpe"  # "wordpiece" or "bpe"
     nmf_type = "nmf"
     LANGUAGE = "TR"
     separator = ";"
     filepath = "veri_setleri/APPSTORE_APP_REVIEWSyeni_yeni.csv"
-    table_name = "APPSTORE" + f"_{nmf_type}_"+ tokenizer_type +"_"+str(DESIRED_TOPIC_COUNT)
+    filter_app_name = "BiP"
+    table_name = "APPSTORE" + f"_{filter_app_name}" + f"_{nmf_type}_" + tokenizer_type + "_" + str(DESIRED_TOPIC_COUNT)
     desired_columns = "REVIEW"
-
 
     options = {
         "LEMMATIZE": LEMMATIZE,
         "N_TOPICS": N_WORDS,
         "DESIRED_TOPIC_COUNT": DESIRED_TOPIC_COUNT,
         "tokenizer_type": tokenizer_type,
+        "tokenizer": None,
         "nmf_type": nmf_type,
         "LANGUAGE": LANGUAGE,
         "separator": separator,
         "gen_cloud": True,
         "save_excel": True,
         "word_pairs_out": False,
-        "gen_topic_distribution": True
+        "gen_topic_distribution": True,
+        "filter_app": True,
+        "filter_app_name": filter_app_name
     }
-
-
-
 
     # Single run example
     run_standalone_nmf(
