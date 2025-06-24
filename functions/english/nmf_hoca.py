@@ -12,6 +12,21 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
              norm_thresh: float = 1.0, zero_threshold: float = 0.0001,
              init_func: Callable = nmf_initialization_random,
              konu_sayisi=-1) -> tuple[sp.csr_matrix, sp.csc_matrix]:
+    """
+    Internal CPU-based NMF implementation using projective NMF.
+    
+    Args:
+        in_mat (sp.csc_matrix): Input sparse matrix to factorize
+        log (bool): Enable progress logging
+        rank_factor (float): Rank factor for matrix factorization
+        norm_thresh (float): Convergence threshold
+        zero_threshold (float): Threshold for zeroing small values
+        init_func (Callable): Matrix initialization function
+        konu_sayisi (int): Number of topics/components
+    
+    Returns:
+        tuple[sp.csr_matrix, sp.csc_matrix]: W and H matrices from NMF decomposition
+    """
     # target_rank = math.floor(rank_func(in_mat) * rank_factor)
 
     w, h = init_func(in_mat, konu_sayisi)
@@ -32,6 +47,22 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
 
 def _core_nmf(in_mat, w, h, start, log: bool = True, norm_thresh=0.005, zero_threshold=0.0001,
               norm_func: Callable = np.linalg.norm) -> tuple:
+    """
+    Core NMF iteration algorithm using multiplicative update rules.
+    
+    Args:
+        in_mat: Input matrix to factorize
+        w: W matrix (document-topic)
+        h: H matrix (topic-word)
+        start: Start time for logging
+        log (bool): Enable progress logging
+        norm_thresh (float): Convergence threshold
+        zero_threshold (float): Threshold for zeroing small values
+        norm_func (Callable): Norm function for convergence checking
+    
+    Returns:
+        tuple: Updated (w, h) matrices
+    """
     i = 0
     # check if w or h is zero
     eps = 1e-10
@@ -71,4 +102,18 @@ def _core_nmf(in_mat, w, h, start, log: bool = True, norm_thresh=0.005, zero_thr
 def nmf(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
         norm_thresh: float = 1.0, zero_threshold: float = 0.0001,
         init_func: Callable = nmf_initialization_random):
+    """
+    Public wrapper function for NMF matrix factorization.
+    
+    Args:
+        in_mat (sp.csc_matrix): Input sparse matrix to factorize
+        log (bool): Enable progress logging
+        rank_factor (float): Rank factor for matrix factorization
+        norm_thresh (float): Convergence threshold
+        zero_threshold (float): Threshold for zeroing small values
+        init_func (Callable): Matrix initialization function
+    
+    Returns:
+        tuple: W and H matrices from NMF decomposition
+    """
     return _nmf_cpu(in_mat, log, rank_factor, norm_thresh, zero_threshold, init_func)

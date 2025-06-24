@@ -7,15 +7,19 @@ from wordcloud import WordCloud
 def get_topic_names_out(data_frame_name, num_of_topics: int, sozluk: List[str], word_per_topic: int, topics_db_eng=None,
                         H=None,gen_cloud:bool = False) -> dict:
     """
-    Extract topics and their top words from NMF H matrix
+    Extract topics and their top words from NMF H matrix, optionally generate word clouds and save to database.
     
     Args:
-        data_frame_name: Name of the dataset
-        num_of_topics: Number of topics to extract
-        sozluk: List of words in vocabulary
-        word_per_topic: Number of top words to extract per topic
-        topics_db_eng: SQLAlchemy engine for database connection
-        H: Topic-word matrix from NMF
+        data_frame_name (str): Name of the dataset
+        num_of_topics (int): Number of topics to extract
+        sozluk (List[str]): List of words in vocabulary
+        word_per_topic (int): Number of top words to extract per topic
+        topics_db_eng: SQLAlchemy engine for database connection (optional)
+        H: Topic-word matrix from NMF (numpy array or sparse matrix)
+        gen_cloud (bool): Whether to generate word clouds
+    
+    Returns:
+        dict: Dictionary mapping topic names to lists of top words with scores
     """
     # Create a dictionary to store topics and their words
     topics_data = {}

@@ -6,11 +6,29 @@ from scipy.sparse import linalg as sla
 
 
 def select_rank_theoretical(in_mat: sp.csc_matrix) -> int:
+    """
+    Calculate theoretical rank based on matrix dimensions and non-zero elements.
+    
+    Args:
+        in_mat (sp.csc_matrix): Input sparse matrix
+    
+    Returns:
+        int: Theoretical rank estimate
+    """
     m, n = in_mat.shape
     return int(math.ceil(in_mat.nnz / (m + n)))
 
 
 def select_rank_by_svd(in_mat: sp.csc_matrix) -> int:
+    """
+    Select rank using SVD analysis (incomplete implementation).
+    
+    Args:
+        in_mat (sp.csc_matrix): Input sparse matrix
+    
+    Returns:
+        int: SVD-based rank estimate (not implemented)
+    """
     m, n = in_mat.shape
     target_svd_k = min(m, n)
     u, s, v = sla.svds(in_mat, k=target_svd_k)
@@ -18,6 +36,16 @@ def select_rank_by_svd(in_mat: sp.csc_matrix) -> int:
 
 
 def nmf_initialization_nndsvd(in_mat: sp.csc_matrix, rank: int) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Initialize NMF matrices using Non-Negative Double SVD method.
+    
+    Args:
+        in_mat (sp.csc_matrix): Input sparse matrix to factorize
+        rank (int): Target rank for factorization (-1 for auto-selection)
+    
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Initialized W and H matrices
+    """
     if rank < 0:
         rank = select_rank_theoretical(in_mat)
     print(f"Using Rank : {rank}")
@@ -56,6 +84,16 @@ def nmf_initialization_nndsvd(in_mat: sp.csc_matrix, rank: int) -> tuple[np.ndar
 
 
 def nmf_initialization_random(in_mat: sp.csc_matrix, rank: int) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Initialize NMF matrices with random values based on input matrix range.
+    
+    Args:
+        in_mat (sp.csc_matrix): Input sparse matrix to factorize
+        rank (int): Target rank for factorization (-1 for auto-selection)
+    
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Randomly initialized W and H matrices
+    """
     if rank < 0:
         rank = select_rank_theoretical(in_mat)
     min_v = in_mat.min()

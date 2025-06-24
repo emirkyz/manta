@@ -6,18 +6,45 @@ from tokenizers import Tokenizer
 
 
 def tf_b(x: csr_matrix):
+    """
+    Apply binary term frequency transformation.
+    
+    Args:
+        x (csr_matrix): Input sparse matrix
+    
+    Returns:
+        csr_matrix: Binary TF matrix where all non-zero values become 1
+    """
     t = x.copy()
     t.data = np.ones_like(x.data)
     return t
 
 
 def tf_d(x: csr_matrix):
+    """
+    Apply double logarithmic term frequency transformation.
+    
+    Args:
+        x (csr_matrix): Input sparse matrix
+    
+    Returns:
+        csr_matrix: Double log TF matrix with transformation 1 + log2(1 + log2(tf))
+    """
     t = x.copy()
     t.data = 1 + np.log2(1 + np.log2(t.data))
     return t
 
 
 def tf_l(x: csr_matrix):
+    """
+    Apply logarithmic term frequency transformation.
+    
+    Args:
+        x (csr_matrix): Input sparse matrix
+    
+    Returns:
+        csr_matrix: Log TF matrix with transformation 1 + log2(tf)
+    """
     t = x.copy()
     t.data = 1 + np.log2(t.data)
     return t
@@ -25,8 +52,13 @@ def tf_l(x: csr_matrix):
 
 def tf_L(x: csr_matrix):
     """
-    This function calculates the TF-IDF score for a given matrix.
-    Takes a csr_matrix and returns a csr_matrix.
+    Apply average-based logarithmic term frequency transformation.
+    
+    Args:
+        x (csr_matrix): Input sparse matrix
+    
+    Returns:
+        csr_matrix: Normalized log TF matrix using row averages
     """
     t = x.copy()
     satir_toplamlari = np.add.reduceat(t.data, t.indptr[:-1])
@@ -47,6 +79,16 @@ def idf_t(df: np.ndarray, dokuman_sayisi: int):
     return np.log2((1 + dokuman_sayisi) / df)
 
 def idf_p(df: np.ndarray, dokuman_sayisi: int):
+    """
+    Calculate probabilistic inverse document frequency.
+    
+    Args:
+        df (np.ndarray): Document frequency array
+        dokuman_sayisi (int): Total number of documents
+    
+    Returns:
+        np.ndarray: Probabilistic IDF scores
+    """
     return np.log2((dokuman_sayisi - df + 1) / (df + 1))
 
 

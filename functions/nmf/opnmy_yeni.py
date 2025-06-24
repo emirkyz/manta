@@ -4,6 +4,7 @@ from typing import Callable, Dict, Optional, Tuple
 import numpy as np
 from scipy import sparse as sp
 from scipy.sparse import coo_matrix
+from .nmf_init import nmf_initialization_nndsvd
 
 
 def projective_nmf(X: sp.csr_matrix, r: int, options: Optional[Dict] = None, init: bool = None,
@@ -133,6 +134,23 @@ def projective_nmf(X: sp.csr_matrix, r: int, options: Optional[Dict] = None, ini
 
 def _opnmf_cpu(in_mat, w, h, konu_sayisi, start, log: bool = True, norm_thresh=0.005, zero_threshold=0.0001,
                norm_func: Callable = np.linalg.norm) -> tuple[sp.csr_matrix, sp.csc_matrix]:
+    """
+    CPU implementation of orthogonal projective NMF algorithm.
+    
+    Args:
+        in_mat: Input sparse matrix to factorize
+        w: Initial W matrix (document-topic)
+        h: Initial H matrix (topic-word) 
+        konu_sayisi (int): Number of topics/components
+        start: Start time for logging
+        log (bool): Enable progress logging
+        norm_thresh (float): Convergence threshold
+        zero_threshold (float): Threshold for zeroing small values
+        norm_func (Callable): Norm function for convergence checking
+    
+    Returns:
+        tuple[sp.csr_matrix, sp.csc_matrix]: Updated W and H matrices
+    """
     w, h = nmf_initialization_nndsvd(in_mat, konu_sayisi)
     while True:
 

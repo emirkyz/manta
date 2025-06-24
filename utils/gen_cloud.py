@@ -2,6 +2,17 @@ from wordcloud import WordCloud
 import os
 
 def generate_wordclouds(topics_data,output_dir,table_name):
+    """
+    Generate and save word cloud images for each topic.
+    
+    Args:
+        topics_data (dict): Dictionary mapping topic names to lists of words with scores
+        output_dir (str): Base output directory path
+        table_name (str): Analysis identifier for subdirectory naming
+    
+    Returns:
+        None: Saves word cloud images to disk
+    """
     wordclouds = {}
     
     # Create table-specific subdirectory under output folder

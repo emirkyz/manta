@@ -26,6 +26,22 @@ import gensim
 
 
 def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_type=None):
+    """
+    Process Turkish text data through the complete preprocessing pipeline.
+    
+    Args:
+        df (pandas.DataFrame): Input dataframe containing Turkish text
+        desired_columns (str): Column name containing text to analyze
+        tokenizer (optional): Pre-trained tokenizer object
+        tokenizer_type (str): Either "bpe" or "wordpiece"
+    
+    Returns:
+        tuple: (tdm, sozluk, sayisal_veri, tokenizer)
+            - tdm: TF-IDF document-term matrix
+            - sozluk: Vocabulary list
+            - sayisal_veri: Numerical representation of documents
+            - tokenizer: Trained tokenizer object
+    """
     metin_array = metin_temizle(df, desired_columns)
     print(f"Number of documents: {len(metin_array)}")
 
@@ -45,6 +61,20 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
 
 
 def process_english_file(df, desired_columns: str, lemmatize: bool):
+    """
+    Process English text data with lemmatization and dictionary-based approaches.
+    
+    Args:
+        df (pandas.DataFrame): Input dataframe containing English text
+        desired_columns (str): Column name containing text to analyze
+        lemmatize (bool): Whether to apply lemmatization
+    
+    Returns:
+        tuple: (tdm, sozluk, sayisal_veri)
+            - tdm: TF-IDF document-term matrix (same as sayisal_veri)
+            - sozluk: Dictionary/vocabulary of terms
+            - sayisal_veri: TF-IDF weighted document-term matrix
+    """
     sozluk, N = sozluk_yarat(df, desired_columns, lemmatize=lemmatize)
     sayisal_veri = tfidf_hesapla(N, sozluk=sozluk, data=df, alanadi=desired_columns, output_dir=None,
                                  lemmatize=lemmatize)
@@ -60,21 +90,29 @@ def process_file(
         options: dict
 ) -> dict:
     """
-    Process a file and perform topic modeling without Celery/Redis dependencies
-
+    Complete topic modeling pipeline from file input to results.
+    
     Args:
-        filepath (str): Path to the input CSV file
-        table_name (str): Name of the table to store the data
-        desired_columns (str): Column name to analyze
-        desired_topic_count (int): Number of topics to extract
-        LEMMATIZE (bool): Whether to lemmatize the text
-        N_TOPICS (int): Number of words per topic
-        tokenizer: Pre-initialized tokenizer (if None, a new one will be created)
-        LANGUAGE (str): Language of the text ("TR" or "EN")
-        tokenizer_type (str): Type of tokenizer to use for Turkish ("bpe" or "wordpiece")
-        nmf_type (str): NMF method to use ("opnmf" or "nmf")
+        filepath (str): Path to input CSV/Excel file
+        table_name (str): Unique identifier for this analysis run
+        desired_columns (str): Column name containing text data
+        options (dict): Configuration dictionary containing:
+            - LANGUAGE (str): "TR" for Turkish, "EN" for English
+            - DESIRED_TOPIC_COUNT (int): Number of topics to extract
+            - N_TOPICS (int): Number of top words per topic to display
+            - tokenizer_type (str): "bpe" or "wordpiece" for Turkish
+            - nmf_type (str): "nmf" or "opnmf" algorithm choice
+            - LEMMATIZE (bool): Enable lemmatization (mainly for English)
+            - gen_topic_distribution (bool): Generate topic distribution plots
+            - gen_cloud (bool): Generate word clouds
+            - save_excel (bool): Export results to Excel
+    
     Returns:
-        dict: Result of the process containing state, message, and topic word scores dictionary
+        dict: Results containing:
+            - state: "SUCCESS" or "FAILURE"
+            - message: Status message
+            - data_name: Analysis identifier
+            - topic_word_scores: Topic-word associations
     """
     # Get base directory and create necessary directories
     base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -267,17 +305,24 @@ def run_standalone_nmf(
         filepath, table_name, desired_columns, options
 ):
     """
-    Run the standalone NMF process with the given parameters.
-
+    Simplified entry point for NMF topic modeling.
+    
     Args:
-        filepath (str): Path to the input CSV file
-        table_name (str): Name of the table to store the data
-        desired_columns (str): Column name to analyze
-        desired_topic_count (int): Number of topics to extract
-        tokenizer_type (str): Type of tokenizer to use (wordpiece or bpe)
-        nmf_type (str): NMF method to use ("opnmf" or "nmf")
+        filepath (str): Path to input file
+        table_name (str): Analysis identifier
+        desired_columns (str): Text column name
+        options (dict): Configuration dictionary containing:
+            - LEMMATIZE (bool): Enable lemmatization
+            - N_TOPICS (int): Words per topic
+            - DESIRED_TOPIC_COUNT (int): Number of topics to extract
+            - tokenizer_type (str): "bpe" or "wordpiece" for Turkish
+            - nmf_type (str): "nmf" or "opnmf" algorithm choice
+            - LANGUAGE (str): "TR" for Turkish, "EN" for English
+            - separator (str): CSV separator character
+            - gen_topic_distribution (bool): Generate distribution plots
+    
     Returns:
-        dict: Result of the process containing state, message, and topic word scores dictionary
+        dict: Process results with timing information
     """
     start_time = time.time()
     print("Starting standalone NMF process...")

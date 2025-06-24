@@ -11,11 +11,23 @@ class TurkishStr(str):
 
     # here we override the lower() and upper() methods
     def lower(self):
+        """
+        Convert Turkish string to lowercase with proper Turkish character handling.
+        
+        Returns:
+            TurkishStr: Lowercase version of the string with Turkish-specific conversions
+        """
         chars = [self._case_lookup_upper.get(c, c) for c in self]
         result = ''.join(chars).lower()
         return TurkishStr(result)
 
     def upper(self):
+        """
+        Convert Turkish string to uppercase with proper Turkish character handling.
+        
+        Returns:
+            TurkishStr: Uppercase version of the string with Turkish-specific conversions
+        """
         chars = [self._case_lookup_lower.get(c, c) for c in self]
         result = ''.join(chars).upper()
         return TurkishStr(result)
