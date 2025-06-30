@@ -2,6 +2,7 @@ import unicodedata
 import nltk
 import re
 import pandas as pd
+import emoji
 
 class TurkishStr(str):
     lang = 'tr'
@@ -11,29 +12,17 @@ class TurkishStr(str):
 
     # here we override the lower() and upper() methods
     def lower(self):
-        """
-        Convert Turkish string to lowercase with proper Turkish character handling.
-        
-        Returns:
-            TurkishStr: Lowercase version of the string with Turkish-specific conversions
-        """
         chars = [self._case_lookup_upper.get(c, c) for c in self]
         result = ''.join(chars).lower()
         return TurkishStr(result)
 
     def upper(self):
-        """
-        Convert Turkish string to uppercase with proper Turkish character handling.
-        
-        Returns:
-            TurkishStr: Uppercase version of the string with Turkish-specific conversions
-        """
         chars = [self._case_lookup_lower.get(c, c) for c in self]
         result = ''.join(chars).upper()
         return TurkishStr(result)
 
 
-def process_text(text: str) -> str:
+def process_text(text: str, emoji_map=None) -> str:
     """
     Temizleme işlemi, metindeki özel karakterleri ve sayıları kaldırmayı içerir.
     Also removes stopwords.
@@ -50,8 +39,15 @@ def process_text(text: str) -> str:
     ## TODO: Emojileri kaldırmadan veri setine dahil edebiliriz.
 
 
+    if emoji.emoji_count(text) > 0:
+        if emoji_map is not None:
+            text = emoji_map.process_text(text)
+        else:
+            text = emoji.replace_emoji(text, replace='emoji')
+        
+
     metin = str(text)  # Metni string'e çevir
-    secilen_kategoriler = ['Ll']
+    secilen_kategoriler = ['Ll',"Nd"]
     metin = TurkishStr(metin).lower()
     zamirler = nltk.corpus.stopwords.words('turkish')
     kategoriler = [unicodedata.category(karakter) for karakter in metin]
@@ -59,12 +55,14 @@ def process_text(text: str) -> str:
                           else ' ' for j in range(len(metin))])
     metin = re.sub(' +', ' ', yeni_metin)
     metin = re.sub(r'\b[xX]{2,}\b', '', metin)
+    # remove repeated letters (only if 3 or more repetitions)
+    metin = re.sub(r'(.)\1{2,}', r'\1', metin)
     metin = [i for i in metin.split() if i not in zamirler]
     metin = ' '.join(metin)
     return metin
 
 
-def metin_temizle(df: pd.DataFrame, desired_column: str) -> list:
+def metin_temizle(df: pd.DataFrame, desired_column: str, emoji_map=None) -> list:
     """
     Bu fonksiyon, verilen DataFrame'deki belirtilen sütundaki metinleri temizler.
     Temizleme işlemi, metindeki özel karakterleri ve sayıları kaldırmayı içerir.
@@ -77,6 +75,6 @@ def metin_temizle(df: pd.DataFrame, desired_column: str) -> list:
         pd.DataFrame: Temizlenmiş metinleri içeren DataFrame.
     """
 
-    metin = [process_text(i) for i in df[desired_column].values]
+    metin = [process_text(i, emoji_map) for i in df[desired_column].values]
 
     return metin
