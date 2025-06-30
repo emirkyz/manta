@@ -1,7 +1,16 @@
 from sqlalchemy import create_engine, MetaData, Table, Column, String, insert, text
 
 def save_topics_to_db(topics_data, data_frame_name, topics_db_eng):
-    """Helper function to save topics directly to database using SQLAlchemy"""
+    """Save topics to database using SQLAlchemy engine.
+
+    Args:
+        topics_data (dict): A dictionary containing topic names as keys and lists of words as values.
+        data_frame_name (str): The name of the data frame.
+        topics_db_eng (sqlalchemy.engine.Engine): The SQLAlchemy engine to use for the database.
+
+    Raises:
+        ex: Exception
+    """
     if not topics_db_eng:
         print("Warning: No database engine provided, skipping database save")
         return

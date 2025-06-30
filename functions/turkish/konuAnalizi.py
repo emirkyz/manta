@@ -7,7 +7,7 @@ from functions.english.topics import save_topics_to_db
 from utils.distance_two_words import calc_levenstein_distance, calc_cosine_distance
 
 
-def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None, topics_db_eng=None, data_frame_name=None, word_per_topic=20, include_documents=True):
+def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None, topics_db_eng=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, output_dir=None):
     """
     Performs topic analysis using Non-negative Matrix Factorization (NMF) results for both Turkish and English texts.
     
@@ -32,7 +32,8 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
         word_per_topic (int, optional): Maximum number of top words to extract per topic. Default is 20.
         include_documents (bool, optional): Whether to perform document analysis and save document scores.
                                           Default is True.
-    
+        emoji_map (EmojiMap, optional): Emoji map for decoding emoji tokens back to emojis. Required for Turkish text processing.
+        output_dir (str, optional): Output directory for saving document analysis results.
     Returns:
         dict: Dictionary where keys are topic names in format "Konu XX" and values are lists of 
               word-score strings in format "word:score". Scores are formatted to 8 decimal places.
@@ -94,10 +95,10 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
         konu_dokuman_vektoru = W[:, i]
 
         sirali_kelimeler = np.flip(np.argsort(konu_kelime_vektoru))
-        sirali_haberler = np.flip(np.argsort(konu_dokuman_vektoru))
+        sirali_dokumanlar = np.flip(np.argsort(konu_dokuman_vektoru))
 
         ilk_kelimeler = sirali_kelimeler
-        ilk_10_dokuman = sirali_haberler[:20]
+        ilk_10_dokuman = sirali_dokumanlar[:10] # TODO: will be changed to make analysis better
 
         # Get the words and their corresponding scores in "word:score" format
         kelime_skor_listesi = []
@@ -105,6 +106,9 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
             # Get word based on whether we're using tokenizer (Turkish) or sozluk (English)
             if tokenizer is not None:
                 kelime = tokenizer.id_to_token(id)
+                if emoji_map is not None:
+                    if emoji_map.check_if_text_contains_tokenized_emoji(kelime):
+                        kelime = emoji_map.decode_text(kelime)
             else:  # Using sozluk for English
                 if id < len(sozluk):
                     kelime = sozluk[id]
@@ -152,17 +156,26 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
             for id in ilk_10_dokuman:
                 if id < len(documents):
                     skor = konu_dokuman_vektoru[id]
-                    document_skor_listesi[f"{id}"] = f"{documents.iloc[id] if hasattr(documents, 'iloc') else documents[id]}:{skor:.4f}"
+                    document_text = documents.iloc[id] if hasattr(documents, 'iloc') else documents[id]
+                    if emoji_map is not None:
+                        if emoji_map.check_if_text_contains_tokenized_emoji_doc(document_text):
+                            document_text = emoji_map.decode_text_doc(document_text)
+                    document_skor_listesi[f"{id}"] = f"{document_text}:{skor:.4f}"
             dokuman_result[f"Konu {i}"] = document_skor_listesi
 
     # Save document analysis if it was generated
     if include_documents and documents is not None and data_frame_name:
-        # Create table-specific subdirectory under Output folder  
-        base_dir = os.path.abspath(os.path.dirname(__file__))
-        # Go up two levels to get to the project root, then into Output
-        output_dir = os.path.join(base_dir, "..", "..", "Output")
-        table_output_dir = os.path.join(output_dir, data_frame_name)
-        os.makedirs(table_output_dir, exist_ok=True)
+        if output_dir:
+            # Use the provided output_dir directly
+            table_output_dir = output_dir
+            os.makedirs(table_output_dir, exist_ok=True)
+        else:
+            # Fall back to original behavior when output_dir is not provided
+            base_dir = os.path.abspath(os.path.dirname(__file__))
+            # Go up two levels to get to the project root, then into Output
+            fallback_output_dir = os.path.join(base_dir, "..", "..", "Output")
+            table_output_dir = os.path.join(fallback_output_dir, data_frame_name)
+            os.makedirs(table_output_dir, exist_ok=True)
         
         # Save document scores to table-specific subdirectory
         document_file_path = os.path.join(table_output_dir, f"top_docs_{data_frame_name}.json")

@@ -3,16 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def gen_topic_dist(W,output_dir,table_name):
-    """
-    Generate and save a bar plot showing document distribution across topics.
-    
+    """Generate a bar plot of the document distribution across topics.
+    From the W matrix, first we get biggest value per row. This is the topic that the document is most associated with.
+    Then we count the number of documents for each topic.
+    Bar plot values should sum up to the number of documents.
     Args:
-        W (numpy.ndarray): Document-topic matrix from NMF decomposition
-        output_dir (str): Base output directory path
-        table_name (str): Analysis identifier for file naming
-    
-    Returns:
-        None: Saves distribution plot to disk
+        W (numpy.ndarray): The matrix of topic distributions.
+        output_dir (str): The directory to save the plot.
+        table_name (str): The name of the table.
     """
     print("Calculating document distribution across topics...")
     dominant_topics = np.argmax(W, axis=1)

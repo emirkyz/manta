@@ -59,13 +59,19 @@ def save_doc_score_pair(base_dir, output_dir, table_name, topics_data, result):
         topic_word_scores[topic_name] = topic_dict
 
     # Save the topic word scores to a JSON file
-    base_dir = os.path.abspath(base_dir)
-    output_dir = os.path.join(base_dir, "Output")
-    os.makedirs(output_dir, exist_ok=True)
+    if output_dir:
+        # Use the provided output_dir
+        table_output_dir = output_dir
+        os.makedirs(table_output_dir, exist_ok=True)
+    else:
+        # Fall back to original behavior when output_dir is not provided
+        base_dir = os.path.abspath(base_dir)
+        output_dir_fallback = os.path.join(base_dir, "Output")
+        os.makedirs(output_dir_fallback, exist_ok=True)
 
-    # Create table-specific subdirectory under output folder
-    table_output_dir = os.path.join(output_dir, table_name)
-    os.makedirs(table_output_dir, exist_ok=True)
+        # Create table-specific subdirectory under output folder
+        table_output_dir = os.path.join(output_dir_fallback, table_name)
+        os.makedirs(table_output_dir, exist_ok=True)
 
     # Save to table-specific subdirectory
     wordcloud_file = os.path.join(table_output_dir, f"{table_name}_wordcloud_scores.json")
