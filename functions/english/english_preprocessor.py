@@ -6,6 +6,15 @@ import emoji
 import nltk
 import functools
 
+# Module-level initialization for better performance
+STOPWORDS = set(nltk.corpus.stopwords.words('english'))
+LEMMATIZER = nltk.stem.WordNetLemmatizer()
+STEMMER = nltk.stem.SnowballStemmer('english')
+
+# Precompiled regex patterns
+WHITESPACE_PATTERN = re.compile(r' +')
+XXX_PATTERN = re.compile(r'\b[xX]{2,}\b')
+
 
 @functools.cache
 def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=None) -> List[str]:
@@ -27,35 +36,39 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=No
     Raises:
         ValueError: If the input text is None.
     """
-    # we can use lemmetizer as well
+    # Use module-level stemmer/lemmatizer
+
+    if "1. Very small left apical pneumothorax. 2. Atelectasis at the base of the left lung. _ " in metin:
+        pass
     if lemmatize:
-        budayici = nltk.stem.WordNetLemmatizer()
+        budayici = LEMMATIZER
     else:
-        budayici = nltk.stem.SnowballStemmer('english')
+        budayici = STEMMER
 
     if emoji.emoji_count(metin) > 0:
         if emoji_map is not None:
-            text = emoji_map.process_text(text)
+            metin = emoji_map.process_text(metin)
         else:
-            text = emoji.replace_emoji(text, replace='emoji')
+            metin = emoji.replace_emoji(metin, replace='emoji')
 
-    zamirler = nltk.corpus.stopwords.words('english')
-
-    # print(self.metin)
     if metin is None:
         return []
+    
     metin = metin.lower()
     metin = unicodedata.normalize('NFKD', metin)
-    secilen_kategoriler = ['Ll', "Nd"]
-    kategoriler = [unicodedata.category(karakter) for karakter in metin]
-    yeni_metin = "".join([metin[j] if kategoriler[j] in secilen_kategoriler and kategoriler[j] != 'Zs'
-                          else ' ' for j in range(len(metin))])
-    metin = re.sub(' +', ' ', yeni_metin)
-    metin = re.sub(r'\b[xX]{2,}\b', '', metin)
+    
+    # Optimize Unicode character filtering
+    secilen_kategoriler = {'Ll', 'Nd'}
+    yeni_metin = ''.join(char if unicodedata.category(char) in secilen_kategoriler else ' ' 
+                        for char in metin)
+    
+    # Use precompiled patterns
+    metin = WHITESPACE_PATTERN.sub(' ', yeni_metin)
+    metin = XXX_PATTERN.sub('', metin)
     metin = metin.strip()
 
     metin = metin.split()
-    metin = [karakter for karakter in metin if karakter not in zamirler]
+    metin = [karakter for karakter in metin if karakter not in STOPWORDS]
 
     if lemmatize:
         metin = [budayici.lemmatize(parca) for parca in metin]
@@ -63,4 +76,17 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=No
         metin = [budayici.stem(parca) for parca in metin]
 
 
+    return metin
+
+
+def metin_temizle_english(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=None) -> List[str]:
+    """
+    Preprocesses text data by applying lemmatization (if enabled) and removing stopwords.
+
+    This function performs text normalization, including lowercasing, Unicode normalization,
+    and removing specific character categories. It also removes common English stopwords
+    and applies lemmatization (if enabled).
+    """
+    
+    metin = [preprocess(metin=i, lemmatize=lemmatize, kategoriler=kategoriler, emoji_map=emoji_map) for i in metin]
     return metin

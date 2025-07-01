@@ -1,13 +1,7 @@
 import pandas as pd
 
-from .english_preprocessor import preprocess
-from tokenizers import Tokenizer, normalizers
-from tokenizers.pre_tokenizers import Whitespace
-from tokenizers.trainers import WordPieceTrainer
-from tokenizers.models import WordPiece
-from tokenizers.normalizers import NFKC, StripAccents
 
-def sozluk_yarat(veri: pd.DataFrame, alanadi: str,lemmatize=False,emoji_map=None) -> tuple:
+def sozluk_yarat(cleaned_data: pd.DataFrame, alanadi: str,lemmatize=False,emoji_map=None) -> tuple:
     """
     Creates a vocabulary list from a DataFrame column of text data.
 
@@ -29,17 +23,11 @@ def sozluk_yarat(veri: pd.DataFrame, alanadi: str,lemmatize=False,emoji_map=None
     else:
         print("Lemmatization is disabled")
     sozluk = set()
-    N = 0
-    data = veri
-    for i in range(len(data)):
-        dokuman = data[alanadi][i]
-        metin_parcalari = preprocess(dokuman, lemmatize=lemmatize, kategoriler=frozenset(['Ll', 'Zs']),emoji_map=emoji_map)
-        sozluk.update(metin_parcalari)
-        N += 1
-        # print(f"{N}. doküman tamamlandı...")
-    sozluk = list(sozluk)
-    sozluk.sort()
-    return sozluk, N
+    data = cleaned_data
+    for dokuman in data:
+        sozluk.update(dokuman)
+    
+    return sorted(sozluk), len(data)
 
     # def sozluk_goster(self):
     #     return self.sozluk

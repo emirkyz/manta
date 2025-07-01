@@ -5,6 +5,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 from functions.english.english_vocabulary import sozluk_yarat
+from functions.english.english_preprocessor import metin_temizle_english
 from functions.nmf import run_nmf
 from functions.tfidf import tf_idf_generator, tfidf_hesapla
 from functions.common_language.emoji_processor import EmojiMap
@@ -95,12 +96,13 @@ def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=Non
         KeyError: If desired_columns is not found in the DataFrame
         ValueError: If the DataFrame is empty or contains no valid text data
     """
-    sozluk, N = sozluk_yarat(df, desired_columns, lemmatize=lemmatize,emoji_map=emoji_map)
+    metin_array = metin_temizle_english(metin=df[desired_columns], lemmatize=lemmatize, emoji_map=emoji_map)
+    sozluk, N = sozluk_yarat(metin_array, desired_columns, lemmatize=lemmatize)
     sayisal_veri = tfidf_hesapla(N, sozluk=sozluk, data=df, alanadi=desired_columns, output_dir=None,
                                  lemmatize=lemmatize)
     tdm = sayisal_veri
 
-    return tdm, sozluk, sayisal_veri
+    return tdm, sozluk, sayisal_veri, metin_array
 
 
 def process_file(
@@ -203,7 +205,8 @@ def process_file(
 
             df = pd.read_csv(filepath, encoding="utf-8", sep=None, engine="python", on_bad_lines="skip")
             # get rows where it is country is TR
-            df = df[df['COUNTRY'] == 'TR']
+            if 'COUNTRY' in df.columns:
+                df = df[df['COUNTRY'] == 'TR']
             if options["filter_app"]:
                 df = df[df['APP_NAME_ABBR'] == options["filter_app_name"]]
 
@@ -255,14 +258,17 @@ def process_file(
 
         if options["LANGUAGE"] == "TR":
             # temizle
-            tdm, sozluk, sayisal_veri, tokenizer, metin_array, emoji_map = process_turkish_file(df,
+            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, emoji_map = process_turkish_file(df,
                                                                                                 desired_columns,
                                                                                                 options["tokenizer"],
                                                                                                 tokenizer_type=options["tokenizer_type"],
                                                                                                 emoji_map=options["emoji_map"])
 
         elif options["LANGUAGE"] == "EN":
-            tdm, sozluk, sayisal_veri = process_english_file(df, desired_columns, options["LEMMATIZE"],emoji_map=options["emoji_map"])
+            tdm, sozluk, sayisal_veri, metin_array = process_english_file(df,
+                                                             desired_columns,
+                                                             options["LEMMATIZE"],
+                                                             emoji_map=options["emoji_map"])
 
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
@@ -279,11 +285,6 @@ def process_file(
             nmf_method=options["nmf_type"]
         )
 
-        word_pairs_out = False
-        if word_pairs_out:
-            # Calculate word co-occurrence matrix and save to output dir
-            top_pairs = calc_word_cooccurrence(H, sozluk, output_dir, table_name, top_n=100, min_score=1,
-                                               language=options["LANGUAGE"], tokenizer=tokenizer)
 
         # Find dominant words for each topic and dominant documents for each topic
         print("Generating topic groups...")
@@ -293,7 +294,7 @@ def process_file(
                 W=W,
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
                 sozluk=sozluk,
-                tokenizer=tokenizer,
+                tokenizer=options["tokenizer"],
                 documents=metin_array,
                 topics_db_eng=topics_db_eng,
                 data_frame_name=table_name,
@@ -307,7 +308,7 @@ def process_file(
                 W=W,
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
                 sozluk=sozluk,
-                documents=df[desired_columns],
+                documents=metin_array,
                 topics_db_eng=topics_db_eng,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
@@ -340,6 +341,12 @@ def process_file(
 
         if options["save_excel"]:
             export_topics_to_excel(topic_word_scores, table_output_dir, table_name)
+
+        word_pairs_out = True
+        if word_pairs_out:
+            # Calculate word co-occurrence matrix and save to output dir
+            top_pairs = calc_word_cooccurrence(H, sozluk, table_output_dir, table_name, top_n=100, min_score=1,
+                                               language=options["LANGUAGE"], tokenizer=options["tokenizer"],create_heatmap=True)
 
         '''new_hierarchy = hierarchy_nmf(W, tdm, selected_topic=1, desired_topic_count=options["DESIRED_TOPIC_COUNT"],
                                       nmf_method=options["nmf_type"], sozluk=sozluk, tokenizer=tokenizer,
@@ -394,15 +401,6 @@ def run_standalone_nmf(
         - Initializes tokenizer and adds it to the options dictionary
         - Creates output directories and database files as needed
 
-    Example:
-        >>> options = {
-        ...     "LANGUAGE": "TR",
-        ...     "DESIRED_TOPIC_COUNT": 5,
-        ...     "tokenizer_type": "bpe",
-        ...     "gen_cloud": True
-        ... }
-        >>> result = run_standalone_nmf("data.csv", "analysis", "text_column", options)
-        >>> print(f"Status: {result['state']}")
     """
     start_time = time.time()
     print("Starting standalone NMF process...")
@@ -425,12 +423,13 @@ if __name__ == "__main__":
     DESIRED_TOPIC_COUNT = 5
     tokenizer_type = "bpe"  # "wordpiece" or "bpe"
     nmf_type = "nmf"
-    LANGUAGE = "TR"
-    separator = ";"
-    filepath = "veri_setleri/APPSTORE_APP_REVIEWSyeni_yeni.csv"
+    filepath = "veri_setleri/mimic_train_impressions.csv"
+    data_name = filepath.split("/")[-1].split(".")[0]
+    LANGUAGE = "EN"
+    separator = ","
     filter_app_name = ""
-    table_name = "APPSTORE" + f"_{nmf_type}_" + tokenizer_type + "_" + str(DESIRED_TOPIC_COUNT)
-    desired_columns = "REVIEW"
+    table_name = data_name + f"_{nmf_type}_" + tokenizer_type + "_" + str(DESIRED_TOPIC_COUNT)
+    desired_columns = "report"
 
     emj_map = EmojiMap()
     options = {
