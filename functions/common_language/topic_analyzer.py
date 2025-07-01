@@ -159,7 +159,12 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
             for id in ilk_10_dokuman:
                 if id < len(documents):
                     skor = konu_dokuman_vektoru[id]
-                    document_text = documents.iloc[id] if hasattr(documents, 'iloc') else " ".join(documents[id])
+                    if hasattr(documents, 'iloc'):
+                        # If documents is a DataFrame, use iloc to get the document text
+                        document_text = documents.iloc[id]
+                    else:
+                        # If documents is a list, directly access the index
+                        document_text = documents[id]
                     if emoji_map is not None:
                         if emoji_map.check_if_text_contains_tokenized_emoji_doc(document_text):
                             document_text = emoji_map.decode_text_doc(document_text)

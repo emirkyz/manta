@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from typing import List
+from typing import List, Any
 
 import emoji
 import nltk
@@ -17,7 +17,7 @@ XXX_PATTERN = re.compile(r'\b[xX]{2,}\b')
 
 
 @functools.cache
-def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=None) -> List[str]:
+def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=None) -> str:
     """
     Preprocesses text data by applying lemmatization (if enabled) and removing stopwords.
 
@@ -75,7 +75,7 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=No
     else:
         metin = [budayici.stem(parca) for parca in metin]
 
-
+    metin = ' '.join(metin)
     return metin
 
 

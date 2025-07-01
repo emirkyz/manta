@@ -164,12 +164,10 @@ def process_file(
     base_dir = os.path.abspath(os.path.dirname(__file__))
     instance_path = os.path.join(base_dir, "instance")
     output_dir = os.path.join(base_dir, "Output")
-    tfidf_dir = os.path.join(output_dir, "tfidf")
 
     # Create necessary directories first
     os.makedirs(instance_path, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(tfidf_dir, exist_ok=True)
 
     # Database configurations using standard SQLAlchemy
     topics_db_eng = create_engine(
@@ -189,21 +187,23 @@ def process_file(
         print("Reading input file...")
         # if file is csv, read it with read_csv
         if filepath.endswith(".csv"):
-            with open(filepath, 'r', encoding='utf-8') as f:
-                data = f.read()
-                # replace "|" with ";"
-                data = data.replace("|", ";")
-                # remove tab and null characters
-                data = data.replace("\t", "")
-                data = data.replace("\x00", "")
-                # save the modified data back to the new file
-            new_filepath = filepath.replace(".csv", "_new.csv")
-            with open(new_filepath, 'w', encoding='utf-8') as f_out:
-                f_out.write(data)
-            filepath = new_filepath
+            preprocess_csv = False
+            if preprocess_csv:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    data = f.read()
+                    # replace "|" with ";"
+                    data = data.replace("|", ";")
+                    # remove tab and null characters
+                    data = data.replace("\t", "")
+                    data = data.replace("\x00", "")
+                    # save the modified data back to the new file
+                new_filepath = filepath.replace(".csv", "_new.csv")
+                with open(new_filepath, 'w', encoding='utf-8') as f_out:
+                    f_out.write(data)
+                filepath = new_filepath
             # Read the CSV file with the specified separator
 
-            df = pd.read_csv(filepath, encoding="utf-8", sep=None, engine="python", on_bad_lines="skip")
+            df = pd.read_csv(filepath, encoding="utf-8", sep=options["separator"], engine="python", on_bad_lines="skip")
             # get rows where it is country is TR
             if 'COUNTRY' in df.columns:
                 df = df[df['COUNTRY'] == 'TR']
@@ -423,13 +423,13 @@ if __name__ == "__main__":
     DESIRED_TOPIC_COUNT = 5
     tokenizer_type = "bpe"  # "wordpiece" or "bpe"
     nmf_type = "nmf"
-    filepath = "veri_setleri/mimic_train_impressions.csv"
+    filepath = "veri_setleri/findings.csv"
     data_name = filepath.split("/")[-1].split(".")[0]
     LANGUAGE = "EN"
     separator = ","
     filter_app_name = ""
     table_name = data_name + f"_{nmf_type}_" + tokenizer_type + "_" + str(DESIRED_TOPIC_COUNT)
-    desired_columns = "report"
+    desired_columns = "findings"
 
     emj_map = EmojiMap()
     options = {
