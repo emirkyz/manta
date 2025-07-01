@@ -4,27 +4,23 @@ import time
 import pandas as pd
 from sqlalchemy import create_engine
 
+from functions.english.sozluk import sozluk_yarat
 from functions.nmf import run_nmf
+from functions.tfidf import tf_idf_generator, tfidf_hesapla
+from functions.turkish.emoji_map import EmojiMap
 from functions.turkish.konuAnalizi import konu_analizi
 from functions.turkish.sayisallastir import veri_sayisallastir
 from functions.turkish.temizle import metin_temizle
-from functions.tfidf import tf_idf_generator, tfidf_hesapla
 from functions.turkish.token_yarat import init_tokenizer, train_tokenizer
-from functions.turkish.emoji_map import EmojiMap
-
-from functions.english.sozluk import sozluk_yarat
-from functions.english.process import preprocess
-
+from utils.coherence_score import calculate_coherence_scores
+from utils.export_excel import export_topics_to_excel
 from utils.gen_cloud import generate_wordclouds
 from utils.save_doc_score_pair import save_doc_score_pair
 from utils.topic_dist import gen_topic_dist
 from utils.word_cooccurrence import calc_word_cooccurrence
-from utils.coherence_score import calculate_coherence_scores
-from utils.export_excel import export_topics_to_excel
-#rom utils.hierarchy_nmf import hierarchy_nmf
 
-import numpy as np
-import gensim
+
+# rom utils.hierarchy_nmf import hierarchy_nmf
 
 
 def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_type=None, emoji_map=None):
@@ -259,12 +255,11 @@ def process_file(
 
         if options["LANGUAGE"] == "TR":
             # temizle
-            tdm, sozluk, sayisal_veri, tokenizer, metin_array, emoji_map = process_turkish_file(df, desired_columns,
+            tdm, sozluk, sayisal_veri, tokenizer, metin_array, emoji_map = process_turkish_file(df,
+                                                                                                desired_columns,
                                                                                                 options["tokenizer"],
-                                                                                                tokenizer_type=options[
-                                                                                                    "tokenizer_type"],
-                                                                                                emoji_map=options[
-                                                                                                    "emoji_map"])
+                                                                                                tokenizer_type=options["tokenizer_type"],
+                                                                                                emoji_map=options["emoji_map"])
 
         elif options["LANGUAGE"] == "EN":
             tdm, sozluk, sayisal_veri = process_english_file(df, desired_columns, options["LEMMATIZE"])
@@ -330,20 +325,20 @@ def process_file(
 
         # Calculate and save coherence scores
         coherence_scores = calculate_coherence_scores(topic_word_scores,
-                                                    output_dir=table_output_dir,
-                                                    column_name=desired_columns,
-                                                    cleaned_data=metin_array,
-                                                    table_name=table_name)
+                                                      output_dir=table_output_dir,
+                                                      column_name=desired_columns,
+                                                      cleaned_data=metin_array,
+                                                      table_name=table_name)
 
         # generate topic distribution plot
         if options["gen_topic_distribution"]:
-            gen_topic_dist(W, output_dir, table_name)
+            gen_topic_dist(W, table_output_dir, table_name)
 
         if options["gen_cloud"]:
-            generate_wordclouds(result, output_dir, table_name)
+            generate_wordclouds(result, table_output_dir, table_name)
 
         if options["save_excel"]:
-            export_topics_to_excel(topic_word_scores, output_dir, table_name)
+            export_topics_to_excel(topic_word_scores, table_output_dir, table_name)
 
         '''new_hierarchy = hierarchy_nmf(W, tdm, selected_topic=1, desired_topic_count=options["DESIRED_TOPIC_COUNT"],
                                       nmf_method=options["nmf_type"], sozluk=sozluk, tokenizer=tokenizer,
@@ -454,6 +449,5 @@ if __name__ == "__main__":
         "filter_app_name": filter_app_name,
         "emoji_map": emj_map
     }
-
 
     run_standalone_nmf(filepath, table_name, desired_columns, options)

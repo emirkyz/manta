@@ -59,32 +59,57 @@ The `run_standalone_nmf` function in the script is what you need to configure an
 Here's an example of how you might call this function within the script:
 
 ```python
+from functions.turkish.emoji_map import EmojiMap
+
 if __name__ == "__main__":
     # Example for a Turkish dataset
+    turkish_options = {
+        "LEMMATIZE": False,
+        "N_TOPICS": 15,
+        "DESIRED_TOPIC_COUNT": 10,
+        "tokenizer_type": "bpe",
+        "tokenizer": None,
+        "nmf_type": "nmf",
+        "LANGUAGE": "TR",
+        "separator": ",",
+        "gen_cloud": True,
+        "save_excel": True,
+        "gen_topic_distribution": True,
+        "filter_app": False,
+        "filter_app_name": "",
+        "emoji_map": EmojiMap()
+    }
+    
     run_standalone_nmf(
         filepath="veri_setleri/your_turkish_data.csv",
         table_name="my_turkish_analysis",
         desired_columns="text_column",
-        desired_topic_count=10,
-        LEMMATIZE=False,
-        N_TOPICS=15,
-        tokenizer_type="bpe",
-        LANGUAGE="TR",
-        nmf_type="nmf",
-        separator=","
+        options=turkish_options
     )
 
     # Example for an English dataset
+    english_options = {
+        "LEMMATIZE": True,
+        "N_TOPICS": 20,
+        "DESIRED_TOPIC_COUNT": 8,
+        "tokenizer_type": None,
+        "tokenizer": None,
+        "nmf_type": "opnmf",
+        "LANGUAGE": "EN",
+        "separator": ",",
+        "gen_cloud": True,
+        "save_excel": True,
+        "gen_topic_distribution": True,
+        "filter_app": False,
+        "filter_app_name": "",
+        "emoji_map": None
+    }
+    
     run_standalone_nmf(
         filepath="veri_setleri/your_english_data.csv",
         table_name="my_english_analysis",
         desired_columns="text_column",
-        desired_topic_count=8,
-        LEMMATIZE=True,
-        N_TOPICS=20,
-        tokenizer_type=None,
-        LANGUAGE="EN",
-        nmf_type="opnmf"
+        options=english_options
     )
 
 ```
@@ -97,16 +122,36 @@ python standalone_nmf.py
 
 ### Parameters
 
+The `run_standalone_nmf` function takes the following parameters:
+
 -   `filepath`: Path to your input `.csv` or `.xlsx` file.
 -   `table_name`: A unique name for your analysis run. This is used for naming output files and database tables.
 -   `desired_columns`: The name of the column in your data file that contains the text to be analyzed.
--   `desired_topic_count`: The number of topics to extract.
--   `LEMMATIZE`: Set to `True` for English text to enable lemmatization.
--   `N_TOPICS`: The number of top words to display for each topic.
--   `tokenizer_type`: For Turkish, you can choose between `"bpe"` (Byte-Pair Encoding) or `"wordpiece"`.
+-   `options`: A dictionary containing all configuration options:
+
+#### Options Dictionary Structure
+
+**Core Parameters:**
 -   `LANGUAGE`: `"TR"` for Turkish or `"EN"` for English.
+-   `DESIRED_TOPIC_COUNT`: The number of topics to extract.
+-   `N_TOPICS`: The number of top words to display for each topic.
 -   `nmf_type`: The NMF algorithm to use (`"nmf"` or `"opnmf"`).
+
+**Language-Specific Parameters:**
+-   `LEMMATIZE`: Set to `True` for English text to enable lemmatization (ignored for Turkish).
+-   `tokenizer_type`: For Turkish, choose between `"bpe"` (Byte-Pair Encoding) or `"wordpiece"`.
+-   `tokenizer`: Pre-initialized tokenizer instance (optional, set to `None` for auto-initialization).
+-   `emoji_map`: EmojiMap instance for Turkish emoji processing (use `EmojiMap()` for Turkish, `None` for English).
+
+**File Processing Parameters:**
 -   `separator`: The separator used in your `.csv` file (e.g., `,`, `;`).
+-   `filter_app`: Set to `True` to filter data by application name.
+-   `filter_app_name`: Application name to filter by (when `filter_app` is `True`).
+
+**Output Generation Parameters:**
+-   `gen_cloud`: Set to `True` to generate word cloud images for each topic.
+-   `save_excel`: Set to `True` to export results to Excel format.
+-   `gen_topic_distribution`: Set to `True` to generate topic distribution plots.
 
 ## Outputs
 
