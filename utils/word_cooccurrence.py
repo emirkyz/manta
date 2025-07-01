@@ -61,8 +61,12 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
     top_pairs = sorted(top_pairs, key=lambda x: x[2], reverse=True)[:top_n]
 
     # Prepare output directory
-    output_dir = os.path.join(base_dir, "Output")
-    table_output_dir = os.path.join(output_dir, table_name)
+    # Check if base_dir already includes the table_name to avoid double nesting
+    if base_dir.endswith(table_name):
+        table_output_dir = base_dir
+    else:
+        output_dir = os.path.join(base_dir, "Output")
+        table_output_dir = os.path.join(output_dir, table_name)
     os.makedirs(table_output_dir, exist_ok=True)
 
     # Create heatmap if requested

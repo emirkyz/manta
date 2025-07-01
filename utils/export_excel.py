@@ -32,7 +32,12 @@ def export_topics_to_excel(topics_data, output_dir, table_name):
     
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
-    table_output_dir = os.path.join(output_dir, table_name)
+    
+    # Check if output_dir already includes the table_name to avoid double nesting
+    if output_dir.endswith(table_name):
+        table_output_dir = output_dir
+    else:
+        table_output_dir = os.path.join(output_dir, table_name)
     os.makedirs(table_output_dir, exist_ok=True)
     
     # Save to Excel

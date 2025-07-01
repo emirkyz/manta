@@ -11,8 +11,12 @@ def generate_wordclouds(topics_data,output_dir,table_name):
     """
     wordclouds = {}
     
-    # Create table-specific subdirectory under output folder
-    table_output_dir = os.path.join(output_dir, table_name)
+    # Check if output_dir already includes the table_name to avoid double nesting
+    if output_dir.endswith(table_name):
+        table_output_dir = output_dir
+    else:
+        # Create table-specific subdirectory under output folder
+        table_output_dir = os.path.join(output_dir, table_name)
     os.makedirs(table_output_dir+"/wordclouds", exist_ok=True)
     for topic_name, words in topics_data.items():
         # Remove scores for wordcloud generation
