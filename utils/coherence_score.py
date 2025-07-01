@@ -271,45 +271,59 @@ def c_uci(topics_json, table_name=None, column_name=None, documents=None, epsilo
 
 def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None):
     print("Calculating coherence scores...")
-    
-    # Calculate U-Mass using the class-based implementation
-    coherence_scores = u_mass(topic_word_scores, table_name=table_name, column_name=column_name, documents=cleaned_data)
-    
-    if coherence_scores is None:
-        print("Error: Could not calculate coherence scores.")
-        return None
-    
-    print(f"U-Mass Average Coherence (Class-based): {coherence_scores['average_coherence']:.4f}")
-    for topic, score in coherence_scores['topic_coherences'].items():
-        print(f"{topic}: {score:.4f}")
 
-    results = {"class_based": coherence_scores}
-    
+    u_mass_manual = False
+    if u_mass_manual:
+        # Calculate U-Mass using the class-based implementation
+        coherence_scores = u_mass(topic_word_scores, table_name=table_name, column_name=column_name, documents=cleaned_data)
+
+        if coherence_scores is None:
+            print("Error: Could not calculate coherence scores.")
+            return None
+
+        print(f"U-Mass Average Coherence (Class-based): {coherence_scores['average_coherence']:.4f}")
+        for topic, score in coherence_scores['topic_coherences'].items():
+            print(f"{topic}: {score:.4f}")
+
+        results = {"class_based": coherence_scores}
+    else:
+        results = {}
     # Add Gensim comparison if cleaned_data is available
     gensim_cal = True
     if cleaned_data and gensim_cal:
         try:
-            # Ensure cleaned_data is list of lists
-            if isinstance(cleaned_data[0], str):
-                cleaned_data = [doc.split() for doc in cleaned_data]
-            
+            # Check if cleaned_data is already tokenized (list of lists) or needs tokenization (list of strings)
+            if cleaned_data and isinstance(cleaned_data[0], list):
+                # Already tokenized
+                cleaned_data_token = cleaned_data
+            elif cleaned_data and isinstance(cleaned_data[0], str):
+                # Need to tokenize
+                cleaned_data_token = [doc.split() for doc in cleaned_data]
+            else:
+                raise ValueError("cleaned_data must be a list of strings or a list of lists")
+                
             # Prepare the data required by Gensim
-            topics_list, dictionary, corpus = prepare_gensim_data(topic_word_scores, cleaned_data)
+            topics_list, dictionary, corpus = prepare_gensim_data(topic_word_scores, cleaned_data_token)
 
             gensim_results = CoherenceModel(
                 topics=topics_list,
-                texts=cleaned_data,  # Use the tokenized documents directly, not the corpus
+                texts=cleaned_data_token,  # Use the tokenized documents directly, not the corpus
                 dictionary=dictionary,
                 coherence='u_mass'
             )
             umass_gensim = gensim_results.get_coherence()
             umass_per_topic = gensim_results.get_coherence_per_topic()
+            # Create dictionary with topic-specific coherence scores
+            topic_coherence_dict = {}
+            for i, score in enumerate(umass_per_topic):
+                topic_coherence_dict[f"konu {i+1}"] = score.tolist() if hasattr(score, 'tolist') else score
+
             results["gensim"] = {
                 "umass_average": umass_gensim,
-                "umass_per_topic": umass_per_topic.tolist() if hasattr(umass_per_topic, 'tolist') else umass_per_topic
+                "umass_per_topic": topic_coherence_dict
             }
             print(f"Gensim U-Mass: {umass_gensim:.4f}")
-            print(f"Difference (Class - Gensim): {coherence_scores['average_coherence'] - umass_gensim:.4f}")
+            #print(f"Difference (Class - Gensim): {coherence_scores['average_coherence'] - umass_gensim:.4f}")
             
         except Exception as e:
             print(f"Warning: Could not calculate Gensim coherence: {str(e)}")
