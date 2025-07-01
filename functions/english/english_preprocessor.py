@@ -38,8 +38,7 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=No
     """
     # Use module-level stemmer/lemmatizer
 
-    if "1. Very small left apical pneumothorax. 2. Atelectasis at the base of the left lung. _ " in metin:
-        pass
+
     if lemmatize:
         budayici = LEMMATIZER
     else:
@@ -58,7 +57,7 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=No
     metin = unicodedata.normalize('NFKD', metin)
     
     # Optimize Unicode character filtering
-    secilen_kategoriler = {'Ll', 'Nd'}
+    secilen_kategoriler = {'Ll'}
     yeni_metin = ''.join(char if unicodedata.category(char) in secilen_kategoriler else ' ' 
                         for char in metin)
     
@@ -67,14 +66,16 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=No
     metin = XXX_PATTERN.sub('', metin)
     metin = metin.strip()
 
-    metin = metin.split()
-    metin = [karakter for karakter in metin if karakter not in STOPWORDS]
-
+    # Split and filter stopwords in one pass
+    metin = [word for word in metin.split() if word not in STOPWORDS]
+    
+    # Process words in bulk using map() instead of list comprehension
     if lemmatize:
-        metin = [budayici.lemmatize(parca) for parca in metin]
+        metin = list(map(budayici.lemmatize, metin))
     else:
-        metin = [budayici.stem(parca) for parca in metin]
+        metin = list(map(budayici.stem, metin))
 
+    # Join with space
     metin = ' '.join(metin)
     return metin
 

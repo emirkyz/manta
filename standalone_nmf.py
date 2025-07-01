@@ -4,10 +4,12 @@ import time
 import pandas as pd
 from sqlalchemy import create_engine
 
+from functions.english.english_text_encoder import sayisallastirma
 from functions.english.english_vocabulary import sozluk_yarat
 from functions.english.english_preprocessor import metin_temizle_english
 from functions.nmf import run_nmf
 from functions.tfidf import tf_idf_generator, tfidf_hesapla
+from functions.tfidf.tfidf_english_calculator import tfidf_hesapla
 from functions.common_language.emoji_processor import EmojiMap
 from functions.common_language.topic_analyzer import konu_analizi
 from functions.turkish.turkish_text_encoder import veri_sayisallastir
@@ -97,10 +99,12 @@ def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=Non
         ValueError: If the DataFrame is empty or contains no valid text data
     """
     metin_array = metin_temizle_english(metin=df[desired_columns], lemmatize=lemmatize, emoji_map=emoji_map)
+    print(f"Preprocess completed in {time.time() - START_TIME:.2f} seconds")
     sozluk, N = sozluk_yarat(metin_array, desired_columns, lemmatize=lemmatize)
-    sayisal_veri = tfidf_hesapla(N, sozluk=sozluk, data=df, alanadi=desired_columns, output_dir=None,
+    sayisal_veri = sayisallastirma(N, sozluk=sozluk, data=metin_array, alanadi=desired_columns, lemmatize=lemmatize)
+    # tfidf
+    tdm = tfidf_hesapla(N, sozluk=sozluk, data=sayisal_veri, alanadi=desired_columns, output_dir=None,
                                  lemmatize=lemmatize)
-    tdm = sayisal_veri
 
     return tdm, sozluk, sayisal_veri, metin_array
 
@@ -342,7 +346,7 @@ def process_file(
         if options["save_excel"]:
             export_topics_to_excel(topic_word_scores, table_output_dir, table_name)
 
-        word_pairs_out = True
+        word_pairs_out = False
         if word_pairs_out:
             # Calculate word co-occurrence matrix and save to output dir
             top_pairs = calc_word_cooccurrence(H, sozluk, table_output_dir, table_name, top_n=100, min_score=1,
@@ -418,18 +422,19 @@ def run_standalone_nmf(
 
 
 if __name__ == "__main__":
+    START_TIME = time.time()
     LEMMATIZE = True
     N_WORDS = 15
     DESIRED_TOPIC_COUNT = 5
     tokenizer_type = "bpe"  # "wordpiece" or "bpe"
     nmf_type = "nmf"
-    filepath = "veri_setleri/findings.csv"
-    data_name = filepath.split("/")[-1].split(".")[0]
-    LANGUAGE = "EN"
-    separator = ","
+    filepath = "veri_setleri/APPSTORE_APP_REVIEWSyeni_yeni.csv"
+    data_name = filepath.split("/")[-1].split(".")[0].split("_")[0]
+    LANGUAGE = "TR"
+    separator = "|"
     filter_app_name = ""
     table_name = data_name + f"_{nmf_type}_" + tokenizer_type + "_" + str(DESIRED_TOPIC_COUNT)
-    desired_columns = "findings"
+    desired_columns = "REVIEW"
 
     emj_map = EmojiMap()
     options = {

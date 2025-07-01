@@ -1,33 +1,41 @@
+from typing import List
+
 import pandas as pd
 
 
-def sozluk_yarat(cleaned_data: pd.DataFrame, alanadi: str,lemmatize=False,emoji_map=None) -> tuple:
+def sozluk_yarat(cleaned_data: List[str], alanadi: str,lemmatize=False,emoji_map=None) -> tuple:
     """
-    Creates a vocabulary list from a DataFrame column of text data.
+    Creates a vocabulary list from preprocessed text data.
 
-    This function processes text data by tokenizing it, applying lemmatization
-    (if enabled), and creating a set of unique tokens. It then converts this
-    set into a sorted list of tokens, which serves as a vocabulary for further
-    text analysis.
+    This function takes preprocessed text data and creates a vocabulary by extracting unique tokens
+    from all documents. The tokens are sorted alphabetically to create a consistent vocabulary order.
 
     Args:
-        veri (pd.DataFrame): The DataFrame containing the text data.
-        alanadi (str): The name of the column in the DataFrame that contains the text data.
-        lemmatize (bool, optional): Whether to apply lemmatization to the text data. Defaults to False.
+        cleaned_data (List[str]): List of preprocessed text documents
+        alanadi (str): Name of the field/column containing the text data (used for logging)
+        lemmatize (bool, optional): Whether lemmatization was applied during preprocessing. 
+                                  Defaults to False.
+        emoji_map (EmojiMap, optional): Emoji mapping instance used during preprocessing.
+                                      Defaults to None.
 
     Returns:
-        tuple: A tuple containing the vocabulary list and the number of documents processed.
+        tuple: A tuple containing:
+            - list: Sorted vocabulary list of unique tokens
+            - int: Number of documents processed
+
+    Note:
+        The input cleaned_data should already be preprocessed using functions like
+        metin_temizle_english() which handle tokenization, lemmatization, and other
+        text cleaning steps.
     """
     if lemmatize:
             print("Lemmatization is enabled")
     else:
         print("Lemmatization is disabled")
-    sozluk = set()
-    data = cleaned_data
-    for dokuman in data:
-        sozluk.update(dokuman)
+    # Process all documents in a single pass using set comprehension
+    sozluk = set().union(*[set(doc.split()) for doc in cleaned_data])
     
-    return sorted(sozluk), len(data)
+    return sorted(sozluk), len(cleaned_data)
 
     # def sozluk_goster(self):
     #     return self.sozluk
