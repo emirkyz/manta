@@ -4,9 +4,9 @@ from typing import Callable
 import numpy as np
 from scipy import sparse as sp
 
-from .nmf_init import nmf_initialization_random
-from .opnmf import projective_nmf
-from .nmf_init import nmf_initialization_nndsvd
+from functions.nmf.nmf_initialization import nmf_initialization_random
+from functions.nmf.nmf_projective_basic import projective_nmf
+from functions.nmf.nmf_initialization import nmf_initialization_nndsvd
 
 def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
              norm_thresh: float = 1.0, zero_threshold: float = 0.0001,

@@ -3,7 +3,7 @@ import os
 
 import numpy as np
 
-from functions.english.topics import save_topics_to_db
+from functions.english.english_topic_output import save_topics_to_db
 from utils.distance_two_words import calc_levenstein_distance, calc_cosine_distance
 
 
@@ -112,6 +112,9 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
             else:  # Using sozluk for English
                 if id < len(sozluk):
                     kelime = sozluk[id]
+                    if emoji_map is not None:
+                        if emoji_map.check_if_text_contains_tokenized_emoji(kelime):
+                            kelime = emoji_map.decode_text(kelime)
                 else:
                     continue
 

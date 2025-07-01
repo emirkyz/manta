@@ -4,14 +4,14 @@ import time
 import pandas as pd
 from sqlalchemy import create_engine
 
-from functions.english.sozluk import sozluk_yarat
+from functions.english.english_vocabulary import sozluk_yarat
 from functions.nmf import run_nmf
 from functions.tfidf import tf_idf_generator, tfidf_hesapla
-from functions.turkish.emoji_map import EmojiMap
-from functions.turkish.konuAnalizi import konu_analizi
-from functions.turkish.sayisallastir import veri_sayisallastir
-from functions.turkish.temizle import metin_temizle
-from functions.turkish.token_yarat import init_tokenizer, train_tokenizer
+from functions.common_language.emoji_processor import EmojiMap
+from functions.common_language.topic_analyzer import konu_analizi
+from functions.turkish.turkish_text_encoder import veri_sayisallastir
+from functions.turkish.turkish_preprocessor import metin_temizle
+from functions.turkish.turkish_tokenizer_factory import init_tokenizer, train_tokenizer
 from utils.coherence_score import calculate_coherence_scores
 from utils.export_excel import export_topics_to_excel
 from utils.gen_cloud import generate_wordclouds
@@ -71,7 +71,7 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
     return tdm, sozluk, sayisal_veri, tokenizer, metin_array, emoji_map
 
 
-def process_english_file(df, desired_columns: str, lemmatize: bool):
+def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=None):
     """
     Process English text data for topic modeling using NMF.
 
@@ -95,7 +95,7 @@ def process_english_file(df, desired_columns: str, lemmatize: bool):
         KeyError: If desired_columns is not found in the DataFrame
         ValueError: If the DataFrame is empty or contains no valid text data
     """
-    sozluk, N = sozluk_yarat(df, desired_columns, lemmatize=lemmatize)
+    sozluk, N = sozluk_yarat(df, desired_columns, lemmatize=lemmatize,emoji_map=emoji_map)
     sayisal_veri = tfidf_hesapla(N, sozluk=sozluk, data=df, alanadi=desired_columns, output_dir=None,
                                  lemmatize=lemmatize)
     tdm = sayisal_veri
@@ -262,7 +262,7 @@ def process_file(
                                                                                                 emoji_map=options["emoji_map"])
 
         elif options["LANGUAGE"] == "EN":
-            tdm, sozluk, sayisal_veri = process_english_file(df, desired_columns, options["LEMMATIZE"])
+            tdm, sozluk, sayisal_veri = process_english_file(df, desired_columns, options["LEMMATIZE"],emoji_map=options["emoji_map"])
 
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
@@ -311,7 +311,8 @@ def process_file(
                 topics_db_eng=topics_db_eng,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
-                include_documents=True
+                include_documents=True,
+                emoji_map=options["emoji_map"]
             )
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")

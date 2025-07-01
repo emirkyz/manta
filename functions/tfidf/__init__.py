@@ -5,10 +5,10 @@ This package provides functionality for calculating TF-IDF matrices from documen
 Supports both English and Turkish text processing with various TF-IDF weighting schemes.
 """
 
-from .tfidf_english import tfidf_hesapla
-from .tfidf_turkish import tf_idf_generator
-from .tf_funcs import tf_b, tf_d, tf_l, tf_L
-from .idf_funcs import idf_t, idf_p
+from .tfidf_english_calculator import tfidf_hesapla
+from .tfidf_turkish_calculator import tf_idf_generator
+from .tfidf_tf_functions import tf_b, tf_d, tf_l, tf_L
+from .tfidf_idf_functions import idf_t, idf_p
 
 __all__ = [
     'tfidf_hesapla',

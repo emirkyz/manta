@@ -1,4 +1,4 @@
-from functions.english.process import preprocess
+from functions.english.english_preprocessor import preprocess
 
  
 def sayisallastirma(N, sozluk, data, alanadi, lemmatize,tokenizer):

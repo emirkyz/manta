@@ -4,9 +4,9 @@ import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix
 from tokenizers import Tokenizer
 
-from .tf_funcs import *
-from .idf_funcs import *
-from .bm25_turkish import bm25_generator
+from .tfidf_tf_functions import *
+from .tfidf_idf_functions import *
+from .tfidf_bm25_turkish import bm25_generator
 
 
 def tf_idf_generator(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):

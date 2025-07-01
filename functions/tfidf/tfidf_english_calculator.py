@@ -5,10 +5,10 @@ import numpy as np
 import scipy
 from scipy.sparse import lil_matrix
 
-from functions.english.process import preprocess
+from functions.english.english_preprocessor import preprocess
 from utils.redis_bridge import update_progress_emit
-from .tf_funcs import tf_L
-from .idf_funcs import idf_t
+from .tfidf_tf_functions import tf_L
+from .tfidf_idf_functions import idf_t
 
 
 def tfidf_hesapla(N=None, sozluk=None, data=None, output_dir=None, alanadi=None, lemmatize=False) -> scipy.sparse.csr.csr_matrix:

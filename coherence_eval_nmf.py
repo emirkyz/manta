@@ -7,13 +7,13 @@ from gensim.corpora import Dictionary
 from gensim.models import CoherenceModel
 
 from functions.nmf import run_nmf
-from functions.turkish.temizle import metin_temizle
-from functions.turkish.token_yarat import init_tokenizer, train_tokenizer
-from functions.turkish.sayisallastir import veri_sayisallastir
+from functions.turkish.turkish_preprocessor import metin_temizle
+from functions.turkish.turkish_tokenizer_factory import init_tokenizer, train_tokenizer
+from functions.turkish.turkish_text_encoder import veri_sayisallastir
 from functions.tfidf import tf_idf_generator, tfidf_hesapla
 
-from functions.english.sozluk import sozluk_yarat
-from functions.english.process import preprocess
+from functions.english.english_vocabulary import sozluk_yarat
+from functions.english.english_preprocessor import preprocess
 COHERENCE_TYPE = "c_v"  # Default coherence type for Gensim CoherenceModel
 
 def process_turkish_file(df,desired_columns: str, tokenizer=None, tokenizer_type="bpe"):

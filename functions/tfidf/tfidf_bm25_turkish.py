@@ -3,7 +3,7 @@
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from .idf_funcs import idf_bm25
+from .tfidf_idf_functions import idf_bm25
 
 
 def bm25_generator(matris: csr_matrix, df: np.ndarray, dokuman_sayisi: int, k1=1.2, b=0.75):

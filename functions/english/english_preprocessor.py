@@ -2,12 +2,13 @@ import re
 import unicodedata
 from typing import List
 
+import emoji
 import nltk
 import functools
 
 
 @functools.cache
-def preprocess(metin=None, lemmatize=False, kategoriler=frozenset()) -> List[str]:
+def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(),emoji_map=None) -> List[str]:
     """
     Preprocesses text data by applying lemmatization (if enabled) and removing stopwords.
 
@@ -32,6 +33,12 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset()) -> List[str
     else:
         budayici = nltk.stem.SnowballStemmer('english')
 
+    if emoji.emoji_count(metin) > 0:
+        if emoji_map is not None:
+            text = emoji_map.process_text(text)
+        else:
+            text = emoji.replace_emoji(text, replace='emoji')
+
     zamirler = nltk.corpus.stopwords.words('english')
 
     # print(self.metin)
@@ -39,7 +46,7 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset()) -> List[str
         return []
     metin = metin.lower()
     metin = unicodedata.normalize('NFKD', metin)
-    secilen_kategoriler = ['Ll', 'Zs']
+    secilen_kategoriler = ['Ll', "Nd"]
     kategoriler = [unicodedata.category(karakter) for karakter in metin]
     yeni_metin = "".join([metin[j] if kategoriler[j] in secilen_kategoriler and kategoriler[j] != 'Zs'
                           else ' ' for j in range(len(metin))])

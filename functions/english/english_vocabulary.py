@@ -1,13 +1,13 @@
 import pandas as pd
 
-from .process import preprocess
+from .english_preprocessor import preprocess
 from tokenizers import Tokenizer, normalizers
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.trainers import WordPieceTrainer
 from tokenizers.models import WordPiece
 from tokenizers.normalizers import NFKC, StripAccents
 
-def sozluk_yarat(veri: pd.DataFrame, alanadi: str,lemmatize=False) -> tuple:
+def sozluk_yarat(veri: pd.DataFrame, alanadi: str,lemmatize=False,emoji_map=None) -> tuple:
     """
     Creates a vocabulary list from a DataFrame column of text data.
 
@@ -33,7 +33,7 @@ def sozluk_yarat(veri: pd.DataFrame, alanadi: str,lemmatize=False) -> tuple:
     data = veri
     for i in range(len(data)):
         dokuman = data[alanadi][i]
-        metin_parcalari = preprocess(dokuman, lemmatize=lemmatize, kategoriler=frozenset(['Ll', 'Zs']))
+        metin_parcalari = preprocess(dokuman, lemmatize=lemmatize, kategoriler=frozenset(['Ll', 'Zs']),emoji_map=emoji_map)
         sozluk.update(metin_parcalari)
         N += 1
         # print(f"{N}. doküman tamamlandı...")
