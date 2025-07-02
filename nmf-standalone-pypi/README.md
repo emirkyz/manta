@@ -1,6 +1,7 @@
 # NMF Standalone
 
-[![PyPI version](https://badge.fury.io/py/nmf-standalone.svg)](https://badge.fury.io/py/nmf-standalone)
+[<img alt="PyPI version" src="https://badge.fury.io/py/nmf-standalone.svg"/>](https://badge.fury.io/py/nmf-standalone)
+[![PyPI version](https://img.shields.io/pypi/v/nmf-standalone)](https://badge.fury.io/py/nmf-standalone)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -102,7 +103,7 @@ pip install nmf-standalone
 ### From Source (Development)
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/nmf-standalone.git
+git clone https://github.com/emirkyz/nmf-standalone.git
 cd nmf-standalone
 ```
 
@@ -248,4 +249,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Support
 
-For issues and questions, please open an issue on the [GitHub repository](https://github.com/emirkarayagiz/nmf-standalone/issues)
+For issues and questions, please open an issue on the [GitHub repository](https://github.com/emirkyz/nmf-standalone/issues?q=is%3Aissue)

@@ -581,7 +581,7 @@ wheels = [
 
 [[package]]
 name = "nmf-standalone"
-version = "0.2.4"
+version = "0.2.8"
 source = { editable = "." }
 dependencies = [
     { name = "emoji" },

@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nmf-standalone"
-version = "0.2.7"
+version = "0.2.9"
 description = "A standalone NMF topic modeling tool for Turkish and English texts"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
-    {name = "Emir Karayagiz", email = "emirkarayagiz@example.com"}
+    {name = "Emir Karayagiz", email = "emirkyzmain@gmail.com"}
 ]
 license = "MIT"
 keywords = ["nlp", "topic-modeling", "nmf", "text-analysis", "turkish", "english"]
@@ -56,10 +56,10 @@ dev = [
 nmf-standalone = "nmf_standalone.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/emirkarayagiz/nmf-standalone"
-Repository = "https://github.com/emirkarayagiz/nmf-standalone"
+Homepage = "https://github.com/emirkyz/nmf-standalone/tree/main/nmf-standalone-pypi"
+Repository = "https://github.com/emirkyz/nmf-standalone/tree/main/nmf-standalone-pypi"
 Documentation = "https://github.com/emirkarayagiz/nmf-standalone#readme"
-Issues = "https://github.com/emirkarayagiz/nmf-standalone/issues"
+Issues = "https://github.com/emirkyz/nmf-standalone/issues?q=is%3Aissue"
 
 [tool.setuptools.packages.find]
 where = ["."]
