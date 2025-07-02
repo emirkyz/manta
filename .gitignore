@@ -18,3 +18,5 @@ webapp/node_modules
 webapp/client/node_modules
 .idea
 docs
+
+*.tex

@@ -2,7 +2,7 @@ import unicodedata
 import nltk
 import re
 import pandas as pd
-import emoji
+import emoji.core as emoji
 
 class TurkishStr(str):
     lang = 'tr'
