@@ -6,7 +6,7 @@ from scipy import sparse as sp
 
 from .nmf_initialization import nmf_initialization_nndsvd, nmf_initialization_random
 from .nmf_projective_basic import projective_nmf
-from .nmf_multiplicative_updates import _basic_nmf
+from .nmf_basic import _basic_nmf
 
 def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
              norm_thresh: float = 1.0, zero_threshold: float = 0.0001,
