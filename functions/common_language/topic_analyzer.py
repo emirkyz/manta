@@ -96,6 +96,11 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
 
         sirali_kelimeler = np.flip(np.argsort(konu_kelime_vektoru))
         sirali_dokumanlar = np.flip(np.argsort(konu_dokuman_vektoru))
+        test = W.T @ W
+        min_W = test.min()
+        max_W = test.max()
+
+        n_test = (test - min_W) / (max_W - min_W)
 
         ilk_kelimeler = sirali_kelimeler
         ilk_10_dokuman = sirali_dokumanlar[:10] # TODO: will be changed to make analysis better

@@ -450,9 +450,39 @@ if __name__ == "__main__":
         "save_excel": True,
         "word_pairs_out": False,
         "gen_topic_distribution": True,
-        "filter_app": False,
+        "filter_app": True,
         "filter_app_name": filter_app_name,
         "emoji_map": emj_map
     }
+    app_nama_col = "APP_NAME_ABBR"
 
+    # Read CSV to get unique app names
+
+    if options["filter_app"]:
+        """
+        This is a filter for multi-app datasets.
+        It will filter the data by the unique app names.
+        """
+        options["filter_app_name"] = filter_app_name  # Will be set in the loop
+        print("Reading CSV file to extract unique app names...")
+        df_temp = pd.read_csv(filepath, sep="|", on_bad_lines="skip")
+        df_temp = df_temp[df_temp['COUNTRY'] == 'TR']  # Filter for Turkey
+        unique_apps = df_temp[app_nama_col].unique()
+        unique_apps = ['Fizy', "BiP", "TV", "Lifebox"]
+        # unique_apps = ['Fizy']
+        print(f"Found {len(unique_apps)} unique apps: {list(unique_apps)}")
+        # Loop through each unique app and run NMF
+        for app_name in unique_apps:
+            print(f"\n=== Processing app: {app_name} ===")
+
+            # Update options for current app
+            current_options = options.copy()
+            current_options["filter_app_name"] = app_name
+
+            # Update table name to include app name
+            current_table_name = f"APPSTORE_{app_name}_{nmf_type}_{tokenizer_type}_{DESIRED_TOPIC_COUNT}"
+
+            # Run NMF for current app
+            run_standalone_nmf(filepath, current_table_name, desired_columns, current_options)
+            time.sleep(1)
     run_standalone_nmf(filepath, table_name, desired_columns, options)
