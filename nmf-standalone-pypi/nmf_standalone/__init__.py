@@ -30,7 +30,7 @@ Command Line Usage:
 """
 
 # Version information
-__version__ = "0.3.4"
+__version__ = "0.3.4-1"
 __author__ = "Emir Kyz"
 __email__ = "emirkyzmain@gmail.com"
 
@@ -156,13 +156,21 @@ def run_topic_analysis(
     options.setdefault('filter_app', False)
     options.setdefault('filter_app_name', '')
     options.setdefault('emoji_map', None)
+    options.setdefault('word_pairs_out', False)
     
+    try:
+        filename = filepath.split("/")[-1].split(".")[0].split("_")[0]
+    except:
+        filename = os.path.basename(filepath)
+        
     # Generate output name if not provided
     if 'output_name' not in options:
         filename = os.path.basename(filepath)
         base_name = os.path.splitext(filename)[0]
         options['output_name'] = f"{base_name}_{options['nmf_method']}_{options['tokenizer_type']}_{options['topic_count']}"
-    
+
+
+        
     # Create emoji map
     emoji_map = EmojiMap() if options['emoji_map'] is None else options['emoji_map']
     
@@ -184,6 +192,8 @@ def run_topic_analysis(
         "filter_app_name": options['filter_app_name'],
         "emoji_map": emoji_map
     }
+    
+    #TODO: APP name based options will be implemented.
     
     # Run the analysis
     return run_standalone_nmf(

@@ -73,14 +73,17 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
     if create_heatmap and top_pairs:
         print("Creating word co-occurrence heatmap...")
         
-        # Get unique words from top pairs
-        all_words = set()
-        for pair in top_pairs[:heatmap_size * 2]:  # Get more pairs to ensure we have enough unique words
-            all_words.add(pair[0])
-            all_words.add(pair[1])
+        # Better word selection: get words from the highest scoring pairs
+        word_counts = {}
+        for word1, word2, score in top_pairs[:top_n]:
+            word_counts[word1] = word_counts.get(word1, 0) + score
+            word_counts[word2] = word_counts.get(word2, 0) + score
         
-        # Limit to heatmap_size words
-        unique_words = list(all_words)[:heatmap_size]
+        # Sort words by their total co-occurrence scores and take top heatmap_size
+        top_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)[:heatmap_size]
+        unique_words = [word for word, _ in top_words]
+        
+        print(f"Selected {len(unique_words)} words for heatmap: {unique_words[:5]}...")
         
         # Create word to index mapping
         word_to_idx = {word: idx for idx, word in enumerate(unique_words)}
@@ -89,29 +92,48 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
         heatmap_matrix = np.zeros((len(unique_words), len(unique_words)))
         
         # Fill the heatmap matrix with co-occurrence scores
+        pairs_used = 0
         for word1, word2, score in top_pairs:
             if word1 in word_to_idx and word2 in word_to_idx:
                 i, j = word_to_idx[word1], word_to_idx[word2]
                 heatmap_matrix[i, j] = score
                 heatmap_matrix[j, i] = score  # Make it symmetric
+                pairs_used += 1
         
-        # Create mask for upper triangle (including diagonal)
+        print(f"Filled heatmap matrix with {pairs_used} word pairs")
+        
+        # Determine appropriate format for annotations based on score range
+        max_score = np.max(heatmap_matrix)
+        min_nonzero_score = np.min(heatmap_matrix[heatmap_matrix > 0]) if np.any(heatmap_matrix > 0) else 0
+        
+        if max_score < 1:
+            fmt = '.3f'  # Show 3 decimal places for small values
+        elif max_score < 10:
+            fmt = '.2f'  # Show 2 decimal places for medium values
+        else:
+            fmt = '.1f'  # Show 1 decimal place for large values
+        
+        print(f"Score range: {min_nonzero_score:.3f} to {max_score:.3f}, using format: {fmt}")
+        
+        # Create mask for upper triangle (including diagonal) to show as lower triangle matrix
         mask = np.triu(np.ones_like(heatmap_matrix, dtype=bool))
         
         # Create the heatmap
-        plt.figure(figsize=(12, 10))
+        plt.figure(figsize=(max(12, len(unique_words) * 0.8), max(10, len(unique_words) * 0.8)))
         
-        # Create heatmap with seaborn, masking upper triangle
-        sns.heatmap(
+        # Create heatmap with seaborn
+        ax = sns.heatmap(
             heatmap_matrix,
             mask=mask,
             xticklabels=unique_words,
             yticklabels=unique_words,
             annot=True,
-            fmt='.1f',
+            fmt=fmt,
             cmap='YlOrRd',
             cbar_kws={'label': 'Co-occurrence Score'},
-            square=True
+            square=True,
+            linewidths=0.5,
+            annot_kws={'size': max(8, 12 - len(unique_words) // 3)}  # Adjust text size based on matrix size
         )
         
         plt.title(f'Word Co-occurrence Heatmap - {table_name}', fontsize=16, pad=20)
@@ -126,6 +148,7 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
         try:
             plt.savefig(heatmap_file, dpi=300, bbox_inches='tight')
             print(f"Heatmap saved to: {heatmap_file}")
+            print(f"Matrix shape: {heatmap_matrix.shape}, Non-zero values: {np.count_nonzero(heatmap_matrix)}")
         except Exception as e:
             print(f"Error saving heatmap: {e}")
         finally:

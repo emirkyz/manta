@@ -97,10 +97,13 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
         sirali_kelimeler = np.flip(np.argsort(konu_kelime_vektoru))
         sirali_dokumanlar = np.flip(np.argsort(konu_dokuman_vektoru))
         test = W.T @ W
-        min_W = test.min()
-        max_W = test.max()
-
-        n_test = (test - min_W) / (max_W - min_W)
+        n_test = test.copy()
+        # Normalize each row independently
+        for i in range(test.shape[0]):
+            row = test[i,:]
+            min_val = row.min()
+            max_val = row.max()
+            n_test[i,:] = (row - min_val) / (max_val - min_val)
 
         ilk_kelimeler = sirali_kelimeler
         ilk_10_dokuman = sirali_dokumanlar[:10] # TODO: will be changed to make analysis better

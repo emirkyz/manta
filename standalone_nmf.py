@@ -99,7 +99,6 @@ def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=Non
         ValueError: If the DataFrame is empty or contains no valid text data
     """
     metin_array = metin_temizle_english(metin=df[desired_columns], lemmatize=lemmatize, emoji_map=emoji_map)
-    print(f"Preprocess completed in {time.time() - START_TIME:.2f} seconds")
     sozluk, N = sozluk_yarat(metin_array, desired_columns, lemmatize=lemmatize)
     sayisal_veri = sayisallastirma(N, sozluk=sozluk, data=metin_array, alanadi=desired_columns, lemmatize=lemmatize)
     # tfidf
@@ -346,8 +345,7 @@ def process_file(
         if options["save_excel"]:
             export_topics_to_excel(topic_word_scores, table_output_dir, table_name)
 
-        word_pairs_out = False
-        if word_pairs_out:
+        if options["word_pairs_out"]:
             # Calculate word co-occurrence matrix and save to output dir
             top_pairs = calc_word_cooccurrence(H, sozluk, table_output_dir, table_name, top_n=100, min_score=1,
                                                language=options["LANGUAGE"], tokenizer=options["tokenizer"],create_heatmap=True)
@@ -448,9 +446,9 @@ if __name__ == "__main__":
         "separator": separator,
         "gen_cloud": True,
         "save_excel": True,
-        "word_pairs_out": False,
+        "word_pairs_out": True,
         "gen_topic_distribution": True,
-        "filter_app": True,
+        "filter_app": False,
         "filter_app_name": filter_app_name,
         "emoji_map": emj_map
     }
