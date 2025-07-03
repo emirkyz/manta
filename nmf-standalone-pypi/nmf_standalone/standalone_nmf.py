@@ -353,8 +353,7 @@ def process_file(
         if options["save_excel"]:
             export_topics_to_excel(topic_word_scores, table_output_dir, table_name)
 
-        word_pairs_out = False
-        if word_pairs_out:
+        if options["word_pairs_out"]:
             # Calculate word co-occurrence matrix and save to output dir
             top_pairs = calc_word_cooccurrence(H, sozluk, table_output_dir, table_name, top_n=100, min_score=1,
                                                language=options["LANGUAGE"], tokenizer=options["tokenizer"],create_heatmap=True)
@@ -455,7 +454,7 @@ if __name__ == "__main__":
         "separator": separator,
         "gen_cloud": True,
         "save_excel": True,
-        "word_pairs_out": False,
+        "word_pairs_out": True,
         "gen_topic_distribution": True,
         "filter_app": False,
         "filter_app_name": filter_app_name,

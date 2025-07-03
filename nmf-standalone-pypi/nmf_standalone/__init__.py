@@ -30,7 +30,7 @@ Command Line Usage:
 """
 
 # Version information
-__version__ = "0.3.3"
+__version__ = "0.3.4"
 __author__ = "Emir Kyz"
 __email__ = "emirkyzmain@gmail.com"
 
@@ -84,6 +84,7 @@ def run_topic_analysis(
                 words_per_topic (int): Number of top words to show per topic (default: 15)
             
             Output Options:
+                word_pairs_out (bool): Create word pairs output (default: True)
                 generate_wordclouds (bool): Create word cloud visualizations (default: True)
                 export_excel (bool): Export results to Excel format (default: True)
                 topic_distribution (bool): Generate topic distribution plots (default: True)
@@ -175,6 +176,7 @@ def run_topic_analysis(
         "tokenizer": None,
         "nmf_type": options['nmf_method'],
         "separator": options['separator'],
+        "word_pairs_out": options['word_pairs_out'],
         "gen_cloud": options['generate_wordclouds'],
         "save_excel": options['export_excel'],
         "gen_topic_distribution": options['topic_distribution'],

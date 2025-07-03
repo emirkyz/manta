@@ -69,6 +69,8 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
         table_output_dir = os.path.join(output_dir, table_name)
     os.makedirs(table_output_dir, exist_ok=True)
 
+    #TODO: Will be fixed. it doesnt show all the numbers in the heatmap for some reason.
+
     # Create heatmap if requested
     if create_heatmap and top_pairs:
         print("Creating word co-occurrence heatmap...")
