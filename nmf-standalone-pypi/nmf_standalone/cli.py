@@ -13,7 +13,7 @@ import os
 from typing import Dict, Any
 
 from .standalone_nmf import run_standalone_nmf
-from .functions.common_language.emoji_processor import EmojiMap
+from ._functions.common_language.emoji_processor import EmojiMap
 
 
 def create_parser() -> argparse.ArgumentParser:

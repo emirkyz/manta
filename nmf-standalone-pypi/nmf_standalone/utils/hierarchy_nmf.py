@@ -1,8 +1,8 @@
 import os
 import numpy as np
 import scipy.sparse as sp
-from ..functions.nmf.nmf_orchestrator import run_nmf
-from ..functions.common_language.topic_analyzer import konu_analizi
+from .._functions.nmf.nmf_orchestrator import run_nmf
+from .._functions.common_language.topic_analyzer import konu_analizi
 from .save_doc_score_pair import save_doc_score_pair
 from .coherence_score import calculate_coherence_scores
 

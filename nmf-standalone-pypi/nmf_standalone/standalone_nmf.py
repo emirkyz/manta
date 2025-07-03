@@ -4,17 +4,17 @@ import time
 import pandas as pd
 from sqlalchemy import create_engine
 
-from .functions.english.english_text_encoder import sayisallastirma
-from .functions.english.english_vocabulary import sozluk_yarat
-from .functions.english.english_preprocessor import metin_temizle_english
-from .functions.nmf import run_nmf
-from .functions.tfidf import tf_idf_generator, tfidf_hesapla
-from .functions.tfidf.tfidf_english_calculator import tfidf_hesapla
-from .functions.common_language.emoji_processor import EmojiMap
-from .functions.common_language.topic_analyzer import konu_analizi
-from .functions.turkish.turkish_text_encoder import veri_sayisallastir
-from .functions.turkish.turkish_preprocessor import metin_temizle
-from .functions.turkish.turkish_tokenizer_factory import init_tokenizer, train_tokenizer
+from ._functions.english.english_text_encoder import sayisallastirma
+from ._functions.english.english_vocabulary import sozluk_yarat
+from ._functions.english.english_preprocessor import metin_temizle_english
+from ._functions.nmf import run_nmf
+from ._functions.tfidf import tf_idf_generator, tfidf_hesapla
+from ._functions.tfidf.tfidf_english_calculator import tfidf_hesapla
+from ._functions.common_language.emoji_processor import EmojiMap
+from ._functions.common_language.topic_analyzer import konu_analizi
+from ._functions.turkish.turkish_text_encoder import veri_sayisallastir
+from ._functions.turkish.turkish_preprocessor import metin_temizle
+from ._functions.turkish.turkish_tokenizer_factory import init_tokenizer, train_tokenizer
 from .utils.coherence_score import calculate_coherence_scores
 from .utils.export_excel import export_topics_to_excel
 from .utils.gen_cloud import generate_wordclouds
@@ -171,9 +171,10 @@ def process_file(
         base_dir = os.getcwd()
     else:
         base_dir = os.path.abspath(output_base_dir)
-    
-    instance_path = os.path.join(base_dir, "instance")
-    output_dir = os.path.join(base_dir, "Output")
+
+    program_output_dir = os.path.join(base_dir, "TopicAnalysis")
+    instance_path = os.path.join(program_output_dir, "instance")
+    output_dir = os.path.join(program_output_dir, "Output")
 
     # Create necessary directories first
     os.makedirs(instance_path, exist_ok=True)
@@ -361,7 +362,7 @@ def process_file(
         '''new_hierarchy = hierarchy_nmf(W, tdm, selected_topic=1, desired_topic_count=options["DESIRED_TOPIC_COUNT"],
                                       nmf_method=options["nmf_type"], sozluk=sozluk, tokenizer=tokenizer,
                                       metin_array=metin_array, topics_db_eng=topics_db_eng, table_name=table_name,
-                                      emoji_map=emoji_map, base_dir=base_dir, output_dir=output_dir)'''
+                                      emoji_map=emoji_map, base_dir=program_output_dir, output_dir=output_dir)'''
 
         print("Topic modeling completed successfully!")
         return {

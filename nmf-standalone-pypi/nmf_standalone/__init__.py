@@ -28,12 +28,19 @@ Example Usage:
 Command Line Usage:
     $ nmf-standalone analyze data.csv --column text --language TR --topics 5 --wordclouds
 """
-from .functions.common_language.emoji_processor import EmojiMap
 
 # Version information
-__version__ = "0.2.9"
+__version__ = "0.3.3"
 __author__ = "Emir Kyz"
 __email__ = "emirkyzmain@gmail.com"
+
+# Lazy import for EmojiMap to keep it in public API while hiding internal modules
+def __getattr__(name):
+    """Lazy import for public API components."""
+    if name == "EmojiMap":
+        from ._functions.common_language.emoji_processor import EmojiMap
+        return EmojiMap
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 # Public API exports
 __all__ = [
@@ -49,59 +56,96 @@ __all__ = [
 
 def run_topic_analysis(
     filepath: str,
-    column: str,
+    column: str, 
+    topic_count: int = 5,
+    nmf_method: str = "nmf",
     output_dir: str = None,
     **options
 ):
     """
-    High-level API for topic modeling analysis.
-    
-    This is a simplified interface to the full NMF standalone functionality,
-    providing sensible defaults for common use cases.
-    
+    Perform comprehensive topic modeling analysis on text data using Non-negative Matrix Factorization (NMF).
+
+    This high-level API provides an easy-to-use interface for topic modeling with sensible defaults.
+    It supports both Turkish and English languages with various preprocessing and output options.
+
     Args:
-        filepath (str): Path to input CSV or Excel file
-        column (str): Name of column containing text data
-        **options: Configuration options:
-            - language (str): "TR" for Turkish, "EN" for English (default: "TR")
-            - topics (int): Number of topics to extract (default: 5)
-            - words_per_topic (int): Top words to show per topic (default: 15)
-            - nmf_method (str): "nmf" or "opnmf" algorithm variant (default: "nmf")
-            - tokenizer_type (str): "bpe" or "wordpiece" for Turkish (default: "bpe")
-            - lemmatize (bool): Apply lemmatization for English (default: False)
-            - generate_wordclouds (bool): Create word cloud visualizations (default: True)
-            - export_excel (bool): Export results to Excel (default: True)
-            - topic_distribution (bool): Generate distribution plots (default: True)
-            - output_name (str): Custom output directory name (default: auto-generated)
-            - output_dir (str): Base directory for outputs (default: current working directory)
-            - separator (str): Separator for text processing (default: "|")
-            - filter_app (bool): Enable app filtering (default: False)
-            - filter_app_name (str): App name for filtering (default: "")
-        
+        filepath (str): Absolute path to the input file (CSV or Excel format)
+        column (str): Name of the column containing text data to analyze
+        output_dir (str, optional): Base directory for outputs. Defaults to current working directory.
+        topic_count (int): Number of topics to extract (default: 5)
+        nmf_method (str): NMF algorithm variant - "nmf" or "opnmf" (default: "nmf")
+        **options: Configuration dictionary with the following options:
+            Language Options:
+                language (str): Language of text data - "TR" for Turkish, "EN" for English (default: "TR")
+                lemmatize (bool): Apply lemmatization for English text (default: False)
+                tokenizer_type (str): Tokenization method for Turkish - "bpe" or "wordpiece" (default: "bpe")
+            
+            Topic Modeling Options:
+                words_per_topic (int): Number of top words to show per topic (default: 15)
+            
+            Output Options:
+                generate_wordclouds (bool): Create word cloud visualizations (default: True)
+                export_excel (bool): Export results to Excel format (default: True)
+                topic_distribution (bool): Generate topic distribution plots (default: True)
+                output_name (str): Custom name for output directory (default: auto-generated)
+            
+            Data Processing Options:
+                separator (str): CSV file separator (default: ",")
+                filter_app (bool): Filter data by application name (default: False)
+                filter_app_name (str): Application name to filter by (default: "")
+
     Returns:
-        dict: Analysis results with topics and word scores
-        
+        dict: Processing results containing:
+            - state (str): "SUCCESS" if completed successfully, "FAILURE" if error occurred
+            - message (str): Descriptive message about the processing outcome
+            - data_name (str): Name of the processed dataset
+            - topic_word_scores (dict): Dictionary mapping topic IDs to word-score pairs
+
+    Raises:
+        ValueError: If invalid language code or unsupported file format is provided
+        FileNotFoundError: If the input file path does not exist
+        KeyError: If specified column is missing from the input data
+
     Example:
+        >>> # Basic usage for Turkish text
         >>> result = run_topic_analysis(
         ...     "reviews.csv",
-        ...     column="review_text", 
+        ...     column="review_text",
         ...     language="TR",
-        ...     topics=7,
-        ...     generate_wordclouds=True
+        ...     topic_count=5
         ... )
+        >>> 
+        >>> # Advanced usage for English text with custom options
+        >>> result = run_topic_analysis(
+        ...     "articles.xlsx",
+        ...     column="content",
+        ...     language="EN",
+        ...     topic_count=10,
+        ...     lemmatize=True,
+        ...     generate_wordclouds=True,
+        ...     export_excel=True
+        ... )
+        >>> 
+        >>> # Access topic modeling results
         >>> topics = result['topic_word_scores']
+        >>> print(f"Analysis status: {result['state']}")
+
+    Note:
+        - Creates output directories for storing results and visualizations
+        - Automatically handles file preprocessing and data cleaning
+        - Supports both CSV (with automatic delimiter detection) and Excel files
     """
     import os
     
     # Import dependencies only when needed
     from .standalone_nmf import run_standalone_nmf 
-    from .functions.common_language.emoji_processor import EmojiMap
+    from ._functions.common_language.emoji_processor import EmojiMap
     
     # Set defaults
     options.setdefault('language', 'EN')
-    options.setdefault('topics', 5)
+    options.setdefault('topic_count', topic_count if topic_count is not None else 5)
     options.setdefault('words_per_topic', 15)
-    options.setdefault('nmf_method', 'nmf')
+    options.setdefault('nmf_method', nmf_method if nmf_method is not None else 'nmf')
     options.setdefault('tokenizer_type', 'bpe')
     options.setdefault('lemmatize', True)
     options.setdefault('generate_wordclouds', True)
@@ -110,20 +154,21 @@ def run_topic_analysis(
     options.setdefault('separator', ',')
     options.setdefault('filter_app', False)
     options.setdefault('filter_app_name', '')
+    options.setdefault('emoji_map', None)
     
     # Generate output name if not provided
     if 'output_name' not in options:
         filename = os.path.basename(filepath)
         base_name = os.path.splitext(filename)[0]
-        options['output_name'] = f"{base_name}_{options['nmf_method']}_{options['tokenizer_type']}_{options['topics']}"
+        options['output_name'] = f"{base_name}_{options['nmf_method']}_{options['tokenizer_type']}_{options['topic_count']}"
     
     # Create emoji map
-    emoji_map = EmojiMap()
+    emoji_map = EmojiMap() if options['emoji_map'] is None else options['emoji_map']
     
     # Build options dictionary for run_standalone_nmf
     run_options = {
         "LANGUAGE": options['language'].upper(),
-        "DESIRED_TOPIC_COUNT": options['topics'],
+        "DESIRED_TOPIC_COUNT": options['topic_count'],
         "N_TOPICS": options['words_per_topic'],
         "LEMMATIZE": options['lemmatize'],
         "tokenizer_type": options['tokenizer_type'],
