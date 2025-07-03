@@ -96,14 +96,6 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
 
         sirali_kelimeler = np.flip(np.argsort(konu_kelime_vektoru))
         sirali_dokumanlar = np.flip(np.argsort(konu_dokuman_vektoru))
-        test = W.T @ W
-        n_test = test.copy()
-        # Normalize each row independently
-        for i in range(test.shape[0]):
-            row = test[i,:]
-            min_val = row.min()
-            max_val = row.max()
-            n_test[i,:] = (row - min_val) / (max_val - min_val)
 
         ilk_kelimeler = sirali_kelimeler
         ilk_10_dokuman = sirali_dokumanlar[:10] # TODO: will be changed to make analysis better
@@ -181,22 +173,17 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
 
     # Save document analysis if it was generated
     if include_documents and documents is not None and data_frame_name:
-        if output_dir:
-            # Use the provided output_dir directly
+        if output_dir: # output_dir is provided
             table_output_dir = output_dir
-            os.makedirs(table_output_dir, exist_ok=True)
         else:
-            # Fall back to original behavior when output_dir is not provided
-            base_dir = os.path.abspath(os.path.dirname(__file__))
-            # Go up two levels to get to the project root, then into Output
-            fallback_output_dir = os.path.join(base_dir, "..", "..", "Output")
-            table_output_dir = os.path.join(fallback_output_dir, data_frame_name)
+            # create output dir in the current working directory
+            table_output_dir = os.path.join(os.getcwd(), "Output", data_frame_name)
             os.makedirs(table_output_dir, exist_ok=True)
         
         # Save document scores to table-specific subdirectory
         document_file_path = os.path.join(table_output_dir, f"top_docs_{data_frame_name}.json")
         json.dump(dokuman_result, open(document_file_path, "w"), ensure_ascii=False)
-
+        print(f"Top documents saved to {document_file_path}")
     # Save topics to database
     if topics_db_eng:
         save_topics_to_db(result, data_frame_name, topics_db_eng)

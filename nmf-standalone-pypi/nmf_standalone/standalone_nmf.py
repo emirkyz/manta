@@ -311,7 +311,8 @@ def process_file(
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
                 include_documents=True,
-                emoji_map=emoji_map
+                emoji_map=options["emoji_map"],
+                output_dir=table_output_dir
             )
         elif options["LANGUAGE"] == "EN":
             result = konu_analizi(
@@ -324,7 +325,8 @@ def process_file(
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
                 include_documents=True,
-                emoji_map=options["emoji_map"]
+                emoji_map=options["emoji_map"],
+                output_dir=table_output_dir
             )
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")

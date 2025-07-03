@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nmf-standalone"
-version = "0.3.4-1"
+version = "0.3.4-2"
 description = "A standalone NMF topic modeling tool for Turkish and English texts"
 readme = "README.md"
 requires-python = ">=3.11"

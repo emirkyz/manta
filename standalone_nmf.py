@@ -99,6 +99,7 @@ def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=Non
         ValueError: If the DataFrame is empty or contains no valid text data
     """
     metin_array = metin_temizle_english(metin=df[desired_columns], lemmatize=lemmatize, emoji_map=emoji_map)
+    print(f"Preprocess completed in {time.time() - START_TIME:.2f} seconds")
     sozluk, N = sozluk_yarat(metin_array, desired_columns, lemmatize=lemmatize)
     sayisal_veri = sayisallastirma(N, sozluk=sozluk, data=metin_array, alanadi=desired_columns, lemmatize=lemmatize)
     # tfidf
@@ -303,7 +304,8 @@ def process_file(
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
                 include_documents=True,
-                emoji_map=emoji_map
+                emoji_map=options["emoji_map"],
+                output_dir=table_output_dir
             )
         elif options["LANGUAGE"] == "EN":
             result = konu_analizi(
@@ -316,7 +318,8 @@ def process_file(
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
                 include_documents=True,
-                emoji_map=options["emoji_map"]
+                emoji_map=options["emoji_map"],
+                output_dir=table_output_dir
             )
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
@@ -420,7 +423,7 @@ def run_standalone_nmf(
 
 
 if __name__ == "__main__":
-    START_TIME = time.time()
+
     LEMMATIZE = True
     N_WORDS = 15
     DESIRED_TOPIC_COUNT = 5
