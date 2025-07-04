@@ -20,3 +20,5 @@ webapp/client/node_modules
 docs
 
 *.tex
+local/webapp/node_modules
+local/webapp/client/node_modules

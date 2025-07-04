@@ -21,7 +21,7 @@ from utils.gen_cloud import generate_wordclouds
 from utils.save_doc_score_pair import save_doc_score_pair
 from utils.topic_dist import gen_topic_dist
 from utils.word_cooccurrence import calc_word_cooccurrence
-
+START_TIME = time.time()
 
 # rom utils.hierarchy_nmf import hierarchy_nmf
 
