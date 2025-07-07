@@ -1,9 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "nmf-standalone"
-version = "0.1.0"
-description = ""
+version = "0.3.4-2"
+description = "A standalone NMF topic modeling tool for Turkish and English texts"
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [
+    {name = "Emir Karayagiz", email = "emirkyzmain@gmail.com"}
+]
+license = "MIT"
+keywords = ["nlp", "topic-modeling", "nmf", "text-analysis", "turkish", "english"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
 dependencies = [
     "emoji~=2.14.1",
     "gensim==4.3.2",
@@ -11,7 +33,6 @@ dependencies = [
     "matplotlib==3.10.1",
     "nltk==3.8.1",
     "numpy==1.26.4",
-    "openpyxl>=3.1.5",
     "pandas==2.2.1",
     "pillow==11.1.0",
     "redis==5.0.1",
@@ -22,3 +43,43 @@ dependencies = [
     "tokenizers==0.21.1",
     "wordcloud==1.9.4",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+nmf-standalone = "nmf_standalone.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/emirkyz/nmf-standalone/tree/main/nmf-standalone-pypi"
+Repository = "https://github.com/emirkyz/nmf-standalone/tree/main/nmf-standalone-pypi"
+Documentation = "https://github.com/emirkarayagiz/nmf-standalone#readme"
+Issues = "https://github.com/emirkyz/nmf-standalone/issues?q=is%3Aissue"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nmf_standalone*"]
+
+[tool.setuptools.package-data]
+nmf_standalone = ["*.json", "*.txt", "*.md"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
