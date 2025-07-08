@@ -8,6 +8,13 @@
 A comprehensive topic modeling system using Non-negative Matrix Factorization (NMF) that supports both English and Turkish text processing. Features advanced tokenization techniques, multiple NMF algorithms, and rich visualization capabilities.
 
 ## Quick Start
+### Local Dev
+To build and run the app locally for development:
+```bash
+uv pip install -e .
+pip install -e .
+```
+After that you can import and use the app.
 
 ### Installation from PyPI
 ```bash
