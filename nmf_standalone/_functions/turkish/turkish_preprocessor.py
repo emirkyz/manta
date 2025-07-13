@@ -36,7 +36,6 @@ def process_text(text: str, emoji_map=None) -> str:
     Returns:
         str: Temizlenmiş metin.
     """
-    ## TODO: Emojileri kaldırmadan veri setine dahil edebiliriz.
 
 
     if emoji.emoji_count(text) > 0:
@@ -44,7 +43,7 @@ def process_text(text: str, emoji_map=None) -> str:
             text = emoji_map.process_text(text)
         else:
             text = emoji.replace_emoji(text, replace='emoji')
-        
+
 
     metin = str(text)  # Metni string'e çevir
     secilen_kategoriler = ['Ll',"Nd"]
@@ -62,7 +61,7 @@ def process_text(text: str, emoji_map=None) -> str:
     return metin
 
 
-def metin_temizle(df: pd.DataFrame, desired_column: str, emoji_map=None) -> list:
+def metin_temizle_turkish(df: pd.DataFrame, desired_column: str, emoji_map=None) -> list:
     """
     Bu fonksiyon, verilen DataFrame'deki belirtilen sütundaki metinleri temizler.
     Temizleme işlemi, metindeki özel karakterleri ve sayıları kaldırmayı içerir.
