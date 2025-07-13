@@ -1,5 +1,6 @@
 from typing import List
 import os
+from pathlib import Path
 from ...utils.save_topics_db import save_topics_to_db
 from ...utils.image_to_base import image_to_base64
 from wordcloud import WordCloud
@@ -47,11 +48,12 @@ def get_topic_names_out(data_frame_name, num_of_topics: int, sozluk: List[str], 
 
     if gen_cloud:
         # Create table-specific subdirectory under Output folder
-        base_dir = os.path.abspath(os.path.dirname(__file__))
+        base_dir = Path(__file__).parent.resolve()
         # Go up two levels to get to the project root, then into Output
-        output_dir = os.path.join(base_dir, "..", "..", "Output")
-        table_output_dir = os.path.join(output_dir, data_frame_name)
-        os.makedirs(table_output_dir+"/wordclouds", exist_ok=True)
+        output_dir = base_dir / ".." / ".." / "Output"
+        table_output_dir = output_dir / data_frame_name
+        wordclouds_dir = table_output_dir / "wordclouds"
+        wordclouds_dir.mkdir(parents=True, exist_ok=True)
         
         # generate wordcloud for each topic
         wordclouds = {}
@@ -63,7 +65,7 @@ def get_topic_names_out(data_frame_name, num_of_topics: int, sozluk: List[str], 
 
             wordclouds[topic_name] = wordcloud
             # Save wordcloud image to table-specific subdirectory
-            wordcloud.to_file(f"{table_output_dir}/wordclouds/{topic_name}.png")
+            wordcloud.to_file(str(wordclouds_dir / f"{topic_name}.png"))
             # Convert wordcloud to base64 string
             #wordcloud_base64 = image_to_base64(wordcloud)
 
