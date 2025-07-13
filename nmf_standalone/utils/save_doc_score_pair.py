@@ -1,84 +1,72 @@
 import os
 import json
+from pathlib import Path
 
-def save_doc_score_pair(base_dir, output_dir, table_name, topics_data, result):
+from nmf_standalone.utils.save_topics_db import save_topics_to_db
+
+def save_doc_score_pair(doc_result,base_dir, output_dir, table_name, data_frame_name=None):
     """
-    Processes topic word scores and saves them as a JSON file in a structured directory format.
+    Processes and saves topic analysis results to files and database.
     
-    This function takes topic data containing word-score pairs in string format, parses them
-    into a structured dictionary, and saves the result to a JSON file. The output is organized
-    in a directory structure under the specified base directory.
+    This function handles saving both document scores and topic word scores from topic modeling analysis.
+    It can save results to JSON files in a directory structure and optionally to a database.
     
     Args:
-        base_dir (str): The base directory path where the output folder will be created.
-        output_dir (str): Output directory parameter (currently unused in implementation).
-        table_name (str): Name of the table/dataset, used for creating subdirectories and naming the output file.
-        topics_data (dict): Dictionary where keys are topic names and values are lists of 
-                           word-score strings in format "word:score" or "multi word:score".
-        result: Additional result parameter (currently unused in implementation).
+        doc_result (dict): Document analysis results mapping topic IDs to document-score pairs.
+        base_dir (str): Base directory path for output files.
+        output_dir (str): Optional specific output directory path.
+        table_name (str): Name of the table/dataset for file naming.
+        topics_data (dict): Topic word scores mapping topic names to word-score pairs.
+        result: Additional result data (unused).
+        data_frame_name (str, optional): Name for database table and file paths.
+        topics_db_eng (sqlalchemy.engine, optional): Database engine for saving to DB.
     
     Returns:
-        dict: A dictionary where keys are topic names and values are dictionaries mapping
-              words to their corresponding float scores.
+        dict: The document analysis results that were saved.
               
     Side Effects:
-        - Creates directory structure: {base_dir}/Output/{table_name}/
-        - Saves JSON file: {table_name}_wordcloud_scores.json in the created directory
-        - Prints status messages for successful saves or errors
+        - Creates output directory structure if it doesn't exist
+        - Saves JSON file with document scores: top_docs_{data_frame_name}.json
+        - Saves topics to database if engine is provided
+        - Prints warning if no database engine is provided
         
     Example:
-        topics_data = {
-            "topic1": ["machine learning:0.85", "data science:0.75"],
-            "topic2": ["neural network:0.90", "deep learning:0.88"]
+        doc_result = {
+            "Topic 0": {"0": "doc1 text:0.85", "1": "doc2 text:0.75"},
+            "Topic 1": {"0": "doc3 text:0.90", "1": "doc4 text:0.80"}
         }
         
-        result = save_doc_score_pair("/path/to/base", "", "my_table", topics_data, None)
-        # Creates: /path/to/base/Output/my_table/my_table_wordcloud_scores.json
-        # Returns: {"topic1": {"machine learning": 0.85, "data science": 0.75}, ...}
+        result = save_doc_score_pair(
+            doc_result=doc_result,
+            base_dir="/path/to/base",
+            output_dir=None, 
+            table_name="my_table",
+            topics_data=None,
+            result=None,
+            data_frame_name="my_analysis",
+            topics_db_eng=db_engine
+        )
     
     Note:
-        - Words containing colons will be handled correctly by joining all parts except the last
-        - Invalid word-score entries are skipped with error messages printed to console
-        - The function ensures ASCII compatibility is maintained in JSON output
+        - Will create output directory if it doesn't exist
+        - Database saving is optional
+        - JSON files use UTF-8 encoding
     """
     
     # Convert the topics_data format to the desired format
-    topic_word_scores = {}
-    for topic_name, word_scores in topics_data.items():
-        topic_dict = {}
-        for word_score in word_scores:
-            if word_score:  # Check if not None
-                try:
-                    splits = word_score.split(":")
-                    word = splits[:-1]
-                    score = splits[-1]
-                    word = " ".join(word)  # Join back the word parts
-                    topic_dict[word] = float(score)
-                except:
-                    print(f"Error parsing word score: {word_score}")
-        topic_word_scores[topic_name] = topic_dict
+    if data_frame_name:
+        if output_dir: #output_dir is provided
+            table_output_dir = Path(output_dir)
+        else:
+            # create output dir in the current working directory
+            table_output_dir = Path.cwd() / "Output" / data_frame_name
+            table_output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save document scores to table-specific subdirectory
+        document_file_path = table_output_dir / f"top_docs_{data_frame_name}.json"
+        with open(document_file_path, "w", encoding="utf-8") as f:
+            json.dump(doc_result, f, ensure_ascii=False)
+        print(f"Document scores saved to {document_file_path}")
+    # Save topics to database
 
-    # Save the topic word scores to a JSON file
-    if output_dir:
-        # Use the provided output_dir
-        table_output_dir = output_dir
-        os.makedirs(table_output_dir, exist_ok=True)
-    else:
-        # Fall back to original behavior when output_dir is not provided
-        base_dir = os.path.abspath(base_dir)
-        output_dir_fallback = os.path.join(base_dir, "Output")
-        os.makedirs(output_dir_fallback, exist_ok=True)
-
-        # Create table-specific subdirectory under output folder
-        table_output_dir = os.path.join(output_dir_fallback, table_name)
-        os.makedirs(table_output_dir, exist_ok=True)
-
-    # Save to table-specific subdirectory
-    wordcloud_file = os.path.join(table_output_dir, f"{table_name}_wordcloud_scores.json")
-    try:
-        with open(wordcloud_file, "w") as f:
-            json.dump(topic_word_scores, f, indent=4,ensure_ascii=False)
-        print(f"Topic word scores saved to: {wordcloud_file}")
-    except Exception as e:
-        print(f"Error saving topic word scores: {e}")
-    return topic_word_scores
+    return doc_result
