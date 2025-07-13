@@ -87,8 +87,8 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
     if tokenizer is None and sozluk is None:
         raise ValueError("Either tokenizer (for Turkish) or sozluk (for English) must be provided")
     
-    result = {}
-    dokuman_result = {}
+    word_result = {}
+    document_result = {}
     
     for i in range(konu_sayisi):
         konu_kelime_vektoru = H[i, :]
@@ -151,7 +151,7 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
             if len(kelime_skor_listesi) >= word_per_topic:
                 break
 
-        result[f"Konu {i:02d}"] = kelime_skor_listesi
+        word_result[f"Konu {i:02d}"] = kelime_skor_listesi
         
         # Document analysis (optional)
         if include_documents and documents is not None:
@@ -169,25 +169,12 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
                         if emoji_map.check_if_text_contains_tokenized_emoji_doc(document_text):
                             document_text = emoji_map.decode_text_doc(document_text)
                     document_skor_listesi[f"{id}"] = f"{document_text}:{skor:.4f}"
-            dokuman_result[f"Konu {i}"] = document_skor_listesi
+            document_result[f"Konu {i}"] = document_skor_listesi
 
     # Save document analysis if it was generated
-    if include_documents and documents is not None and data_frame_name:
-        if output_dir: # output_dir is provided
-            table_output_dir = output_dir
-        else:
-            # create output dir in the current working directory
-            table_output_dir = os.path.join(os.getcwd(), "Output", data_frame_name)
-            os.makedirs(table_output_dir, exist_ok=True)
-        
-        # Save document scores to table-specific subdirectory
-        document_file_path = os.path.join(table_output_dir, f"top_docs_{data_frame_name}.json")
-        json.dump(dokuman_result, open(document_file_path, "w"), ensure_ascii=False)
-
-    # Save topics to database
     if topics_db_eng:
-        save_topics_to_db(result, data_frame_name, topics_db_eng)
+        save_topics_to_db(word_result, data_frame_name, topics_db_eng)
     else:
         print("Warning: No database engine provided, skipping database save")
         
-    return result
+    return word_result, document_result
