@@ -38,11 +38,12 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(), emoji_map=N
     """
     # Use module-level stemmer/lemmatizer
 
+        
     if lemmatize:
         budayici = LEMMATIZER
     else:
         budayici = STEMMER
-
+    
     if emoji.emoji_count(metin) > 0:
         if emoji_map is not None:
             metin = emoji_map.process_text(metin)
@@ -56,7 +57,7 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(), emoji_map=N
     metin = unicodedata.normalize('NFKD', metin)
 
     # Optimize Unicode character filtering
-    secilen_kategoriler = {'Ll'}
+    secilen_kategoriler = ['Ll']
     yeni_metin = ''.join(char if unicodedata.category(char) in secilen_kategoriler else ' '
                          for char in metin)
 
