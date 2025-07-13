@@ -10,6 +10,7 @@ and extract topics using Non-negative Matrix Factorization.
 import argparse
 import sys
 import os
+from pathlib import Path
 from typing import Dict, Any
 
 from .standalone_nmf import run_standalone_nmf
@@ -126,7 +127,7 @@ Examples:
     
     analyze_parser.add_argument(
         '--separator',
-        default='|',
+        default=',',
         help='CSV separator character (default: |)'
     )
     
@@ -140,10 +141,11 @@ Examples:
 
 def validate_arguments(args: argparse.Namespace) -> None:
     """Validate command-line arguments."""
-    if not os.path.exists(args.filepath):
+    filepath = Path(args.filepath)
+    if not filepath.exists():
         raise FileNotFoundError(f"Input file not found: {args.filepath}")
     
-    if not args.filepath.lower().endswith(('.csv', '.xlsx', '.xls')):
+    if not filepath.suffix.lower() in {'.csv', '.xlsx', '.xls'}:
         raise ValueError("Input file must be in CSV or Excel format")
     
     if args.topics < 1:
@@ -162,8 +164,8 @@ def build_options(args: argparse.Namespace) -> Dict[str, Any]:
     if args.output_name:
         table_name = args.output_name
     else:
-        filename = os.path.basename(args.filepath)
-        base_name = os.path.splitext(filename)[0]
+        filepath = Path(args.filepath)
+        base_name = filepath.stem
         table_name = f"{base_name}_{args.nmf_method}_{args.tokenizer}_{args.topics}"
     
     options = {
@@ -196,7 +198,7 @@ def analyze_command(args: argparse.Namespace) -> int:
         options, table_name = build_options(args)
         
         # Convert to absolute path
-        filepath = os.path.abspath(args.filepath)
+        filepath = Path(args.filepath).resolve()
         
         print(f"Starting NMF topic modeling analysis...")
         print(f"Input file: {filepath}")

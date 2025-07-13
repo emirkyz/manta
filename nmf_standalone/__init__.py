@@ -137,6 +137,7 @@ def run_topic_analysis(
         - Supports both CSV (with automatic delimiter detection) and Excel files
     """
     import os
+    from pathlib import Path
     
     # Import dependencies only when needed
     from .standalone_nmf import run_standalone_nmf 
@@ -161,12 +162,12 @@ def run_topic_analysis(
     try:
         filename = filepath.split("/")[-1].split(".")[0].split("_")[0]
     except:
-        filename = os.path.basename(filepath)
+        filename = Path(filepath).name
         
     # Generate output name if not provided
     if 'output_name' not in options:
-        filename = os.path.basename(filepath)
-        base_name = os.path.splitext(filename)[0]
+        filepath_obj = Path(filepath)
+        base_name = filepath_obj.stem
         options['output_name'] = f"{base_name}_{options['nmf_method']}_{options['tokenizer_type']}_{options['topic_count']}"
 
 
@@ -197,7 +198,7 @@ def run_topic_analysis(
     
     # Run the analysis
     return run_standalone_nmf(
-        filepath=os.path.abspath(filepath),
+        filepath=str(Path(filepath).resolve()),
         table_name=options['output_name'],
         desired_columns=column,
         options=run_options,
