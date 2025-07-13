@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from pathlib import Path
 from collections import OrderedDict
 
 def export_topics_to_excel(topics_data, output_dir, table_name):
@@ -31,17 +32,18 @@ def export_topics_to_excel(topics_data, output_dir, table_name):
     df = pd.DataFrame(df_data)
     
     # Ensure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
     
     # Check if output_dir already includes the table_name to avoid double nesting
-    if output_dir.endswith(table_name):
-        table_output_dir = output_dir
+    if output_path.name == table_name:
+        table_output_dir = output_path
     else:
-        table_output_dir = os.path.join(output_dir, table_name)
-    os.makedirs(table_output_dir, exist_ok=True)
+        table_output_dir = output_path / table_name
+    table_output_dir.mkdir(parents=True, exist_ok=True)
     
     # Save to Excel
-    excel_path = os.path.join(table_output_dir, f"{table_name}_topics.xlsx")
+    excel_path = table_output_dir / f"{table_name}_topics.xlsx"
     df.to_excel(excel_path, index=False)
     print(f"Topics exported to: {excel_path}")
     

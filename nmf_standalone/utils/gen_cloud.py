@@ -1,5 +1,6 @@
 from wordcloud import WordCloud
 import os
+from pathlib import Path
 
 def generate_wordclouds(topics_data,output_dir,table_name):
     """Generate wordclouds for each topic.
@@ -12,12 +13,16 @@ def generate_wordclouds(topics_data,output_dir,table_name):
     wordclouds = {}
     
     # Check if output_dir already includes the table_name to avoid double nesting
-    if output_dir.endswith(table_name):
-        table_output_dir = output_dir
+    output_path = Path(output_dir)
+    if output_path.name == table_name:
+        table_output_dir = output_path
     else:
         # Create table-specific subdirectory under output folder
-        table_output_dir = os.path.join(output_dir, table_name)
-    os.makedirs(table_output_dir+"/wordclouds", exist_ok=True)
+        table_output_dir = output_path / table_name
+    
+    wordclouds_dir = table_output_dir / "wordclouds"
+    wordclouds_dir.mkdir(parents=True, exist_ok=True)
+    
     for topic_name, words in topics_data.items():
         # Remove scores for wordcloud generation
         words_only = [word.split(":")[0] for word in words]
@@ -26,5 +31,5 @@ def generate_wordclouds(topics_data,output_dir,table_name):
 
         wordclouds[topic_name] = wordcloud
         # Save wordcloud image to table-specific subdirectory
-        wordcloud.to_file(f"{table_output_dir}/wordclouds/{topic_name}.png")
+        wordcloud.to_file(str(wordclouds_dir / f"{topic_name}.png"))
   

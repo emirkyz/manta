@@ -1,6 +1,7 @@
 import json
 import math
 import os
+from pathlib import Path
 from itertools import combinations
 from collections import defaultdict
 import numpy as np
@@ -181,9 +182,9 @@ def get_documents_from_db(table_name, column_name):
     Returns:
         list: List of document texts
     """
-    base_dir = os.path.abspath(os.path.dirname(__file__))
-    instance_path = os.path.join(base_dir, "..", "instance")
-    db_path = os.path.join(instance_path, "scopus.db")
+    base_dir = Path(__file__).parent.resolve()
+    instance_path = base_dir / ".." / "instance"
+    db_path = instance_path / "scopus.db"
     
     # Create database engine
     engine = create_engine(f'sqlite:///{db_path}')
@@ -329,8 +330,9 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
             print(f"Warning: Could not calculate Gensim coherence: {str(e)}")
         
     if output_dir and table_name:
-        coherence_file = os.path.join(output_dir, f"{table_name}_coherence_scores.json")
-        os.makedirs(output_dir, exist_ok=True)
+        output_path = Path(output_dir)
+        coherence_file = output_path / f"{table_name}_coherence_scores.json"
+        output_path.mkdir(parents=True, exist_ok=True)
         with open(coherence_file, "w") as f:
             json.dump(results, f, indent=4)
         print(f"Coherence scores saved to: {coherence_file}")

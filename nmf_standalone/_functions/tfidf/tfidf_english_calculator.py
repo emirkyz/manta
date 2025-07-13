@@ -6,23 +6,22 @@ import scipy
 from scipy.sparse import lil_matrix, csr_matrix
 
 from ..english.english_preprocessor import preprocess
-from ...utils.redis_bridge import update_progress_emit
 from .tfidf_tf_functions import *
 from .tfidf_idf_functions import *
 from .tfidf_bm25_turkish import bm25_generator
 
 
-def tfidf_hesapla(N=None,
-                  sozluk=None,
-                  data=None,
-                  output_dir=None,
-                  alanadi=None,
-                  lemmatize=False,
-                  use_bm25=False,
-                  k1=1.2,
-                  b=0.75,
-                  use_pivoted_norm=True,
-                  slope=0.2) -> scipy.sparse.csr.csr_matrix:
+def tf_idf_english(N=None,
+                   sozluk=None,
+                   data=None,
+                   output_dir=None,
+                   alanadi=None,
+                   lemmatize=False,
+                   use_bm25=False,
+                   k1=1.2,
+                   b=0.75,
+                   use_pivoted_norm=True,
+                   slope=0.2) -> scipy.sparse.csr.csr_matrix:
     """
     Calculates Term Frequency-Inverse Document Frequency (TF-IDF) or BM25 matrix from document collection.
     

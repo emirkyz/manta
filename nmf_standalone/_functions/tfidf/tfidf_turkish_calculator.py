@@ -9,7 +9,7 @@ from .tfidf_idf_functions import *
 from .tfidf_bm25_turkish import bm25_generator
 
 
-def tf_idf_generator(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
+def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
     """
     This function generates a TF-IDF or BM25 matrix for a given list of text data.
     1) Convert the text data to a sparse matrix.

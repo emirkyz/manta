@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -64,12 +65,13 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
 
     # Prepare output directory
     # Check if base_dir already includes the table_name to avoid double nesting
-    if base_dir.endswith(table_name):
-        table_output_dir = base_dir
+    base_dir_path = Path(base_dir)
+    if base_dir_path.name == table_name:
+        table_output_dir = base_dir_path
     else:
-        output_dir = os.path.join(base_dir, "Output")
-        table_output_dir = os.path.join(output_dir, table_name)
-    os.makedirs(table_output_dir, exist_ok=True)
+        output_dir = base_dir_path / "Output"
+        table_output_dir = output_dir / table_name
+    table_output_dir.mkdir(parents=True, exist_ok=True)
 
     # Create heatmap if requested
     if create_heatmap and top_pairs:
@@ -146,7 +148,7 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
         plt.tight_layout()
         
         # Save heatmap
-        heatmap_file = os.path.join(table_output_dir, f"{table_name}_cooccurrence_heatmap.png")
+        heatmap_file = table_output_dir / f"{table_name}_cooccurrence_heatmap.png"
         try:
             plt.savefig(heatmap_file, dpi=300, bbox_inches='tight')
             print(f"Heatmap saved to: {heatmap_file}")
@@ -165,7 +167,7 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
     }
 
     # Save to file
-    cooccurrence_file = os.path.join(table_output_dir, f"{table_name}_cooccurrence.json")
+    cooccurrence_file = table_output_dir / f"{table_name}_cooccurrence.json"
     try:
         with open(cooccurrence_file, "w", encoding="utf-8") as f:
             json.dump(cooccurrence_data, f, indent=4, ensure_ascii=False)

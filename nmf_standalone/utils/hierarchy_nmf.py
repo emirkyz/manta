@@ -1,9 +1,10 @@
 import os
+from pathlib import Path
 import numpy as np
 import scipy.sparse as sp
 from .._functions.nmf.nmf_orchestrator import run_nmf
 from .._functions.common_language.topic_analyzer import konu_analizi
-from .save_doc_score_pair import save_doc_score_pair
+from .save_word_score_pair import save_doc_score_pair
 from .coherence_score import calculate_coherence_scores
 
 
@@ -39,8 +40,8 @@ def hierarchy_nmf(W, nmf_matrix, selected_topic, desired_topic_count,
 
 
     # Create hierarchy output directory
-    hierarchy_output_dir = os.path.join(output_dir, table_name + "_hierarchy")
-    os.makedirs(hierarchy_output_dir, exist_ok=True)
+    hierarchy_output_dir = Path(output_dir) / (table_name + "_hierarchy")
+    hierarchy_output_dir.mkdir(parents=True, exist_ok=True)
     
     # Find non-zero indexes from the selected topic in W matrix
     print(f"Size of tdm: {nmf_matrix.shape}")
@@ -83,8 +84,8 @@ def hierarchy_nmf(W, nmf_matrix, selected_topic, desired_topic_count,
     topics_numbers_to_test = [2,3,4,5]
     for topics_number in topics_numbers_to_test:
         # Create subfolder for this specific topic number
-        topic_output_dir = os.path.join(hierarchy_output_dir, str(topics_number))
-        os.makedirs(topic_output_dir, exist_ok=True)
+        topic_output_dir = hierarchy_output_dir / str(topics_number)
+        topic_output_dir.mkdir(parents=True, exist_ok=True)
         
         W_hierarchy, H_hierarchy = run_nmf(
             num_of_topics=int(topics_number),

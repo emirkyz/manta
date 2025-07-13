@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -37,15 +38,16 @@ def gen_topic_dist(W,output_dir,table_name):
         plt.text(i+start_index, count, str(count), ha='center', va='bottom')
     
     # Check if output_dir already includes the table_name to avoid double nesting
-    if output_dir.endswith(table_name):
-        table_output_dir = output_dir
+    output_dir_path = Path(output_dir)
+    if output_dir_path.name == table_name:
+        table_output_dir = output_dir_path
     else:
         # Create table-specific subdirectory under output folder
-        table_output_dir = os.path.join(output_dir, table_name)
-    os.makedirs(table_output_dir, exist_ok=True)
+        table_output_dir = output_dir_path / table_name
+    table_output_dir.mkdir(parents=True, exist_ok=True)
     
     # Save the plot to table-specific subdirectory
-    plot_path = os.path.join(table_output_dir, f"{table_name}_document_dist.png")
+    plot_path = table_output_dir / f"{table_name}_document_dist.png"
     plt.savefig(plot_path)
     plt.close()
     
