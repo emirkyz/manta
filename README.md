@@ -61,11 +61,12 @@ results = run_topic_analysis(
 
 ```
 nmf_standalone/
-├── functions/
+├── _functions/
 │   ├── common_language/          # Shared functionality across languages
 │   │   ├── emoji_processor.py    # Emoji handling utilities
 │   │   └── topic_analyzer.py     # Cross-language topic analysis
 │   ├── english/                  # English text processing modules
+│   │   ├── english_entry.py             # English text processing entry point
 │   │   ├── english_preprocessor.py      # Text cleaning and preprocessing
 │   │   ├── english_vocabulary.py        # Vocabulary creation
 │   │   ├── english_text_encoder.py      # Text-to-numerical conversion
@@ -85,15 +86,26 @@ nmf_standalone/
 │   │   ├── tfidf_idf_functions.py       # Inverse document frequency functions
 │   │   └── tfidf_bm25_turkish.py        # BM25 implementation for Turkish
 │   └── turkish/                  # Turkish text processing modules
+│       ├── turkish_entry.py             # Turkish text processing entry point
 │       ├── turkish_preprocessor.py      # Turkish text cleaning
 │       ├── turkish_tokenizer_factory.py # Tokenizer creation and training
 │       ├── turkish_text_encoder.py      # Text-to-numerical conversion
 │       └── turkish_tfidf_generator.py   # TF-IDF matrix generation
 ├── utils/                        # Helper utilities
 │   ├── coherence_score.py              # Topic coherence evaluation
-│   ├── gen_cloud.py                    # Word cloud generation
+│   ├── combine_number_suffix.py         # Number and suffix combination utilities
+│   ├── distance_two_words.py           # Word distance calculation
 │   ├── export_excel.py                 # Excel export functionality
+│   ├── gen_cloud.py                    # Word cloud generation
+│   ├── hierarchy_nmf.py                # Hierarchical NMF utilities
+│   ├── image_to_base.py                # Image to base64 conversion
+│   ├── save_doc_score_pair.py          # Document-score pair saving utilities
+│   ├── save_topics_db.py               # Topic database saving
+│   ├── save_word_score_pair.py         # Word-score pair saving utilities
 │   ├── topic_dist.py                   # Topic distribution plotting
+│   ├── umass_test.py                   # UMass coherence testing
+│   ├── visualizer.py                   # General visualization utilities
+│   ├── word_cooccurrence.py            # Word co-occurrence analysis
 │   └── other/                           # Additional utility functions
 ├── cli.py                        # Command-line interface
 ├── standalone_nmf.py             # Core NMF implementation

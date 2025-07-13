@@ -6,24 +6,28 @@ Bu proje, Negatif Olmayan Matris Faktörizasyonu (NMF) kullanarak metin verileri
 
 ```
 nmf-standalone/
-├── functions/
-│   ├── english/
-│   ├── nmf/
-│   ├── tfidf/
-│   └── turkish/
-├── utils/
-│   ├── other/
+├── nmf_standalone/
+│   ├── _functions/
+│   │   ├── common_language/
+│   │   ├── english/
+│   │   ├── nmf/
+│   │   ├── tfidf/
+│   │   └── turkish/
+│   ├── utils/
+│   │   └── other/
+│   ├── cli.py
+│   ├── standalone_nmf.py
+│   └── __init__.py
 ├── veri_setleri/
 ├── instance/
 ├── Output/
 ├── pyproject.toml
 ├── README.md
 ├── requirements.txt
-├── standalone_nmf.py
 └── uv.lock
 ```
 
--   **`functions/`**: NMF sürecinin temel mantığını içerir; İngilizce ve Türkçe metin işleme, TF-IDF hesaplama ve NMF algoritmaları için ayrı modüller bulunur.
+-   **`_functions/`**: NMF sürecinin temel mantığını içerir; İngilizce ve Türkçe metin işleme, TF-IDF hesaplama ve NMF algoritmaları için ayrı modüller bulunur.
 -   **`utils/`**: Kelime bulutları oluşturma, tutarlılık skorları hesaplama ve sonuçları dışa aktarma gibi görevler için yardımcı fonksiyonları içerir.
 -   **`veri_setleri/`**: Giriş veri setleri için varsayılan dizin.
 -   **`instance/`**: İşlem sırasında oluşturulan veritabanlarını saklar (örn. `topics.db`, `scopus.db`).
