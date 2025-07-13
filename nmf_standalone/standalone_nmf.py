@@ -1,120 +1,30 @@
 import os
 import time
+from pathlib import Path
 
 import pandas as pd
 from sqlalchemy import create_engine
 
-from ._functions.english.english_text_encoder import sayisallastirma
-from ._functions.english.english_vocabulary import sozluk_yarat
-from ._functions.english.english_preprocessor import metin_temizle_english
-from ._functions.nmf import run_nmf
-from ._functions.tfidf import tf_idf_generator, tfidf_hesapla
-from ._functions.tfidf.tfidf_english_calculator import tfidf_hesapla
 from ._functions.common_language.emoji_processor import EmojiMap
 from ._functions.common_language.topic_analyzer import konu_analizi
-from ._functions.turkish.turkish_text_encoder import veri_sayisallastir
-from ._functions.turkish.turkish_preprocessor import metin_temizle
-from ._functions.turkish.turkish_tokenizer_factory import init_tokenizer, train_tokenizer
+
+from ._functions.english.english_entry import process_english_file
+from ._functions.nmf import run_nmf
+from ._functions.turkish.turkish_entry import process_turkish_file
+from ._functions.turkish.turkish_tokenizer_factory import init_tokenizer
+
 from .utils.coherence_score import calculate_coherence_scores
-from .utils.export_excel import export_topics_to_excel
-from .utils.gen_cloud import generate_wordclouds
 from .utils.save_doc_score_pair import save_doc_score_pair
-from .utils.topic_dist import gen_topic_dist
-from .utils.word_cooccurrence import calc_word_cooccurrence
-START_TIME = time.time()
-
-# rom utils.hierarchy_nmf import hierarchy_nmf
-
-
-def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_type=None, emoji_map=None):
-    """
-    Process Turkish text data for topic modeling using NMF.
-
-    This function performs text preprocessing, tokenization, and TF-IDF transformation
-    specifically for Turkish language texts. It handles text cleaning, emoji mapping,
-    tokenizer training, and vectorization.
-
-    Args:
-        df (pd.DataFrame): Input DataFrame containing Turkish text data
-        desired_columns (str): Name of the column containing text to analyze
-        tokenizer (optional): Pre-trained tokenizer instance. If None, a new tokenizer
-                             will be initialized based on tokenizer_type
-        tokenizer_type (str, optional): Type of tokenizer to use. Options: "bpe" or "wordpiece"
-        emoji_map (EmojiMap, optional): Emoji mapping instance for emoji processing
-
-    Returns:
-        tuple: A tuple containing:
-            - tdm (scipy.sparse matrix): Term-document matrix (TF-IDF transformed)
-            - sozluk (list): Vocabulary list from the tokenizer
-            - sayisal_veri (scipy.sparse matrix): Numerical representation of documents
-            - tokenizer: Trained tokenizer instance
-            - metin_array (list): Cleaned text array
-            - emoji_map (EmojiMap): Emoji mapping instance used
-
-    Raises:
-        ValueError: If tokenizer_type is not supported
-        KeyError: If desired_columns is not found in the DataFrame
-    """
-
-    metin_array = metin_temizle(df, desired_columns, emoji_map=emoji_map)
-    print(f"Number of documents: {len(metin_array)}")
-
-    # Initialize tokenizer if not provided
-    if tokenizer is None:
-        tokenizer = init_tokenizer(tokenizer_type=tokenizer_type)
-
-    # Train the tokenizer
-    tokenizer = train_tokenizer(tokenizer, metin_array, tokenizer_type=tokenizer_type)
-    sozluk = list(tokenizer.get_vocab().keys())
-
-    # sayısallaştır
-    sayisal_veri = veri_sayisallastir(metin_array, tokenizer)
-    tdm = tf_idf_generator(sayisal_veri, tokenizer)
-
-    return tdm, sozluk, sayisal_veri, tokenizer, metin_array, emoji_map
-
-
-def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=None):
-    """
-    Process English text data for topic modeling using NMF.
-
-    This function performs text preprocessing and TF-IDF transformation specifically
-    for English language texts. It creates a vocabulary dictionary and transforms
-    the text data into numerical format suitable for topic modeling.
-
-    Args:
-        df (pd.DataFrame): Input DataFrame containing English text data
-        desired_columns (str): Name of the column containing text to analyze
-        lemmatize (bool): Whether to apply lemmatization during preprocessing.
-                         If True, words are reduced to their base forms
-
-    Returns:
-        tuple: A tuple containing:
-            - tdm (scipy.sparse matrix): Term-document matrix (TF-IDF transformed)
-            - sozluk (dict): Vocabulary dictionary mapping words to indices
-            - sayisal_veri (scipy.sparse matrix): TF-IDF transformed numerical data
-
-    Raises:
-        KeyError: If desired_columns is not found in the DataFrame
-        ValueError: If the DataFrame is empty or contains no valid text data
-    """
-    metin_array = metin_temizle_english(metin=df[desired_columns], lemmatize=lemmatize, emoji_map=emoji_map)
-    print(f"Preprocess completed in {time.time() - START_TIME:.2f} seconds")
-    sozluk, N = sozluk_yarat(metin_array, desired_columns, lemmatize=lemmatize)
-    sayisal_veri = sayisallastirma(N, sozluk=sozluk, data=metin_array, alanadi=desired_columns, lemmatize=lemmatize)
-    # tfidf
-    tdm = tfidf_hesapla(N, sozluk=sozluk, data=sayisal_veri, alanadi=desired_columns, output_dir=None,
-                                 lemmatize=lemmatize)
-
-    return tdm, sozluk, sayisal_veri, metin_array
+from .utils.save_word_score_pair import save_word_score_pair
+from .utils.visualizer import create_visualization
 
 
 def process_file(
-        filepath: str,
-        table_name: str,
-        desired_columns: str,
-        options: dict,
-        output_base_dir: str = None
+    filepath: str,
+    table_name: str,
+    desired_columns: str,
+    options: dict,
+    output_base_dir: str = None,
 ) -> dict:
     """
     Process a file and perform comprehensive topic modeling analysis.
@@ -168,24 +78,24 @@ def process_file(
     # Get base directory and create necessary directories
     if output_base_dir is None:
         # Use current working directory instead of package directory
-        base_dir = os.getcwd()
+        base_dir = Path.cwd()
     else:
-        base_dir = os.path.abspath(output_base_dir)
+        base_dir = Path(output_base_dir).resolve()
 
-    program_output_dir = os.path.join(base_dir, "TopicAnalysis")
-    instance_path = os.path.join(program_output_dir, "instance")
-    output_dir = os.path.join(program_output_dir, "Output")
+    program_output_dir = base_dir / "TopicAnalysis"
+    instance_path = program_output_dir / "instance"
+    output_dir = program_output_dir / "Output"
 
     # Create necessary directories first
-    os.makedirs(instance_path, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)
+    instance_path.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Database configurations using standard SQLAlchemy
     topics_db_eng = create_engine(
-        f'sqlite:///{os.path.join(instance_path, "topics.db")}'
+        f'sqlite:///{instance_path / "topics.db"}'
     )
     main_db_eng = create_engine(
-        f'sqlite:///{os.path.join(instance_path, "scopus.db")}'
+        f'sqlite:///{instance_path / "scopus.db"}'
     )  # Main data DB
 
     try:
@@ -197,10 +107,10 @@ def process_file(
         # Read the input file
         print("Reading input file...")
         # if file is csv, read it with read_csv
-        if filepath.endswith(".csv"):
+        if str(filepath).endswith(".csv"):
             preprocess_csv = False
             if preprocess_csv:
-                with open(filepath, 'r', encoding='utf-8') as f:
+                with open(filepath, "r", encoding="utf-8") as f:
                     data = f.read()
                     # replace "|" with ";"
                     data = data.replace("|", ";")
@@ -209,17 +119,23 @@ def process_file(
                     data = data.replace("\x00", "")
                     # save the modified data back to the new file
                 new_filepath = filepath.replace(".csv", "_new.csv")
-                with open(new_filepath, 'w', encoding='utf-8') as f_out:
+                with open(new_filepath, "w", encoding="utf-8") as f_out:
                     f_out.write(data)
                 filepath = new_filepath
             # Read the CSV file with the specified separator
 
-            df = pd.read_csv(filepath, encoding="utf-8", sep=options["separator"], engine="python", on_bad_lines="skip")
+            df = pd.read_csv(
+                filepath,
+                encoding="utf-8",
+                sep=options["separator"],
+                engine="python",
+                on_bad_lines="skip",
+            )
             # get rows where it is country is TR
-            if 'COUNTRY' in df.columns:
-                df = df[df['COUNTRY'] == 'TR']
+            if "COUNTRY" in df.columns:
+                df = df[df["COUNTRY"] == "TR"]
             if options["filter_app"]:
-                df = df[df['APP_NAME_ABBR'] == options["filter_app_name"]]
+                df = df[df["APP_NAME_ABBR"] == options["filter_app_name"]]
 
         else:
             df = pd.read_excel(filepath)
@@ -238,69 +154,78 @@ def process_file(
         df = df.drop_duplicates()
         df = df.dropna()
 
-        '''
+        """
         # remove duplicates
         count_of_duplicates = df.duplicated().sum()
         total_rows = len(df)
         if total_rows*0.9 < count_of_duplicates:
             print(f"Warning: {count_of_duplicates} duplicates found in the data, which is more than 90% of the total rows ({total_rows}).")
             df = df.drop_duplicates()
-        '''
+        """
         # df = df.drop_duplicates()
         print(f"File has {len(df)} rows.")
 
-        print("Adding data to main database...")
-        # Check if table exists using a SQL query instead of direct table read
-        tables_query = "SELECT name FROM sqlite_master WHERE type='table'"
-        existing_tables = pd.read_sql_query(tables_query, main_db_eng)
-        if table_name in existing_tables['name'].tolist():
-            # Use the main_db_eng directly
-            df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
-        elif table_name not in existing_tables['name'].tolist():
-            df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
-        del df
+        options["save_to_db"] = False
+        if options["save_to_db"]:
+            print("Adding data to main database...")
+            # Check if table exists using a SQL query instead of direct table read
+            tables_query = "SELECT name FROM sqlite_master WHERE type='table'"
+            existing_tables = pd.read_sql_query(tables_query, main_db_eng)
+            if table_name in existing_tables["name"].tolist():
+                # Use the main_db_eng directly
+                df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
+            elif table_name not in existing_tables["name"].tolist():
+                df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
+            # Get data from database
+            # Read directly using the main_db_eng
+            del df
+            df = pd.read_sql_table(table_name, main_db_eng)
+
+        else:
+            df = pd.DataFrame(df)
+            print("Not saving data to main database...")
 
         # Start topic modeling process
         print("Starting preprocessing...")
 
-        # Get data from database
-        # Read directly using the main_db_eng
-        df = pd.read_sql_table(table_name, main_db_eng)
-
         if options["LANGUAGE"] == "TR":
-            # temizle
-            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, emoji_map = process_turkish_file(df,
-                                                                                                desired_columns,
-                                                                                                options["tokenizer"],
-                                                                                                tokenizer_type=options["tokenizer_type"],
-                                                                                                emoji_map=options["emoji_map"])
+            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, emoji_map = (
+                process_turkish_file(
+                    df,
+                    desired_columns,
+                    options["tokenizer"],
+                    tokenizer_type=options["tokenizer_type"],
+                    emoji_map=options["emoji_map"],
+                )
+            )
 
         elif options["LANGUAGE"] == "EN":
-            tdm, sozluk, sayisal_veri, metin_array = process_english_file(df,
-                                                             desired_columns,
-                                                             options["LEMMATIZE"],
-                                                             emoji_map=options["emoji_map"])
+            tdm, sozluk, sayisal_veri, metin_array = process_english_file(
+                df,
+                desired_columns,
+                options["LEMMATIZE"],
+                emoji_map=options["emoji_map"],
+            )
 
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
         # Create table-specific output directory to save everything under one folder
-        table_output_dir = os.path.join(output_dir, table_name)
-        os.makedirs(table_output_dir, exist_ok=True)
+        table_output_dir = output_dir / table_name
+        table_output_dir.mkdir(parents=True, exist_ok=True)
 
         # nmf
         W, H = run_nmf(
             num_of_topics=int(options["DESIRED_TOPIC_COUNT"]),
             sparse_matrix=tdm,
             norm_thresh=0.005,
-            nmf_method=options["nmf_type"]
+            nmf_method=options["nmf_type"],
         )
-
 
         # Find dominant words for each topic and dominant documents for each topic
         print("Generating topic groups...")
         if options["LANGUAGE"] == "TR":
-            result = konu_analizi(
+            word_result, document_result = konu_analizi(
                 H=H,
                 W=W,
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
@@ -312,10 +237,10 @@ def process_file(
                 word_per_topic=options["N_TOPICS"],
                 include_documents=True,
                 emoji_map=options["emoji_map"],
-                output_dir=table_output_dir
+                output_dir=table_output_dir,
             )
         elif options["LANGUAGE"] == "EN":
-            result = konu_analizi(
+            word_result, document_result = konu_analizi(
                 H=H,
                 W=W,
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
@@ -326,44 +251,55 @@ def process_file(
                 word_per_topic=options["N_TOPICS"],
                 include_documents=True,
                 emoji_map=options["emoji_map"],
-                output_dir=table_output_dir
+                output_dir=table_output_dir,
             )
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
         # save result to json
         # Convert the topics_data format to the desired format
-        topic_word_scores = save_doc_score_pair(None,
-                                                table_output_dir,
-                                                table_name,
-                                                result, H)
+        topic_word_scores = save_word_score_pair(
+            base_dir=None,
+            output_dir=table_output_dir,
+            table_name=table_name,
+            topics_data=word_result,
+            result=None,
+            data_frame_name=table_name,
+            topics_db_eng=topics_db_eng,
+        )
+        # save document result to json
+        topic_doc_scores = save_doc_score_pair(
+            document_result,
+            base_dir=None,
+            output_dir=table_output_dir,
+            table_name=table_name,
+            data_frame_name=table_name,
+        )
 
         # Calculate and save coherence scores
-        coherence_scores = calculate_coherence_scores(topic_word_scores,
-                                                      output_dir=table_output_dir,
-                                                      column_name=desired_columns,
-                                                      cleaned_data=metin_array,
-                                                      table_name=table_name)
+        coherence_scores = calculate_coherence_scores(
+            topic_word_scores,
+            output_dir=table_output_dir,
+            column_name=desired_columns,
+            cleaned_data=metin_array,
+            table_name=table_name,
+        )
 
-        # generate topic distribution plot
-        if options["gen_topic_distribution"]:
-            gen_topic_dist(W, table_output_dir, table_name)
-
-        if options["gen_cloud"]:
-            generate_wordclouds(result, table_output_dir, table_name)
-
-        if options["save_excel"]:
-            export_topics_to_excel(topic_word_scores, table_output_dir, table_name)
-
-        if options["word_pairs_out"]:
-            # Calculate word co-occurrence matrix and save to output dir
-            top_pairs = calc_word_cooccurrence(H, sozluk, table_output_dir, table_name, top_n=100, min_score=1,
-                                               language=options["LANGUAGE"], tokenizer=options["tokenizer"],create_heatmap=True)
-
-        '''new_hierarchy = hierarchy_nmf(W, tdm, selected_topic=1, desired_topic_count=options["DESIRED_TOPIC_COUNT"],
-                                      nmf_method=options["nmf_type"], sozluk=sozluk, tokenizer=tokenizer,
-                                      metin_array=metin_array, topics_db_eng=topics_db_eng, table_name=table_name,
-                                      emoji_map=emoji_map, base_dir=program_output_dir, output_dir=output_dir)'''
+        create_visualization(
+            W,
+            H,
+            sozluk,
+            table_output_dir,
+            table_name,
+            options,
+            word_result,
+            topic_word_scores,
+            metin_array,
+            topics_db_eng,
+            options["emoji_map"],
+            program_output_dir,
+            output_dir,
+        )
 
         print("Topic modeling completed successfully!")
         return {
@@ -371,6 +307,7 @@ def process_file(
             "message": "Topic modeling completed successfully",
             "data_name": table_name,
             "topic_word_scores": topic_word_scores,
+            "coherence_scores": coherence_scores,
             # "topic_document_counts": {f"Topic {i+1}": count for i, count in enumerate(topic_counts)},
             # "plot_path": plot_path
             # "coherence_scores": coherence_scores
@@ -383,7 +320,7 @@ def process_file(
 
 
 def run_standalone_nmf(
-        filepath, table_name, desired_columns, options, output_base_dir=None
+    filepath, table_name, desired_columns, options, output_base_dir=None
 ):
     """
     Execute the complete standalone NMF topic modeling pipeline.
@@ -430,7 +367,6 @@ def run_standalone_nmf(
 
 
 if __name__ == "__main__":
-
     LEMMATIZE = True
     N_WORDS = 15
     DESIRED_TOPIC_COUNT = 5
@@ -441,7 +377,9 @@ if __name__ == "__main__":
     LANGUAGE = "TR"
     separator = "|"
     filter_app_name = ""
-    table_name = data_name + f"_{nmf_type}_" + tokenizer_type + "_" + str(DESIRED_TOPIC_COUNT)
+    table_name = (
+        data_name + f"_{nmf_type}_" + tokenizer_type + "_" + str(DESIRED_TOPIC_COUNT)
+    )
     desired_columns = "REVIEW"
 
     emj_map = EmojiMap()
@@ -460,7 +398,7 @@ if __name__ == "__main__":
         "gen_topic_distribution": True,
         "filter_app": False,
         "filter_app_name": filter_app_name,
-        "emoji_map": emj_map
+        "emoji_map": emj_map,
     }
 
     run_standalone_nmf(filepath, table_name, desired_columns, options)
