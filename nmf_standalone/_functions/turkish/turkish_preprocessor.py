@@ -3,6 +3,8 @@ import nltk
 import re
 import pandas as pd
 import emoji.core as emoji
+from ...utils.combine_number_suffix import remove_space_between_terms
+
 
 class TurkishStr(str):
     lang = 'tr'
@@ -58,6 +60,10 @@ def process_text(text: str, emoji_map=None) -> str:
     metin = re.sub(r'(.)\1{2,}', r'\1', metin)
     metin = [i for i in metin.split() if i not in zamirler]
     metin = ' '.join(metin)
+    metin = remove_space_between_terms(metin, r"\d+", "gb", "next")
+    metin = remove_space_between_terms(metin, r"\d+", "tl", "next")
+    metin = remove_space_between_terms(metin, r"\d+", "saniye", "next")
+    metin = remove_space_between_terms(metin, r"\d+", "sn", "next")
     return metin
 
 

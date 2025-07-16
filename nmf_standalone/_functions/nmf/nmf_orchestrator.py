@@ -66,7 +66,7 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
 
     if nmf_method == "opnmf":
         # If projective NMF is used, we do not need to run the core NMF function
-        w, h = projective_nmf(in_mat, r=konu_sayisi, W_mat=w)
+        w, h = projective_nmf(in_mat, r=konu_sayisi, W_mat=w,h_mat=h,norm_func=np.linalg.norm)
     elif nmf_method == "nmf":
         w, h = _basic_nmf(in_mat, w, h, start, log=log, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
                        norm_func=np.linalg.norm)
