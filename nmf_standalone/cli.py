@@ -136,6 +136,12 @@ Examples:
         help='Filter data by specific app name (for app review datasets)'
     )
     
+    analyze_parser.add_argument(
+        '--word-pairs',
+        action='store_true',
+        help='Generate word co-occurrence analysis and heatmap'
+    )
+    
     return parser
 
 
@@ -182,7 +188,8 @@ def build_options(args: argparse.Namespace) -> Dict[str, Any]:
         "gen_topic_distribution": args.topic_distribution,
         "filter_app": bool(args.filter_app),
         "filter_app_name": args.filter_app or "",
-        "emoji_map": emoji_map
+        "emoji_map": emoji_map,
+        "word_pairs_out": args.word_pairs
     }
     
     return options, table_name
