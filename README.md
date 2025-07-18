@@ -1,7 +1,7 @@
 # MANTA (Multi-lingual Advanced NMF-based Topic Analysis)
 
-[![PyPI version](https://badge.fury.io/py/manta.svg)](https://badge.fury.io/py/manta)
-[![PyPI version](https://img.shields.io/pypi/v/manta)](https://badge.fury.io/py/manta)
+[![PyPI version](https://badge.fury.io/py/manta-topic-modelling.svg)](https://badge.fury.io/py/manta-topic-modelling)
+[![PyPI version](https://img.shields.io/pypi/v/manta-topic-modelling)](https://badge.fury.io/py/manta-topic-modelling)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -18,19 +18,19 @@ After that you can import and use the app.
 
 ### Installation from PyPI
 ```bash
-pip install manta
+pip install manta-topic-modelling
 ```
 
 ### Command Line Usage
 ```bash
 # Turkish text analysis
-manta analyze data.csv --column text --language TR --topics 5
+manta-topic-modelling analyze data.csv --column text --language TR --topics 5
 
 # English text analysis with lemmatization and visualizations
-manta analyze data.csv --column content --language EN --topics 10 --lemmatize --wordclouds --excel
+manta-topic-modelling analyze data.csv --column content --language EN --topics 10 --lemmatize --wordclouds --excel
 
 # Custom tokenizer for Turkish text
-manta analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
+manta-topic-modelling analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
 ```
 
 ### Python API Usage
@@ -116,7 +116,7 @@ manta/
 
 ### From PyPI (Recommended)
 ```bash
-pip install manta
+pip install manta-topic-modelling
 ```
 
 ### From Source (Development)
@@ -141,14 +141,14 @@ pip install -r requirements.txt
 
 ### Command Line Interface
 
-The package provides the `manta` command with an `analyze` subcommand:
+The package provides the `manta-topic-modelling` command with an `analyze` subcommand:
 
 ```bash
 # Basic usage
-manta analyze data.csv --column text --language TR --topics 5
+manta-topic-modelling analyze data.csv --column text --language TR --topics 5
 
 # Advanced usage with all options
-manta analyze reviews.csv \
+manta-topic-modelling analyze reviews.csv \
   --column review_text \
   --language EN \
   --topics 10 \
