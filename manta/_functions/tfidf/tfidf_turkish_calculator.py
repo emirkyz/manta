@@ -9,7 +9,7 @@ from .tfidf_idf_functions import *
 from .tfidf_bm25_turkish import bm25_generator
 
 
-def tf_idf_generator(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
+def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
     """
     This function generates a TF-IDF or BM25 matrix for a given list of text data.
     1) Convert the text data to a sparse matrix.
@@ -59,7 +59,7 @@ def tf_idf_generator(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75)
         # Calculate document lengths for pivoted normalization
     use_pivoted_norm = True
     slope = 0.2
-    if use_pivoted_norm:
+    if use_pivoted_norm and not use_bm25:
         # Calculate document lengths (number of terms in each document)
         doc_lengths = np.add.reduceat(matris.data, matris.indptr[:-1])
         avg_doc_length = np.mean(doc_lengths)

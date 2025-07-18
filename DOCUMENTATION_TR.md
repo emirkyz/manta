@@ -1,4 +1,4 @@
-# NMF Standalone - Detaylı Türkçe Dokümantasyon
+# MANTA (Multi-lingual Advanced NMF-based Topic Analysis) - Detaylı Türkçe Dokümantasyon
 
 ## İçindekiler
 1. [Proje Genel Bakış](#proje-genel-bakış)
@@ -15,7 +15,7 @@
 
 ## Proje Genel Bakış
 
-**NMF Standalone**, metin belgelerinden anlamlı konuları çıkarmak için **Negatif Olmayan Matris Faktörizasyonu (Non-negative Matrix Factorization - NMF)** kullanan kapsamlı bir konu modelleme aracıdır. Sistem hem **Türkçe** hem de **İngilizce** dilleri destekler ve ham metin verilerinden görselleştirilmiş konu sonuçlarına kadar uçtan uca işleme sağlar.
+**MANTA (Multi-lingual Advanced NMF-based Topic Analysis)**, metin belgelerinden anlamlı konuları çıkarmak için **Negatif Olmayan Matris Faktörizasyonu (Non-negative Matrix Factorization - NMF)** kullanan kapsamlı bir konu modelleme aracıdır. Sistem hem **Türkçe** hem de **İngilizce** dilleri destekler ve ham metin verilerinden görselleştirilmiş konu sonuçlarına kadar uçtan uca işleme sağlar.
 
 ### Temel Özellikler
 - **İki Dilli Destek**: Hem Türkçe hem de İngilizce metin işleme desteği
@@ -110,7 +110,7 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
 ```
 
 **İşlem Akışı:**
-1. **Metin Temizleme** (`metin_temizle`): Gürültüyü, özel karakterleri kaldırır ve metni normalleştirir
+1. **Metin Temizleme** (`metin_temizle_turkish`): Gürültüyü, özel karakterleri kaldırır ve metni normalleştirir
 2. **Tokenizer Başlatma**: Sağlanmadıysa BPE veya WordPiece tokenizer oluşturur
 3. **Tokenizer Eğitimi**: Kelime dağarcığı oluşturmak için tokenizer'ı korpus üzerinde eğitir
 4. **Kelime Dağarcığı Çıkarımı**: Eğitilmiş tokenizer'dan kelime tokenlarını çıkarır
@@ -141,7 +141,7 @@ def process_english_file(df, desired_columns: str, lemmatize: bool):
 
 **İşlem Akışı:**
 1. **Sözlük Oluşturma** (`sozluk_yarat`): İsteğe bağlı lemmatizasyon ile kelime dağarcığı oluşturur
-2. **TF-IDF Hesaplama** (`tfidf_hesapla`): TF-IDF ağırlıklarını doğrudan hesaplar
+2. **TF-IDF Hesaplama** (`tf_idf_english`): TF-IDF ağırlıklarını doğrudan hesaplar
 3. **Matris Hazırlama**: Son doküman-terim matrisini hazırlar
 
 ### 3. process_file()
@@ -305,42 +305,59 @@ Kelime Bulutları → Dağılım Grafikleri → Excel Dışa Aktarma → JSON De
 
 ## Modül Yapısı
 
-### functions/ Dizini
+### _functions/ Dizini
+
+#### common_language/
+- **`emoji_processor.py`**: Emoji işleme yardımcı araçları
+- **`topic_analyzer.py`**: Diller arası konu analizi
 
 #### english/
-- **`sozluk.py`**: İngilizce için sözlük oluşturma ve kelime dağarcığı oluşturma
-- **`process.py`**: İngilizce metin ön işleme yardımcı araçları
-- **`topics.py`**: İngilizce metin için konu analizi fonksiyonları
-- **`nmf_hoca.py`**: Özelleştirilmiş NMF implementasyonları
-- **`sayisallastirma.py`**: Metin-sayısal dönüştürme
+- **`english_entry.py`**: İngilizce metin işleme giriş noktası
+- **`english_preprocessor.py`**: Metin temizleme ve ön işleme
+- **`english_vocabulary.py`**: Kelime dağarcığı oluşturma
+- **`english_text_encoder.py`**: Metin-sayısal dönüştürme
+- **`english_topic_analyzer.py`**: Konu çıkarım yardımcı araçları
+- **`english_topic_output.py`**: Konu görselleştirme ve çıktı
+- **`english_nmf_core.py`**: İngilizce için NMF implementasyonu
 
 #### turkish/
-- **`temizle.py`**: Türkçe metin temizleme ve normalleştirme
-- **`token_yarat.py`**: Tokenizer oluşturma ve eğitimi (BPE/WordPiece)
-- **`sayisallastir.py`**: Türkçe metin sayısal dönüştürme
-- **`konuAnalizi.py`**: Türkçe metin için konu analizi
-- **`tfidf_uret.py`**: Türkçe için TF-IDF üretimi
+- **`turkish_entry.py`**: Türkçe metin işleme giriş noktası
+- **`turkish_preprocessor.py`**: Türkçe metin temizleme ve normalleştirme
+- **`turkish_tokenizer_factory.py`**: Tokenizer oluşturma ve eğitimi (BPE/WordPiece)
+- **`turkish_text_encoder.py`**: Türkçe metin sayısal dönüştürme
+- **`turkish_tfidf_generator.py`**: Türkçe için TF-IDF üretimi
 
 #### nmf/
-- **`nmf.py`**: Ana NMF orkestrasyonu fonksiyonu
-- **`basic_nmf.py`**: Standart NMF implementasyonu
-- **`opnmf.py`**: Ortogonal Projektif NMF implementasyonu
-- **`nmf_init.py`**: Matris başlatma stratejileri
+- **`nmf_orchestrator.py`**: Ana NMF orkestrasyonu fonksiyonu
+- **`nmf_basic.py`**: Standart NMF implementasyonu
+- **`nmf_projective_basic.py`**: Temel projektif NMF
+- **`nmf_projective_enhanced.py`**: Gelişmiş projektif NMF
+- **`nmf_initialization.py`**: Matris başlatma stratejileri
 
 #### tfidf/
-- **`tfidf_english.py`**: İngilizce TF-IDF hesaplama
-- **`tfidf_turkish.py`**: Türkçe TF-IDF üretimi
-- **`tf_funcs.py`**: Terim frekansı hesaplama fonksiyonları
-- **`idf_funcs.py`**: Ters doküman frekansı fonksiyonları
+- **`tfidf_english_calculator.py`**: İngilizce TF-IDF hesaplama
+- **`tfidf_turkish_calculator.py`**: Türkçe TF-IDF üretimi
+- **`tfidf_tf_functions.py`**: Terim frekansı hesaplama fonksiyonları
+- **`tfidf_idf_functions.py`**: Ters doküman frekansı fonksiyonları
+- **`tfidf_bm25_turkish.py`**: Türkçe için BM25 implementasyonu
 
 ### utils/ Dizini
 
-- **`gen_cloud.py`**: Kelime bulutu üretimi
 - **`coherence_score.py`**: Konu tutarlılığı hesaplama
+- **`combine_number_suffix.py`**: Sayı ve sonek birleştirme yardımcı araçları
+- **`distance_two_words.py`**: Kelime mesafesi hesaplama
 - **`export_excel.py`**: Excel raporu üretimi
-- **`topic_dist.py`**: Konu dağılımı görselleştirme
+- **`gen_cloud.py`**: Kelime bulutu üretimi
+- **`hierarchy_nmf.py`**: Hiyerarşik NMF yardımcı araçları
+- **`image_to_base.py`**: Görüntüden base64 dönüştürme
 - **`save_doc_score_pair.py`**: Doküman-konu skor kalıcılığı
+- **`save_topics_db.py`**: Konu veritabanı kaydetme
+- **`save_word_score_pair.py`**: Kelime-skor çifti kaydetme yardımcı araçları
+- **`topic_dist.py`**: Konu dağılımı görselleştirme
+- **`umass_test.py`**: UMass tutarlılık testi
+- **`visualizer.py`**: Genel görselleştirme yardımcı araçları
 - **`word_cooccurrence.py`**: Kelime birlikte bulunma analizi
+- **`other/`**: Ek yardımcı fonksiyonlar
 
 ---
 

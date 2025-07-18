@@ -1,4 +1,4 @@
-# NMF Standalone - Comprehensive Documentation
+# MANTA (Multi-lingual Advanced NMF-based Topic Analysis) - Comprehensive Documentation
 
 ## Table of Contents
 1. [Project Overview](#project-overview)
@@ -15,7 +15,7 @@
 
 ## Project Overview
 
-**NMF Standalone** is a comprehensive topic modeling tool that uses **Non-negative Matrix Factorization (NMF)** to extract meaningful topics from text documents. The system supports both **Turkish** and **English** languages and provides end-to-end processing from raw text data to visualized topic results.
+**MANTA (Multi-lingual Advanced NMF-based Topic Analysis)** is a comprehensive topic modeling tool that uses **Non-negative Matrix Factorization (NMF)** to extract meaningful topics from text documents. The system supports both **Turkish** and **English** languages and provides end-to-end processing from raw text data to visualized topic results.
 
 ### Key Features
 - **Bilingual Support**: Handles both Turkish and English text processing
@@ -110,7 +110,7 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
 ```
 
 **Process Flow:**
-1. **Text Cleaning** (`metin_temizle`): Removes noise, special characters, and normalizes text
+1. **Text Cleaning** (`metin_temizle_turkish`): Removes noise, special characters, and normalizes text
 2. **Tokenizer Initialization**: Creates BPE or WordPiece tokenizer if not provided
 3. **Tokenizer Training**: Trains tokenizer on the corpus to build vocabulary
 4. **Vocabulary Extraction**: Extracts word tokens from trained tokenizer
@@ -141,7 +141,7 @@ def process_english_file(df, desired_columns: str, lemmatize: bool):
 
 **Process Flow:**
 1. **Dictionary Creation** (`sozluk_yarat`): Builds vocabulary with optional lemmatization
-2. **TF-IDF Calculation** (`tfidf_hesapla`): Computes TF-IDF weights directly
+2. **TF-IDF Calculation** (`tf_idf_english`): Computes TF-IDF weights directly
 3. **Matrix Preparation**: Prepares the final document-term matrix
 
 ### 3. process_file()
@@ -305,42 +305,59 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 
 ## Module Structure
 
-### functions/ Directory
+### _functions/ Directory
+
+#### common_language/
+- **`emoji_processor.py`**: Emoji handling utilities
+- **`topic_analyzer.py`**: Cross-language topic analysis
 
 #### english/
-- **`sozluk.py`**: Dictionary creation and vocabulary building for English
-- **`process.py`**: English text preprocessing utilities
-- **`topics.py`**: Topic analysis functions for English text
-- **`nmf_hoca.py`**: Specialized NMF implementations
-- **`sayisallastirma.py`**: Text-to-numerical conversion
+- **`english_entry.py`**: English text processing entry point
+- **`english_preprocessor.py`**: Text cleaning and preprocessing
+- **`english_vocabulary.py`**: Vocabulary creation
+- **`english_text_encoder.py`**: Text-to-numerical conversion
+- **`english_topic_analyzer.py`**: Topic extraction utilities
+- **`english_topic_output.py`**: Topic visualization and output
+- **`english_nmf_core.py`**: NMF implementation for English
 
 #### turkish/
-- **`temizle.py`**: Turkish text cleaning and normalization
-- **`token_yarat.py`**: Tokenizer creation and training (BPE/WordPiece)
-- **`sayisallastir.py`**: Turkish text numerical conversion
-- **`konuAnalizi.py`**: Topic analysis for Turkish text
-- **`tfidf_uret.py`**: TF-IDF generation for Turkish
+- **`turkish_entry.py`**: Turkish text processing entry point
+- **`turkish_preprocessor.py`**: Turkish text cleaning and normalization
+- **`turkish_tokenizer_factory.py`**: Tokenizer creation and training (BPE/WordPiece)
+- **`turkish_text_encoder.py`**: Turkish text numerical conversion
+- **`turkish_tfidf_generator.py`**: TF-IDF generation for Turkish
 
 #### nmf/
-- **`nmf.py`**: Main NMF orchestration function
-- **`basic_nmf.py`**: Standard NMF implementation
-- **`opnmf.py`**: Orthogonal Projective NMF implementation
-- **`nmf_init.py`**: Matrix initialization strategies
+- **`nmf_orchestrator.py`**: Main NMF orchestration function
+- **`nmf_basic.py`**: Standard NMF implementation
+- **`nmf_projective_basic.py`**: Basic projective NMF
+- **`nmf_projective_enhanced.py`**: Enhanced projective NMF
+- **`nmf_initialization.py`**: Matrix initialization strategies
 
 #### tfidf/
-- **`tfidf_english.py`**: English TF-IDF calculation
-- **`tfidf_turkish.py`**: Turkish TF-IDF generation
-- **`tf_funcs.py`**: Term frequency calculation functions
-- **`idf_funcs.py`**: Inverse document frequency functions
+- **`tfidf_english_calculator.py`**: English TF-IDF calculation
+- **`tfidf_turkish_calculator.py`**: Turkish TF-IDF generation
+- **`tfidf_tf_functions.py`**: Term frequency calculation functions
+- **`tfidf_idf_functions.py`**: Inverse document frequency functions
+- **`tfidf_bm25_turkish.py`**: BM25 implementation for Turkish
 
 ### utils/ Directory
 
-- **`gen_cloud.py`**: Word cloud generation
 - **`coherence_score.py`**: Topic coherence calculation
+- **`combine_number_suffix.py`**: Number and suffix combination utilities
+- **`distance_two_words.py`**: Word distance calculation
 - **`export_excel.py`**: Excel report generation
-- **`topic_dist.py`**: Topic distribution visualization
+- **`gen_cloud.py`**: Word cloud generation
+- **`hierarchy_nmf.py`**: Hierarchical NMF utilities
+- **`image_to_base.py`**: Image to base64 conversion
 - **`save_doc_score_pair.py`**: Document-topic score persistence
+- **`save_topics_db.py`**: Topic database saving
+- **`save_word_score_pair.py`**: Word-score pair saving utilities
+- **`topic_dist.py`**: Topic distribution visualization
+- **`umass_test.py`**: UMass coherence testing
+- **`visualizer.py`**: General visualization utilities
 - **`word_cooccurrence.py`**: Word co-occurrence analysis
+- **`other/`**: Additional utility functions
 
 ---
 
