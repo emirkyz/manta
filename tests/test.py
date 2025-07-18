@@ -1,7 +1,6 @@
 import manta
 
 print(dir(manta))
-emj_map = manta.EmojiMap()
 
 
 file_path = "../veri_setleri/bbc_news.csv"
@@ -15,7 +14,7 @@ manta.run_topic_analysis(filepath=file_path,
                                   generate_wordclouds=True,
                                   topic_count=10,
                                   words_per_topic=15,
-                                  emoji_map=emj_map,
+                                  emoji_map=True,
                                   word_pairs_out=False,
                                   nmf_method="nmf")
 

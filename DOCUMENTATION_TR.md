@@ -373,6 +373,7 @@ Kelime Bulutları → Dağılım Grafikleri → Excel Dışa Aktarma → JSON De
 | `LEMMATIZE` | bool | Lemmatizasyonu etkinleştir (İngilizce) | True | True, False |
 | `tokenizer_type` | str | Tokenizer türü (Türkçe) | "bpe" | "bpe", "wordpiece" |
 | `nmf_type` | str | NMF algoritması | "nmf" | "nmf", "opnmf" |
+| `emoji_map` | bool | Emoji işleme ve eşlemeyi etkinleştir | True | True, False |
 | `separator` | str | CSV dosya ayırıcısı | "," | ",", ";", "\\t" |
 
 ### Gelişmiş Seçenekler
@@ -396,6 +397,7 @@ seçenekler = {
     "nmf_type": "opnmf",
     "LANGUAGE": "TR",
     "separator": ";",
+    "emoji_map": True,
     "gen_cloud": True,
     "save_excel": True,
     "word_pairs_out": False,

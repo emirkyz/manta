@@ -110,6 +110,7 @@ python standalone_nmf.py
 -   `tokenizer_type`: Türkçe için `"bpe"` (Byte-Pair Encoding) veya `"wordpiece"` arasından seçebilirsiniz.
 -   `LANGUAGE`: Türkçe için `"TR"` veya İngilizce için `"EN"`.
 -   `nmf_type`: Kullanılacak NMF algoritması (`"nmf"` veya `"opnmf"`).
+-   `emoji_map`: Emoji işleme ve eşlemeyi etkinleştirmek için `True` (varsayılan: `True`).
 -   `separator`: `.csv` dosyanızda kullanılan ayırıcı (örn. `,`, `;`).
 
 ## Çıktılar

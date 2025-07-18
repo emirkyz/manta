@@ -41,7 +41,7 @@ def process_text(text: str, emoji_map=None) -> str:
 
 
     if emoji.emoji_count(text) > 0:
-        if emoji_map is not None:
+        if emoji_map is not False and emoji_map is not None:
             text = emoji_map.process_text(text)
         else:
             text = emoji.replace_emoji(text, replace='emoji')

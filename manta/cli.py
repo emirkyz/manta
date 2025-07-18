@@ -32,6 +32,9 @@ Examples:
   
   # Use BPE tokenizer for Turkish text
   manta analyze data.csv --column content --language TR --tokenizer bpe --topics 7
+  
+  # Disable emoji processing for faster processing
+  manta analyze data.csv --column text --language EN --topics 5 --emoji-map False
         """
     )
     
@@ -108,6 +111,13 @@ Examples:
     )
     
     analyze_parser.add_argument(
+        '--emoji-map',
+        type=lambda x: x.lower() == 'true',
+        default=True,
+        help='Enable emoji processing and mapping (default: True). Use --emoji-map False to disable'
+    )
+    
+    analyze_parser.add_argument(
         '--wordclouds',
         action='store_true',
         help='Generate word cloud visualizations for topics'
@@ -163,8 +173,8 @@ def validate_arguments(args: argparse.Namespace) -> None:
 
 def build_options(args: argparse.Namespace) -> Dict[str, Any]:
     """Build options dictionary from command-line arguments."""
-    # Create emoji map for Turkish processing
-    emoji_map = EmojiMap()
+    # Use boolean pattern for emoji map initialization (default: enabled)
+    emoji_map = args.emoji_map
     
     # Generate output name if not provided
     if args.output_name:

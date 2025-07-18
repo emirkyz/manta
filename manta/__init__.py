@@ -156,7 +156,7 @@ def run_topic_analysis(
     options.setdefault('separator', ',')
     options.setdefault('filter_app', False)
     options.setdefault('filter_app_name', '')
-    options.setdefault('emoji_map', None)
+    options.setdefault('emoji_map', False)
     options.setdefault('word_pairs_out', False)
     
     try:
@@ -173,7 +173,7 @@ def run_topic_analysis(
 
         
     # Create emoji map
-    emoji_map = EmojiMap() if options['emoji_map'] is None else options['emoji_map']
+    emoji_map = EmojiMap() if options['emoji_map'] is True else options['emoji_map']
     
     # Build options dictionary for run_standalone_nmf
     run_options = {

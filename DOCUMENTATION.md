@@ -373,6 +373,7 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 | `LEMMATIZE` | bool | Enable lemmatization (English) | True | True, False |
 | `tokenizer_type` | str | Tokenizer type (Turkish) | "bpe" | "bpe", "wordpiece" |
 | `nmf_type` | str | NMF algorithm | "nmf" | "nmf", "opnmf" |
+| `emoji_map` | bool | Enable emoji processing and mapping | True | True, False |
 | `separator` | str | CSV file separator | "," | ",", ";", "\\t" |
 
 ### Advanced Options
@@ -396,6 +397,7 @@ options = {
     "nmf_type": "opnmf",
     "LANGUAGE": "TR",
     "separator": ";",
+    "emoji_map": True,
     "gen_cloud": True,
     "save_excel": True,
     "word_pairs_out": False,

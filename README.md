@@ -46,6 +46,9 @@ manta-topic-modelling analyze data.csv --column content --language EN --topics 1
 
 # Custom tokenizer for Turkish text
 manta-topic-modelling analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
+
+# Disable emoji processing for faster processing
+manta-topic-modelling analyze data.csv --column text --language EN --topics 5 --emoji-map False
 ```
 
 ### Python API Usage
@@ -190,6 +193,7 @@ manta-topic-modelling analyze reviews.csv \
 - `--nmf-method`: NMF algorithm ("nmf" or "opnmf", default: "nmf")
 - `--words-per-topic`: Number of top words per topic (default: 15)
 - `--lemmatize`: Apply lemmatization for English text
+- `--emoji-map`: Enable emoji processing and mapping (default: True). Use --emoji-map False to disable
 - `--wordclouds`: Generate word cloud visualizations
 - `--excel`: Export results to Excel format
 - `--topic-distribution`: Generate topic distribution plots
@@ -243,6 +247,7 @@ results = run_topic_analysis(
 - `generate_wordclouds` (bool): Create word cloud visualizations (default: True)
 - `export_excel` (bool): Export results to Excel (default: True)
 - `topic_distribution` (bool): Generate distribution plots (default: True)
+- `emoji_map` (bool): Enable emoji processing and mapping (default: True)
 - `output_name` (str): Custom output directory name (default: auto-generated)
 - `separator` (str): CSV separator character (default: ",")
 - `filter_app` (bool): Enable app filtering (default: False)

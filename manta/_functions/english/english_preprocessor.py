@@ -45,7 +45,7 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(), emoji_map=N
         budayici = STEMMER
     
     if emoji.emoji_count(metin) > 0:
-        if emoji_map is not None:
+        if emoji_map is not False and emoji_map is not None:
             metin = emoji_map.process_text(metin)
         else:
             metin = emoji.replace_emoji(metin, replace='emoji')
