@@ -399,6 +399,16 @@ if __name__ == "__main__":
         "filter_app": False,
         "filter_app_name": filter_app_name,
         "emoji_map": emj_map,
+        
+        # Co-occurrence analysis options
+        "cooccurrence_method": "sliding_window",  # "nmf" or "sliding_window"
+        "cooccurrence_window_size": 10,           # Sliding window size for co-occurrence
+        "cooccurrence_min_count": 2,             # Minimum word frequency threshold
+        "cooccurrence_max_vocab": None,          # Maximum vocabulary size (None = no limit)
+        "cooccurrence_heatmap_size": 20,         # Number of words in heatmap
+        "cooccurrence_top_n": 100,               # Number of top pairs to save
+        "cooccurrence_batch_size": 1000,         # Batch size for memory efficiency
+        "cooccurrence_min_score": 1,             # Minimum score for NMF method
     }
 
     run_standalone_nmf(filepath, table_name, desired_columns, options)

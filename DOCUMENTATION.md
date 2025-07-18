@@ -1,4 +1,4 @@
-# NMF Standalone - Comprehensive Documentation
+# MANTA (Multi-lingual Advanced NMF-based Topic Analysis) - Comprehensive Documentation
 
 ## Table of Contents
 1. [Project Overview](#project-overview)
@@ -15,7 +15,7 @@
 
 ## Project Overview
 
-**NMF Standalone** is a comprehensive topic modeling tool that uses **Non-negative Matrix Factorization (NMF)** to extract meaningful topics from text documents. The system supports both **Turkish** and **English** languages and provides end-to-end processing from raw text data to visualized topic results.
+**MANTA (Multi-lingual Advanced NMF-based Topic Analysis)** is a comprehensive topic modeling tool that uses **Non-negative Matrix Factorization (NMF)** to extract meaningful topics from text documents. The system supports both **Turkish** and **English** languages and provides end-to-end processing from raw text data to visualized topic results.
 
 ### Key Features
 - **Bilingual Support**: Handles both Turkish and English text processing

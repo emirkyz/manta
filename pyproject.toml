@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nmf-standalone"
+name = "manta"
 version = "0.3.4-2"
-description = "A standalone NMF topic modeling tool for Turkish and English texts"
+description = "Multi-lingual Advanced NMF-based Topic Analysis - A comprehensive NMF topic modeling tool for Turkish and English texts"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -56,20 +56,20 @@ dev = [
 ]
 
 [project.scripts]
-nmf-standalone = "nmf_standalone.cli:main"
+manta = "manta.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/emirkyz/nmf-standalone/tree/main/nmf-standalone-pypi"
-Repository = "https://github.com/emirkyz/nmf-standalone/tree/main/nmf-standalone-pypi"
-Documentation = "https://github.com/emirkarayagiz/nmf-standalone#readme"
-Issues = "https://github.com/emirkyz/nmf-standalone/issues?q=is%3Aissue"
+Homepage = "https://github.com/emirkyz/manta/tree/main/manta-pypi"
+Repository = "https://github.com/emirkyz/manta/tree/main/manta-pypi"
+Documentation = "https://github.com/emirkarayagiz/manta#readme"
+Issues = "https://github.com/emirkyz/manta/issues?q=is%3Aissue"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["nmf_standalone*"]
+include = ["manta*"]
 
 [tool.setuptools.package-data]
-nmf_standalone = ["*.json", "*.txt", "*.md"]
+manta = ["*.json", "*.txt", "*.md"]
 
 [tool.black]
 line-length = 88

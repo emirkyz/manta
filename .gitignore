@@ -25,4 +25,4 @@ local/webapp/client/node_modules
 local/Output
 local/instance
 tests/TopicAnalysis
-nmf_standalone/utils/other
+manta/utils/other

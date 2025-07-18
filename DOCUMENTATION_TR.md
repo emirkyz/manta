@@ -1,4 +1,4 @@
-# NMF Standalone - Detaylı Türkçe Dokümantasyon
+# MANTA (Multi-lingual Advanced NMF-based Topic Analysis) - Detaylı Türkçe Dokümantasyon
 
 ## İçindekiler
 1. [Proje Genel Bakış](#proje-genel-bakış)
@@ -15,7 +15,7 @@
 
 ## Proje Genel Bakış
 
-**NMF Standalone**, metin belgelerinden anlamlı konuları çıkarmak için **Negatif Olmayan Matris Faktörizasyonu (Non-negative Matrix Factorization - NMF)** kullanan kapsamlı bir konu modelleme aracıdır. Sistem hem **Türkçe** hem de **İngilizce** dilleri destekler ve ham metin verilerinden görselleştirilmiş konu sonuçlarına kadar uçtan uca işleme sağlar.
+**MANTA (Multi-lingual Advanced NMF-based Topic Analysis)**, metin belgelerinden anlamlı konuları çıkarmak için **Negatif Olmayan Matris Faktörizasyonu (Non-negative Matrix Factorization - NMF)** kullanan kapsamlı bir konu modelleme aracıdır. Sistem hem **Türkçe** hem de **İngilizce** dilleri destekler ve ham metin verilerinden görselleştirilmiş konu sonuçlarına kadar uçtan uca işleme sağlar.
 
 ### Temel Özellikler
 - **İki Dilli Destek**: Hem Türkçe hem de İngilizce metin işleme desteği

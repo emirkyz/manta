@@ -1,9 +1,9 @@
 import time
 
-from nmf_standalone._functions.english.english_preprocessor import metin_temizle_english
-from nmf_standalone._functions.english.english_text_encoder import sayisallastirma
-from nmf_standalone._functions.english.english_vocabulary import sozluk_yarat
-from nmf_standalone._functions.tfidf import tf_idf_english
+from manta._functions.english.english_preprocessor import metin_temizle_english
+from manta._functions.english.english_text_encoder import sayisallastirma
+from manta._functions.english.english_vocabulary import sozluk_yarat
+from manta._functions.tfidf import tf_idf_english
 
 START_TIME = time.time()
 

@@ -1,12 +1,12 @@
-# NMF Standalone
+# MANTA (Multi-lingual Advanced NMF-based Topic Analysis)
 
 Bu proje, Negatif Olmayan Matris Faktörizasyonu (NMF) kullanarak metin verileri üzerinde konu modelleme yapar. Hem İngilizce hem de Türkçe dilleri destekler ve `.csv` ile `.xlsx` dosyalarını işleyebilir. Ana betik olan `standalone_nmf.py`, veri ön işlemeden konu çıkarımı ve görselleştirmeye kadar tüm süreci yönetir.
 
 ## Proje Yapısı
 
 ```
-nmf-standalone/
-├── nmf_standalone/
+manta/
+├── manta/
 │   ├── _functions/
 │   │   ├── common_language/
 │   │   ├── english/

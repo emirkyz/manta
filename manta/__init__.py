@@ -1,5 +1,5 @@
 """
-NMF Standalone - A comprehensive topic modeling library for Turkish and English texts.
+MANTA (Multi-lingual Advanced NMF-based Topic Analysis) - A comprehensive topic modeling library for Turkish and English texts.
 
 This package provides Non-negative Matrix Factorization (NMF) based topic modeling
 capabilities with support for both Turkish and English languages. It includes
@@ -16,7 +16,7 @@ Main Features:
 - Coherence score calculation for model evaluation
 
 Example Usage:
-    >>> from nmf_standalone import run_topic_analysis
+    >>> from manta import run_topic_analysis
     >>> result = run_topic_analysis(
     ...     "data.csv", 
     ...     column="text", 
@@ -26,7 +26,7 @@ Example Usage:
     >>> print(f"Found {len(result['topic_word_scores'])} topics")
 
 Command Line Usage:
-    $ nmf-standalone analyze data.csv --column text --language TR --topics 5 --wordclouds
+    $ manta analyze data.csv --column text --language TR --topics 5 --wordclouds
 """
 
 # Version information

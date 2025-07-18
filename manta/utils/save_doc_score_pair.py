@@ -2,7 +2,7 @@ import os
 import json
 from pathlib import Path
 
-from nmf_standalone.utils.save_topics_db import save_topics_to_db
+from manta.utils.save_topics_db import save_topics_to_db
 
 def save_doc_score_pair(doc_result,base_dir, output_dir, table_name, data_frame_name=None):
     """

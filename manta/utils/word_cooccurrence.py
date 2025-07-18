@@ -40,6 +40,7 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
         - Optionally saves heatmap: {table_name}_cooccurrence_heatmap.png
     """
     print("Calculating word co-occurrence matrix...")
+    #TODO: too memory consuming, optimize later.
 
     # Calculate co-occurrence matrix
     X = H.T @ H

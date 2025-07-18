@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2025-01-XX
+
+### Changed
+- **BREAKING**: Package renamed from "nmf-standalone" to "MANTA" (Multi-lingual Advanced NMF-based Topic Analysis)
+- CLI command changed from `nmf-standalone` to `manta`
+- Python import changed from `nmf_standalone` to `manta`
+- Updated all documentation and examples to reflect new branding
+- Updated GitHub repository URLs and references
+
 ## [0.1.6] - 2024-12-XX
 
 ### Fixed
@@ -14,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2024-12-XX
 
 ### Added
-- Initial release of NMF Standalone package
+- Initial release of MANTA package
 - Support for Turkish and English text processing
 - Multiple NMF algorithm variants (standard NMF and OPNMF)
 - Advanced tokenization for Turkish (BPE and WordPiece)

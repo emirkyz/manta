@@ -1,21 +1,21 @@
-import nmf_standalone
+import manta
 
-print(dir(nmf_standalone))
-emj_map = nmf_standalone.EmojiMap()
+print(dir(manta))
+emj_map = manta.EmojiMap()
 
 
-file_path = "../veri_setleri/PLAYSTORE_APP_REVIEWS.csv"
-column = "REVIEW_TEXT"
-nmf_standalone.run_topic_analysis(filepath=file_path,
+file_path = "../veri_setleri/bbc_news.csv"
+column = "text"
+manta.run_topic_analysis(filepath=file_path,
                                   column=column,
-                                  separator=';',
-                                  language="TR",
+                                  separator=',',
+                                  language="EN",
                                   tokenizer_type="bpe",
                                   lemmatize=True,
                                   generate_wordclouds=True,
-                                  topic_count=5,
+                                  topic_count=10,
                                   words_per_topic=15,
                                   emoji_map=emj_map,
-                                  word_pairs_out=True
-                                  ,nmf_method="opnmf")
+                                  word_pairs_out=False,
+                                  nmf_method="nmf")
 

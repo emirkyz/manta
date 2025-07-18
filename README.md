@@ -1,7 +1,7 @@
-# NMF Standalone
+# MANTA (Multi-lingual Advanced NMF-based Topic Analysis)
 
-[![PyPI version](https://badge.fury.io/py/nmf-standalone.svg)](https://badge.fury.io/py/nmf-standalone)
-[![PyPI version](https://img.shields.io/pypi/v/nmf-standalone)](https://badge.fury.io/py/nmf-standalone)
+[![PyPI version](https://badge.fury.io/py/manta.svg)](https://badge.fury.io/py/manta)
+[![PyPI version](https://img.shields.io/pypi/v/manta)](https://badge.fury.io/py/manta)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -18,24 +18,24 @@ After that you can import and use the app.
 
 ### Installation from PyPI
 ```bash
-pip install nmf-standalone
+pip install manta
 ```
 
 ### Command Line Usage
 ```bash
 # Turkish text analysis
-nmf-standalone analyze data.csv --column text --language TR --topics 5
+manta analyze data.csv --column text --language TR --topics 5
 
 # English text analysis with lemmatization and visualizations
-nmf-standalone analyze data.csv --column content --language EN --topics 10 --lemmatize --wordclouds --excel
+manta analyze data.csv --column content --language EN --topics 10 --lemmatize --wordclouds --excel
 
 # Custom tokenizer for Turkish text
-nmf-standalone analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
+manta analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
 ```
 
 ### Python API Usage
 ```python
-from nmf_standalone import run_topic_analysis
+from manta import run_topic_analysis
 
 # Simple topic modeling
 results = run_topic_analysis(
@@ -60,7 +60,7 @@ results = run_topic_analysis(
 ## Package Structure
 
 ```
-nmf_standalone/
+manta/
 ├── _functions/
 │   ├── common_language/          # Shared functionality across languages
 │   │   ├── emoji_processor.py    # Emoji handling utilities
@@ -116,14 +116,14 @@ nmf_standalone/
 
 ### From PyPI (Recommended)
 ```bash
-pip install nmf-standalone
+pip install manta
 ```
 
 ### From Source (Development)
 1. Clone the repository:
 ```bash
-git clone https://github.com/emirkyz/nmf-standalone.git
-cd nmf-standalone
+git clone https://github.com/emirkyz/manta.git
+cd manta
 ```
 
 2. Create a virtual environment:
@@ -141,14 +141,14 @@ pip install -r requirements.txt
 
 ### Command Line Interface
 
-The package provides the `nmf-standalone` command with an `analyze` subcommand:
+The package provides the `manta` command with an `analyze` subcommand:
 
 ```bash
 # Basic usage
-nmf-standalone analyze data.csv --column text --language TR --topics 5
+manta analyze data.csv --column text --language TR --topics 5
 
 # Advanced usage with all options
-nmf-standalone analyze reviews.csv \
+manta analyze reviews.csv \
   --column review_text \
   --language EN \
   --topics 10 \
@@ -184,7 +184,7 @@ nmf-standalone analyze reviews.csv \
 ### Python API
 
 ```python
-from nmf_standalone import run_topic_analysis
+from manta import run_topic_analysis
 
 # Basic English text analysis
 results = run_topic_analysis(
@@ -268,4 +268,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Support
 
-For issues and questions, please open an issue on the [GitHub repository](https://github.com/emirkyz/nmf-standalone/issues?q=is%3Aissue)
+For issues and questions, please open an issue on the [GitHub repository](https://github.com/emirkyz/manta/issues?q=is%3Aissue)

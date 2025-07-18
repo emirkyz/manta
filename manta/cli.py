@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Command-line interface for NMF Standalone topic modeling tool.
+Command-line interface for MANTA (Multi-lingual Advanced NMF-based Topic Analysis).
 
-This module provides a command-line interface for the NMF topic modeling
+This module provides a command-line interface for the MANTA topic modeling
 functionality, allowing users to analyze text data from CSV or Excel files
 and extract topics using Non-negative Matrix Factorization.
 """
@@ -20,18 +20,18 @@ from ._functions.common_language.emoji_processor import EmojiMap
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
     parser = argparse.ArgumentParser(
-        description="NMF Standalone - Topic modeling tool for Turkish and English texts",
+        description="MANTA - Multi-lingual Advanced NMF-based Topic Analysis tool for Turkish and English texts",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Analyze Turkish app reviews with 5 topics
-  nmf-standalone analyze reviews.csv --column REVIEW --language TR --topics 5
+  manta analyze reviews.csv --column REVIEW --language TR --topics 5
   
   # Analyze English documents with lemmatization and word clouds
-  nmf-standalone analyze docs.xlsx --column text --language EN --topics 10 --lemmatize --wordclouds
+  manta analyze docs.xlsx --column text --language EN --topics 10 --lemmatize --wordclouds
   
   # Use BPE tokenizer for Turkish text
-  nmf-standalone analyze data.csv --column content --language TR --tokenizer bpe --topics 7
+  manta analyze data.csv --column content --language TR --tokenizer bpe --topics 7
         """
     )
     
@@ -207,7 +207,7 @@ def analyze_command(args: argparse.Namespace) -> int:
         # Convert to absolute path
         filepath = Path(args.filepath).resolve()
         
-        print(f"Starting NMF topic modeling analysis...")
+        print(f"Starting MANTA topic modeling analysis...")
         print(f"Input file: {filepath}")
         print(f"Language: {args.language}")
         print(f"Topics: {args.topics}")
