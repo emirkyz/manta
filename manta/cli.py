@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any
 
-from .standalone_nmf import run_standalone_nmf
+from .manta_entry import run_standalone_nmf
 from ._functions.common_language.emoji_processor import EmojiMap
 
 

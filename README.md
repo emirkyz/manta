@@ -75,6 +75,55 @@ results = run_topic_analysis(
 )
 ```
 
+## Result Structre
+```
+{
+"state": State of the analysis, either "success" or "error",
+"message": Message about the result of the analysis,
+"data_name": Name of the input data file,
+"topic_word_scores": JSON object containing topics and their top words with scores,
+"topic_doc_scores": JSON object containing topics and their top documents with scores,
+"coherence_scores": JSON object containing coherence scores for each topic,
+"topic_dist_img": Matplplotlib plt object of topic distribution plot if `gen_topic_distribution` is True,
+"topic_document_counts": Count of documents per topic,
+}
+```
+```
+For example:
+{
+  "state": "success",
+  "message": "Analysis completed successfully",
+  "data_name": "reviews.csv",
+  "topic_word_scores": {
+    "topic_0": {
+        "word1": 0.15,
+        "word2": 0.12,
+        "word3": 0.10
+        }
+    },
+  "topic_doc_scores":{
+          "topic_0": [
+                {
+                    "document": "Sample document text...",
+                    "score": 0.78
+                }
+            ],
+    }
+  "coherence_scores": {
+        "gensim": {
+           "umass_average": -1.4328882390292266,
+            "umass_per_topic": {
+                "topic_0": -1.4328882390292266,
+                "topic_1": -1.1234567890123456,
+                "topic_2": -0.9876543210987654
+                }
+        }
+    },
+  "topic_dist_img": "<matplotlib plot object>",
+  "topic_document_counts": [____]
+}
+```
+
 ## Package Structure
 
 ```

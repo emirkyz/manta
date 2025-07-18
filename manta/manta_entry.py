@@ -17,7 +17,7 @@ from .utils.coherence_score import calculate_coherence_scores
 from .utils.save_doc_score_pair import save_doc_score_pair
 from .utils.save_word_score_pair import save_word_score_pair
 from .utils.visualizer import create_visualization
-
+from .utils.json_to_excel import convert_json_to_excel
 
 def process_file(
     filepath: str,
@@ -245,7 +245,7 @@ def process_file(
                 W=W,
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
                 sozluk=sozluk,
-                documents=metin_array,
+                documents=[str(doc).strip() for doc in df[desired_columns]],
                 topics_db_eng=topics_db_eng,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
@@ -285,7 +285,7 @@ def process_file(
             table_name=table_name,
         )
 
-        create_visualization(
+        visual_returns = create_visualization(
             W,
             H,
             sozluk,
@@ -301,16 +301,29 @@ def process_file(
             output_dir,
         )
 
+        save_to_excel = True
+        if save_to_excel:
+            # save jsons to excel format
+            convert_json_to_excel(
+                word_json_data=topic_word_scores,
+                doc_json_data=topic_doc_scores,
+                output_dir=table_output_dir,
+                data_frame_name=table_name,
+                total_docs_count=len(metin_array),
+            )
+
+
         print("Topic modeling completed successfully!")
+
         return {
             "state": "SUCCESS",
             "message": "Topic modeling completed successfully",
             "data_name": table_name,
             "topic_word_scores": topic_word_scores,
+            "topic_doc_scores": topic_doc_scores,
             "coherence_scores": coherence_scores,
-            # "topic_document_counts": {f"Topic {i+1}": count for i, count in enumerate(topic_counts)},
-            # "plot_path": plot_path
-            # "coherence_scores": coherence_scores
+            "topic_dist_img": visual_returns[0] if options["gen_topic_distribution"] else None,
+            "topic_document_counts": visual_returns[1] if options["gen_topic_distribution"] else None
         }
 
     except Exception as e:

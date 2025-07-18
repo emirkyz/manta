@@ -236,12 +236,12 @@ def process_file(
    - Generates word clouds and distribution plots
    - Exports results to Excel format
 
-### 4. run_standalone_nmf()
+### 4. run_topic_analysis()
 
 The main entry point function that provides a simplified interface.
 
 ```python
-def run_standalone_nmf(filepath, table_name, desired_columns, options):
+def run_topic_analysis(filepath, table_name, desired_columns, options):
     """
     Simplified entry point for NMF topic modeling.
     
@@ -417,7 +417,7 @@ Output/
     ├── {table_name}_coherence_scores.json    # Coherence metrics
     ├── {table_name}_document_dist.png        # Topic distribution plot
     ├── {table_name}_wordcloud_scores.json    # Word cloud data
-    ├── top_docs_{table_name}.json            # Representative documents
+    ├── {table_name}_top_docs.json            # Representative documents
     └── wordclouds/
         ├── Konu 00.png                       # Word cloud for topic 0
         ├── Konu 01.png                       # Word cloud for topic 1
@@ -434,13 +434,13 @@ Output/
 #### Coherence Scores (`{table_name}_coherence_scores.json`)
 ```json
 {
-    "topic_0": {
-        "coherence_score": 0.45,
-        "top_words": ["word1", "word2", "word3"]
-    },
-    "topic_1": {
-        "coherence_score": 0.52,
-        "top_words": ["word4", "word5", "word6"]
+    "gensim": {
+       "umass_average": -1.4328882390292266,
+        "umass_per_topic": {
+            "topic_0": -1.4328882390292266,
+            "topic_1": -1.1234567890123456,
+            "topic_2": -0.9876543210987654
+        }
     }
 }
 ```
@@ -490,7 +490,7 @@ options = {
 }
 
 # Run the analysis
-result = run_standalone_nmf(
+result = run_topic_analysis(
     filepath="data/app_reviews.csv",
     table_name="app_reviews_analysis",
     desired_columns="review_text",
@@ -519,7 +519,7 @@ options = {
 }
 
 # Run the analysis
-result = run_standalone_nmf(
+result = run_topic_analysis(
     filepath="data/research_papers.csv",
     table_name="research_analysis",
     desired_columns="abstract",
@@ -560,7 +560,7 @@ for file_config in files_to_process:
         "gen_topic_distribution": True
     }
     
-    result = run_standalone_nmf(
+    result = run_topic_analysis(
         filepath=file_config["filepath"],
         table_name=file_config["table_name"],
         desired_columns=file_config["column"],
@@ -682,4 +682,4 @@ If you encounter issues not covered here:
 
 ---
 
-*This documentation covers the complete NMF Standalone system. For additional support or feature requests, please refer to the project repository.*
+*This documentation covers the complete MANTA application system. For additional support or feature requests, please refer to the project repository.*

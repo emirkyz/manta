@@ -236,28 +236,30 @@ def process_file(
    - Kelime bulutları ve dağılım grafikleri oluşturur
    - Sonuçları Excel formatında dışa aktarır
 
-### 4. run_standalone_nmf()
+### 4. run_topic_analysis()
 
 Basitleştirilmiş arayüz sağlayan ana giriş noktası fonksiyonu.
 
 ```python
-def run_standalone_nmf(filepath, table_name, desired_columns, options):
+def run_topic_analysis(filepath, column, language, topics, options):
     """
     NMF konu modellemesi için basitleştirilmiş giriş noktası.
     
     Args:
         filepath (str): Giriş dosyasının yolu
-        table_name (str): Analiz tanımlayıcısı
-        desired_columns (str): Metin sütunu adı
+        column (str): Metin sütunu adı
+        language (str): Dil kodu ("TR" veya "EN")
+        topics (int): Çıkarılacak konu sayısı
         options (dict): Şunları içeren konfigürasyon sözlüğü:
-            - LEMMATIZE: bool
-            - N_TOPICS: int (konu başına kelime)
-            - DESIRED_TOPIC_COUNT: int
+            - lemmatize: bool
+            - words_per_topic: int (konu başına kelime)
             - tokenizer_type: str
-            - nmf_type: str
-            - LANGUAGE: str
+            - nmf_method: str
+            - generate_wordclouds: bool
+            - export_excel: bool
+            - topic_distribution: bool
+            - emoji_map: bool
             - separator: str
-            - gen_topic_distribution: bool
     
     Returns:
         dict: Zamanlama bilgisiyle birlikte işlem sonuçları
@@ -367,12 +369,12 @@ Kelime Bulutları → Dağılım Grafikleri → Excel Dışa Aktarma → JSON De
 
 | Parametre | Tür | Açıklama | Varsayılan | Seçenekler |
 |-----------|-----|----------|------------|------------|
-| `LANGUAGE` | str | Metin dili | "TR" | "TR", "EN" |
-| `desired_topic_count` | int | Çıkarılacak konu sayısı | 5 | 2-50+ |
-| `N_TOPICS` | int | Konu başına gösterilecek kelime | 15 | 5-30 |
-| `LEMMATIZE` | bool | Lemmatizasyonu etkinleştir (İngilizce) | True | True, False |
+| `language` | str | Metin dili | "TR" | "TR", "EN" |
+| `topics` | int | Çıkarılacak konu sayısı | 5 | 2-50+ |
+| `words_per_topic` | int | Konu başına gösterilecek kelime | 15 | 5-30 |
+| `lemmatize` | bool | Lemmatizasyonu etkinleştir (İngilizce) | True | True, False |
 | `tokenizer_type` | str | Tokenizer türü (Türkçe) | "bpe" | "bpe", "wordpiece" |
-| `nmf_type` | str | NMF algoritması | "nmf" | "nmf", "opnmf" |
+| `nmf_method` | str | NMF algoritması | "nmf" | "nmf", "opnmf" |
 | `emoji_map` | bool | Emoji işleme ve eşlemeyi etkinleştir | True | True, False |
 | `separator` | str | CSV dosya ayırıcısı | "," | ",", ";", "\\t" |
 
@@ -380,9 +382,9 @@ Kelime Bulutları → Dağılım Grafikleri → Excel Dışa Aktarma → JSON De
 
 | Parametre | Tür | Açıklama | Varsayılan |
 |-----------|-----|----------|------------|
-| `gen_topic_distribution` | bool | Dağılım grafikleri oluştur | True |
-| `gen_cloud` | bool | Kelime bulutları oluştur | True |
-| `save_excel` | bool | Excel'e dışa aktar | True |
+| `topic_distribution` | bool | Dağılım grafikleri oluştur | True |
+| `generate_wordclouds` | bool | Kelime bulutları oluştur | True |
+| `export_excel` | bool | Excel'e dışa aktar | True |
 | `word_pairs_out` | bool | Kelime birlikte bulunma hesapla | False |
 | `norm_thresh` | float | NMF normalleştirme eşiği | 0.005 |
 
@@ -390,18 +392,18 @@ Kelime Bulutları → Dağılım Grafikleri → Excel Dışa Aktarma → JSON De
 
 ```python
 seçenekler = {
-    "LEMMATIZE": True,
-    "N_TOPICS": 15,
-    "DESIRED_TOPIC_COUNT": 8,
+    "lemmatize": True,
+    "words_per_topic": 15,
+    "topics": 8,
     "tokenizer_type": "bpe",
-    "nmf_type": "opnmf",
-    "LANGUAGE": "TR",
+    "nmf_method": "opnmf",
+    "language": "TR",
     "separator": ";",
     "emoji_map": True,
-    "gen_cloud": True,
-    "save_excel": True,
+    "generate_wordclouds": True,
+    "export_excel": True,
     "word_pairs_out": False,
-    "gen_topic_distribution": True
+    "topic_distribution": True
 }
 ```
 
@@ -417,7 +419,7 @@ Output/
     ├── {table_name}_coherence_scores.json    # Tutarlılık metrikleri
     ├── {table_name}_document_dist.png        # Konu dağılım grafiği
     ├── {table_name}_wordcloud_scores.json    # Kelime bulutu verisi
-    ├── top_docs_{table_name}.json            # Temsili dokümanlar
+    ├── {table_name}_top_docs.json            # Temsili dokümanlar
     └── wordclouds/
         ├── Konu 00.png                       # 0. konu için kelime bulutu
         ├── Konu 01.png                       # 1. konu için kelime bulutu
@@ -434,13 +436,13 @@ Output/
 #### Tutarlılık Skorları (`{table_name}_coherence_scores.json`)
 ```json
 {
-    "topic_0": {
-        "coherence_score": 0.45,
-        "top_words": ["kelime1", "kelime2", "kelime3"]
-    },
-    "topic_1": {
-        "coherence_score": 0.52,
-        "top_words": ["kelime4", "kelime5", "kelime6"]
+    "gensim": {
+       "umass_average": -1.4328882390292266,
+        "umass_per_topic": {
+            "topic_0": -1.4328882390292266,
+            "topic_1": -1.1234567890123456,
+            "topic_2": -0.9876543210987654
+        }
     }
 }
 ```
@@ -477,24 +479,23 @@ Output/
 ```python
 # Türkçe app store yorumları için konfigürasyon
 seçenekler = {
-    "LEMMATIZE": False,                    # Türkçe için gerekli değil
-    "N_TOPICS": 20,                       # Konu başına 20 kelime
-    "DESIRED_TOPIC_COUNT": 6,             # 6 konu çıkar
+    "lemmatize": False,                    # Türkçe için gerekli değil
+    "words_per_topic": 20,                # Konu başına 20 kelime
     "tokenizer_type": "bpe",              # BPE tokenizasyon kullan
-    "nmf_type": "nmf",                    # Standart NMF
-    "LANGUAGE": "TR",                     # Türkçe dil
+    "nmf_method": "nmf",                  # Standart NMF
     "separator": ",",                     # CSV ayırıcısı
-    "gen_cloud": True,                    # Kelime bulutları oluştur
-    "save_excel": True,                   # Excel'e dışa aktar
-    "gen_topic_distribution": True        # Dağılım grafikleri oluştur
+    "generate_wordclouds": True,          # Kelime bulutları oluştur
+    "export_excel": True,                 # Excel'e dışa aktar
+    "topic_distribution": True            # Dağılım grafikleri oluştur
 }
 
 # Analizi çalıştır
-sonuç = run_standalone_nmf(
+sonuç = run_topic_analysis(
     filepath="veri/uygulama_yorumlari.csv",
-    table_name="uygulama_yorumlari_analizi",
-    desired_columns="yorum_metni",
-    options=seçenekler
+    column="yorum_metni",
+    language="TR",
+    topics=6,
+    **seçenekler
 )
 
 print(f"Analiz tamamlandı: {sonuç['state']}")
@@ -506,24 +507,23 @@ print(f"Çıkarılan konular: {len(sonuç['topic_word_scores'])}")
 ```python
 # Türkçe araştırma makaleleri için konfigürasyon
 seçenekler = {
-    "LEMMATIZE": False,                    # Türkçe için lemmatizasyon yok
-    "N_TOPICS": 25,                       # Konu başına 25 kelime
-    "DESIRED_TOPIC_COUNT": 10,            # 10 konu çıkar
+    "lemmatize": False,                    # Türkçe için lemmatizasyon yok
+    "words_per_topic": 25,                # Konu başına 25 kelime
     "tokenizer_type": "bpe",              # BPE tokenizer
-    "nmf_type": "opnmf",                  # Ortogonal NMF
-    "LANGUAGE": "TR",                     # Türkçe dil
+    "nmf_method": "opnmf",                # Ortogonal NMF
     "separator": ",",
-    "gen_cloud": True,
-    "save_excel": True,
-    "gen_topic_distribution": True
+    "generate_wordclouds": True,
+    "export_excel": True,
+    "topic_distribution": True
 }
 
 # Analizi çalıştır
-sonuç = run_standalone_nmf(
+sonuç = run_topic_analysis(
     filepath="veri/akademik_makaleler.csv",
-    table_name="akademik_analiz",
-    desired_columns="özet",
-    options=seçenekler
+    column="özet",
+    language="TR",
+    topics=10,
+    **seçenekler
 )
 ```
 
@@ -548,23 +548,22 @@ işlenecek_dosyalar = [
 sonuçlar = []
 for dosya_config in işlenecek_dosyalar:
     seçenekler = {
-        "LEMMATIZE": False,
-        "N_TOPICS": 15,
-        "DESIRED_TOPIC_COUNT": dosya_config["konular"],
+        "lemmatize": False,
+        "words_per_topic": 15,
         "tokenizer_type": "bpe",
-        "nmf_type": "nmf",
-        "LANGUAGE": "TR",
+        "nmf_method": "nmf",
         "separator": ",",
-        "gen_cloud": True,
-        "save_excel": True,
-        "gen_topic_distribution": True
+        "generate_wordclouds": True,
+        "export_excel": True,
+        "topic_distribution": True
     }
     
-    sonuç = run_standalone_nmf(
+    sonuç = run_topic_analysis(
         filepath=dosya_config["filepath"],
-        table_name=dosya_config["table_name"],
-        desired_columns=dosya_config["column"],
-        options=seçenekler
+        column=dosya_config["column"],
+        language="TR",
+        topics=dosya_config["konular"],
+        **seçenekler
     )
     sonuçlar.append(sonuç)
 
@@ -576,23 +575,22 @@ print(f"{len(sonuçlar)} dosya başarıyla işlendi")
 ```python
 # Twitter/X gönderileri analizi için özelleştirilmiş konfigürasyon
 seçenekler = {
-    "LEMMATIZE": False,
-    "N_TOPICS": 12,                       # Kısa metinler için daha az kelime
-    "DESIRED_TOPIC_COUNT": 15,            # Çeşitlilik için daha fazla konu
+    "lemmatize": False,
+    "words_per_topic": 12,                # Kısa metinler için daha az kelime
     "tokenizer_type": "wordpiece",        # Sosyal medya için WordPiece
-    "nmf_type": "opnmf",                  # Daha iyi ayrım için OPNMF
-    "LANGUAGE": "TR",
+    "nmf_method": "opnmf",                # Daha iyi ayrım için OPNMF
     "separator": ",",
-    "gen_cloud": True,
-    "save_excel": True,
-    "gen_topic_distribution": True
+    "generate_wordclouds": True,
+    "export_excel": True,
+    "topic_distribution": True
 }
 
-sonuç = run_standalone_nmf(
+sonuç = run_topic_analysis(
     filepath="veri/sosyal_medya_gönderileri.csv",
-    table_name="sosyal_medya_analizi",
-    desired_columns="gönderi_metni",
-    options=seçenekler
+    column="gönderi_metni",
+    language="TR",
+    topics=15,                            # Çeşitlilik için daha fazla konu
+    **seçenekler
 )
 ```
 
@@ -619,9 +617,9 @@ sonuç = run_standalone_nmf(
 **Sorun**: `MemoryError` veya sistem yavaşlaması
 
 **Çözüm**:
-- Konu sayısını azaltın (`DESIRED_TOPIC_COUNT`)
+- Konu sayısını azaltın (`topics`)
 - Veri setinizi daha küçük parçalara filtreleyin
-- Konu başına daha az kelime kullanın (`N_TOPICS`)
+- Konu başına daha az kelime kullanın (`words_per_topic`)
 - Daha güçlü bir makine kullanmayı düşünün
 
 #### 3. Konu Üretilmemesi
@@ -631,7 +629,7 @@ sonuç = run_standalone_nmf(
 **Çözümler**:
 - Metin sütununuzun anlamlı içerik barındırıp barındırmadığını kontrol edin
 - Minimum doküman uzunluğunu artırın
-- `desired_topic_count` parametresini ayarlayın
+- `topics` parametresini ayarlayın
 - Diliniz için uygun metin temizleme yapıldığından emin olun
 
 #### 4. Tokenizer Eğitimi Başarısızlığı
@@ -652,7 +650,7 @@ sonuç = run_standalone_nmf(
 - Metin ön işlemeyi geliştirin
 - Alana özgü durak kelimeler ekleyin
 - NMF parametrelerini ayarlayın (`norm_thresh`)
-- Farklı `nmf_type` deneyin ("nmf" vs "opnmf")
+- Farklı `nmf_method` deneyin ("nmf" vs "opnmf")
 
 #### 6. Veritabanı Kilit Hataları
 
@@ -682,14 +680,14 @@ pip install -r requirements.txt
 ### Performans Optimizasyon İpuçları
 
 1. **Büyük Veri Setleri İçin**:
-   - Grafik oluşturmayı atlamak için `gen_topic_distribution=False` kullanın
-   - Kelime bulutu oluşturmayı atlamak için `gen_cloud=False` ayarlayın
-   - `N_TOPICS`'i 10-15'e düşürün
+   - Grafik oluşturmayı atlamak için `topic_distribution=False` kullanın
+   - Kelime bulutu oluşturmayı atlamak için `generate_wordclouds=False` ayarlayın
+   - `words_per_topic`'i 10-15'e düşürün
 
 2. **Daha İyi Konu Kalitesi İçin**:
-   - Daha ayrıntılı konular için `desired_topic_count`'u artırın
-   - Daha iyi konu ayrımı için `nmf_type="opnmf"` kullanın
-   - İngilizce metin için `LEMMATIZE=True` etkinleştirin
+   - Daha ayrıntılı konular için `topics`'i artırın
+   - Daha iyi konu ayrımı için `nmf_method="opnmf"` kullanın
+   - İngilizce metin için `lemmatize=True` etkinleştirin
 
 3. **Daha Hızlı İşleme İçin**:
    - Türkçe için `tokenizer_type="bpe"` kullanın (genellikle daha hızlı)

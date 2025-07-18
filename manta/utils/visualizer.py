@@ -10,7 +10,7 @@ from .word_cooccurrence_analyzer import analyze_word_cooccurrence
 def create_visualization(W, H, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir):
     # generate topic distribution plot
     if options["gen_topic_distribution"]:
-        gen_topic_dist(W, table_output_dir, table_name)
+        topic_dist_img_count = gen_topic_dist(W, table_output_dir, table_name)
 
     if options["gen_cloud"]:
         generate_wordclouds(result, table_output_dir, table_name)
@@ -55,3 +55,5 @@ def create_visualization(W, H, sozluk, table_output_dir, table_name, options, re
                                     nmf_method=options["nmf_type"], sozluk=sozluk, tokenizer=tokenizer,
                                     metin_array=metin_array, topics_db_eng=topics_db_eng, table_name=table_name,
                                     emoji_map=emoji_map, base_dir=program_output_dir, output_dir=output_dir)'''
+
+    return topic_dist_img_count if options["gen_topic_distribution"] else None

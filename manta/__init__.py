@@ -30,7 +30,7 @@ Command Line Usage:
 """
 
 # Version information
-__version__ = "0.5.1"
+__version__ = "0.5.3"
 __author__ = "Emir Kyz"
 __email__ = "emirkyzmain@gmail.com"
 
@@ -46,7 +46,6 @@ def __getattr__(name):
 __all__ = [
     # Main functions
     "run_topic_analysis",
-    "EmojiMap",
     # Version info
     "__version__",
     "__author__",
@@ -140,7 +139,7 @@ def run_topic_analysis(
     from pathlib import Path
     
     # Import dependencies only when needed
-    from .standalone_nmf import run_standalone_nmf 
+    from .manta_entry import run_standalone_nmf
     from ._functions.common_language.emoji_processor import EmojiMap
     
     # Set defaults
