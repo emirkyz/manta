@@ -27,9 +27,11 @@ def generate_wordclouds(topics_data,output_dir,table_name):
         # Remove scores for wordcloud generation
         words_only = [word.split(":")[0] for word in words]
         wordcloud = WordCloud(width=800, height=400, background_color='white').generate(" ".join(words_only))
-        a = wordcloud.to_image()
-
+        
+        # Convert to PIL Image and save with high DPI
+        image = wordcloud.to_image()
+        
         wordclouds[topic_name] = wordcloud
-        # Save wordcloud image to table-specific subdirectory
-        wordcloud.to_file(str(wordclouds_dir / f"{topic_name}.png"))
+        # Save wordcloud image to table-specific subdirectory with 400 DPI
+        image.save(str(wordclouds_dir / f"{topic_name}.png"), dpi=(1000, 1000))
   

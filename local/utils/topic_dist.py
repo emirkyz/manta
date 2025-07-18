@@ -46,6 +46,6 @@ def gen_topic_dist(W,output_dir,table_name):
     
     # Save the plot to table-specific subdirectory
     plot_path = os.path.join(table_output_dir, f"{table_name}_document_dist.png")
-    plt.savefig(plot_path)
+    plt.savefig(plot_path,dpi=300)
     plt.close()
     
