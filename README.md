@@ -8,18 +8,33 @@
 A comprehensive topic modeling system using Non-negative Matrix Factorization (NMF) that supports both English and Turkish text processing. Features advanced tokenization techniques, multiple NMF algorithms, and rich visualization capabilities.
 
 ## Quick Start
-### Local Dev
+### Installing locally for Development
 To build and run the app locally for development:
+First clone the repository:
 ```bash
-uv pip install -e .
+git clone https://github.com/emirkyz/manta.git
+```
+After cloning, navigate to the project directory and create a virtual environment:
+
+```bash
+cd manta
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+Next, install the required dependencies. If you have `pip` installed, you can run:
+```bash
 pip install -e .
 ```
-After that you can import and use the app.
-
+or if you have `uv` installed, you can use:
+```bash
+uv pip install -e .
+```
 ### Installation from PyPI
 ```bash
 pip install manta-topic-modelling
 ```
+
+After that you can import and use the app.
 
 ### Command Line Usage
 ```bash
