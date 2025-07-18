@@ -63,7 +63,7 @@ def save_doc_score_pair(doc_result,base_dir, output_dir, table_name, data_frame_
             table_output_dir.mkdir(parents=True, exist_ok=True)
         
         # Save document scores to table-specific subdirectory
-        document_file_path = table_output_dir / f"top_docs_{data_frame_name}.json"
+        document_file_path = table_output_dir / f"{data_frame_name}_top_docs.json"
         with open(document_file_path, "w", encoding="utf-8") as f:
             json.dump(doc_result, f, ensure_ascii=False)
         print(f"Document scores saved to {document_file_path}")
