@@ -173,8 +173,7 @@ def run_topic_analysis(
 
         
     # Create emoji map
-    emoji_map = EmojiMap() if options['emoji_map'] is True else options['emoji_map']
-    
+
     # Build options dictionary for run_standalone_nmf
     run_options = {
         "LANGUAGE": options['language'].upper(),
@@ -191,7 +190,7 @@ def run_topic_analysis(
         "gen_topic_distribution": options['topic_distribution'],
         "filter_app": options['filter_app'],
         "filter_app_name": options['filter_app_name'],
-        "emoji_map": emoji_map
+        "emoji_map": options["emoji_map"]
     }
     
     #TODO: APP name based options will be implemented.

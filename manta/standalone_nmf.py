@@ -356,6 +356,12 @@ def run_standalone_nmf(
     # Initialize tokenizer once before processing
     tokenizer = init_tokenizer(tokenizer_type=options["tokenizer_type"])
     options["tokenizer"] = tokenizer
+    
+    # Convert boolean emoji_map to EmojiMap object if needed
+    if options.get("emoji_map") is True:
+        options["emoji_map"] = EmojiMap()
+    elif options.get("emoji_map") is False:
+        options["emoji_map"] = None
 
     result = process_file(
         filepath, table_name, desired_columns, options, output_base_dir
