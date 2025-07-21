@@ -33,6 +33,12 @@ Examples:
   # Use BPE tokenizer for Turkish text
   manta analyze data.csv --column content --language TR --tokenizer bpe --topics 7
   
+  # Filter by app name and country
+  manta analyze reviews.csv --column REVIEW --language TR --topics 5 --filter-app MyApp --filter-country TR
+  
+  # Custom filtering columns
+  manta analyze data.csv --column text --language TR --topics 5 --filter-app-column APP_ID --filter-country-column REGION
+  
   # Disable emoji processing for faster processing
   manta analyze data.csv --column text --language EN --topics 5 --emoji-map False
         """
@@ -147,6 +153,23 @@ Examples:
     )
     
     analyze_parser.add_argument(
+        '--filter-app-column',
+        default='PACKAGE_NAME',
+        help='Column name for app filtering (default: PACKAGE_NAME)'
+    )
+    
+    analyze_parser.add_argument(
+        '--filter-country',
+        help='Filter data by country code (e.g., TR, US, GB)'
+    )
+    
+    analyze_parser.add_argument(
+        '--filter-country-column',
+        default='COUNTRY',
+        help='Column name for country filtering (default: COUNTRY)'
+    )
+    
+    analyze_parser.add_argument(
         '--word-pairs',
         action='store_true',
         help='Generate word co-occurrence analysis and heatmap'
@@ -197,7 +220,12 @@ def build_options(args: argparse.Namespace) -> Dict[str, Any]:
         "save_excel": args.excel,
         "gen_topic_distribution": args.topic_distribution,
         "filter_app": bool(args.filter_app),
-        "filter_app_name": args.filter_app or "",
+        "data_filter_options": {
+            "filter_app_name": args.filter_app or "",
+            "filter_app_column": args.filter_app_column,
+            "filter_app_country": args.filter_country or "",
+            "filter_app_country_column": args.filter_country_column,
+        },
         "emoji_map": emoji_map,
         "word_pairs_out": args.word_pairs
     }

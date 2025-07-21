@@ -375,6 +375,7 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 | `nmf_type` | str | NMF algorithm | "nmf" | "nmf", "opnmf" |
 | `emoji_map` | bool | Enable emoji processing and mapping | True | True, False |
 | `separator` | str | CSV file separator | "," | ",", ";", "\\t" |
+| `filter_app` | bool | Enable data filtering | False | True, False |
 
 ### Advanced Options
 
@@ -385,6 +386,28 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 | `save_excel` | bool | Export to Excel | True |
 | `word_pairs_out` | bool | Calculate word co-occurrence | False |
 | `norm_thresh` | float | NMF normalization threshold | 0.005 |
+
+### Data Filtering Options
+
+When `filter_app` is enabled, you can configure advanced filtering using the `data_filter_options` dictionary:
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `filter_app_name` | str | App name to filter by | "" |
+| `filter_app_column` | str | Column name for app filtering | "PACKAGE_NAME" |
+| `filter_app_country` | str | Country code to filter by | "" |
+| `filter_app_country_column` | str | Column name for country filtering | "COUNTRY" |
+
+**Example filtering configuration:**
+```python
+"filter_app": True,
+"data_filter_options": {
+    "filter_app_name": "com.example.app",      # Filter by specific app ID
+    "filter_app_column": "PACKAGE_NAME",       # Column containing app identifiers
+    "filter_app_country": "TR",                # Filter by Turkish data only
+    "filter_app_country_column": "COUNTRY"      # Column containing country codes
+}
+```
 
 ### Example Configuration
 
@@ -401,7 +424,14 @@ options = {
     "gen_cloud": True,
     "save_excel": True,
     "word_pairs_out": False,
-    "gen_topic_distribution": True
+    "gen_topic_distribution": True,
+    "filter_app": True,
+    "data_filter_options": {
+        "filter_app_name": "MyApp",
+        "filter_app_column": "APP_NAME",
+        "filter_app_country": "TR",
+        "filter_app_country_column": "COUNTRY_CODE"
+    }
 }
 ```
 
@@ -527,7 +557,42 @@ result = run_topic_analysis(
 )
 ```
 
-### Example 3: Batch Processing Multiple Files
+### Example 3: Advanced Filtering Configuration
+
+```python
+# Configuration for filtering app store reviews by specific app and country
+options = {
+    "LEMMATIZE": False,                    # Not needed for Turkish
+    "N_TOPICS": 15,                       # 15 words per topic
+    "DESIRED_TOPIC_COUNT": 5,             # Extract 5 topics
+    "tokenizer_type": "bpe",              # Use BPE tokenization
+    "nmf_type": "nmf",                    # Standard NMF
+    "LANGUAGE": "TR",                     # Turkish language
+    "separator": "|",                     # Pipe separator
+    "gen_cloud": True,                    # Generate word clouds
+    "save_excel": True,                   # Export to Excel
+    "gen_topic_distribution": True,       # Create distribution plots
+    "filter_app": True,                   # Enable filtering
+    "data_filter_options": {
+        "filter_app_name": "com.example.app",      # Filter by specific app
+        "filter_app_column": "PACKAGE_NAME",       # Column containing app names
+        "filter_app_country": "TR",                # Filter by country
+        "filter_app_country_column": "COUNTRY"      # Column containing country codes
+    }
+}
+
+# Run analysis with filtering
+result = run_topic_analysis(
+    filepath="app_reviews.csv",
+    table_name="filtered_app_analysis",
+    desired_columns="review_text",
+    options=options
+)
+
+print(f"Filtered analysis result: {result['state']}")
+```
+
+### Example 4: Batch Processing Multiple Files
 
 ```python
 files_to_process = [
@@ -641,7 +706,25 @@ print(f"Processed {len(results)} files successfully")
 # Or use a different table_name for each run
 ```
 
-#### 7. Missing Dependencies
+#### 7. Data Filtering Issues
+
+**Problem**: Filtering not working or "filter columns are not present" error
+
+**Solutions**:
+- Verify that the specified filter columns exist in your dataset
+- Check column names for exact matches (case-sensitive)
+- Use `pandas.read_csv()` to inspect your data structure first
+- Ensure filter values match the data format (e.g., country codes)
+
+```python
+# Debug filtering issues
+import pandas as pd
+df = pd.read_csv("your_file.csv")
+print(df.columns.tolist())  # Check available columns
+print(df['COUNTRY'].unique())  # Check available country values
+```
+
+#### 8. Missing Dependencies
 
 **Problem**: Import errors for required packages
 

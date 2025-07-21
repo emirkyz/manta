@@ -47,6 +47,12 @@ manta-topic-modelling analyze data.csv --column content --language EN --topics 1
 # Custom tokenizer for Turkish text
 manta-topic-modelling analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
 
+# Filter by app name and country
+manta-topic-modelling analyze reviews.csv --column REVIEW --language TR --topics 5 --filter-app MyApp --filter-country TR
+
+# Custom filtering columns
+manta-topic-modelling analyze data.csv --column text --language TR --topics 5 --filter-app-column APP_ID --filter-country-column REGION
+
 # Disable emoji processing for faster processing
 manta-topic-modelling analyze data.csv --column text --language EN --topics 5 --emoji-map False
 ```
@@ -248,6 +254,9 @@ manta-topic-modelling analyze reviews.csv \
 - `--topic-distribution`: Generate topic distribution plots
 - `--separator`: CSV separator character (default: "|")
 - `--filter-app`: Filter data by specific app name
+- `--filter-app-column`: Column name for app filtering (default: "PACKAGE_NAME")
+- `--filter-country`: Filter data by country code (e.g., TR, US, GB)
+- `--filter-country-column`: Column name for country filtering (default: "COUNTRY")
 
 ### Python API
 
@@ -265,7 +274,7 @@ results = run_topic_analysis(
     export_excel=True
 )
 
-# Advanced Turkish text analysis
+# Advanced Turkish text analysis with filtering
 results = run_topic_analysis(
     filepath="turkish_reviews.csv",
     column="yorum_metni",
@@ -276,7 +285,14 @@ results = run_topic_analysis(
     nmf_method="nmf",
     generate_wordclouds=True,
     export_excel=True,
-    topic_distribution=True
+    topic_distribution=True,
+    filter_app=True,
+    data_filter_options={
+        "filter_app_name": "MyApp",
+        "filter_app_column": "APP_NAME",
+        "filter_app_country": "TR",
+        "filter_app_country_column": "COUNTRY_CODE"
+    }
 )
 ```
 
@@ -300,7 +316,11 @@ results = run_topic_analysis(
 - `output_name` (str): Custom output directory name (default: auto-generated)
 - `separator` (str): CSV separator character (default: ",")
 - `filter_app` (bool): Enable app filtering (default: False)
-- `filter_app_name` (str): App name for filtering (default: "")
+- `data_filter_options` (dict): Advanced filtering options with keys:
+  - `filter_app_name` (str): App name for filtering (default: "")
+  - `filter_app_column` (str): Column name for app filtering (default: "PACKAGE_NAME")
+  - `filter_app_country` (str): Country code for filtering (default: "")
+  - `filter_app_country_column` (str): Column name for country filtering (default: "COUNTRY")
 
 ## Outputs
 
