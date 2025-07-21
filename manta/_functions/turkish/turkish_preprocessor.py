@@ -9,7 +9,7 @@ from ...utils.combine_number_suffix import remove_space_between_terms
 class TurkishStr(str):
     lang = 'tr'
 
-    _case_lookup_upper = {'İ': 'i', 'I': 'ı', 'Ğ': 'ğ', 'Ş': 'ş', 'Ü': 'ü', 'Ö': 'ö', 'Ç': 'ç'}  # lookup uppercase letters
+    _case_lookup_upper = {'İ': 'i', 'Ğ': 'ğ', 'Ş': 'ş', 'Ü': 'ü', 'Ö': 'ö', 'Ç': 'ç'}  # lookup uppercase letters
     _case_lookup_lower = {v: k for (k, v) in _case_lookup_upper.items()}
 
     # here we override the lower() and upper() methods
