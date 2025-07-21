@@ -17,4 +17,5 @@ result = manta.run_topic_analysis(
     word_pairs_out=False,
     nmf_method="nmf",
     filter_app=False,
+
 )

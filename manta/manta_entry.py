@@ -132,10 +132,17 @@ def process_file(
                 on_bad_lines="skip",
             )
             # get rows where it is country is TR
-            if "COUNTRY" in df.columns:
-                df = df[df["COUNTRY"] == "TR"]
-            if options["filter_app"]:
-                df = df[df["APP_NAME_ABBR"] == options["filter_app_name"]]
+            try:
+                if options["filter_app"]:
+                    if options["data_filter_options"]["filter_app_country"] != "":
+                        df = df[df[options["data_filter_options"]["filter_app_country_column"]] == options["data_filter_options"][
+                            "filter_app_country"]]
+                    if options["data_filter_options"]["filter_app_name"] != "":
+                        df = df[df[options["data_filter_options"]["filter_app_column"]] == options["data_filter_options"][
+                            "filter_app_name"]]
+            except:
+                print("Either no filter is applied or the filter columns are not present in the data.")
+
 
         else:
             df = pd.read_excel(filepath)
@@ -415,10 +422,16 @@ if __name__ == "__main__":
         "save_excel": True,
         "word_pairs_out": True,
         "gen_topic_distribution": True,
-        "filter_app": False,
-        "filter_app_name": filter_app_name,
-        "emoji_map": emj_map,
-        
+        "emoji_map": True,
+        "filter_app" : False,
+        "data_filter_options": {
+            "filter_app_name": "",
+            "filter_app_column": "PACKAGE_NAME",
+            "filter_app_country": "TR",
+            "filter_app_country_column": "COUNTRY",
+        }
+    }
+    '''  
         # Co-occurrence analysis options
         "cooccurrence_method": "sliding_window",  # "nmf" or "sliding_window"
         "cooccurrence_window_size": 10,           # Sliding window size for co-occurrence
@@ -429,5 +442,5 @@ if __name__ == "__main__":
         "cooccurrence_batch_size": 1000,         # Batch size for memory efficiency
         "cooccurrence_min_score": 1,             # Minimum score for NMF method
     }
-
+    '''
     run_standalone_nmf(filepath, table_name, desired_columns, options)
