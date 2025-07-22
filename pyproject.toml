@@ -57,9 +57,9 @@ dev = [
 manta-topic-modelling = "manta.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/emirkyz/manta/tree/main/manta-pypi"
-Repository = "https://github.com/emirkyz/manta/tree/main/manta-pypi"
-Documentation = "https://github.com/emirkarayagiz/manta#readme"
+Homepage = "https://github.com/emirkyz/manta"
+Repository = "https://github.com/emirkyz/manta"
+Documentation = "https://github.com/emirkyz/manta/blob/main/README.md"
 Issues = "https://github.com/emirkyz/manta/issues?q=is%3Aissue"
 
 [tool.setuptools.packages.find]
