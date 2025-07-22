@@ -5,6 +5,9 @@ import pandas as pd
 import emoji.core as emoji
 from ...utils.combine_number_suffix import remove_space_between_terms
 
+WHITESPACE_PATTERN = re.compile(r' +')
+XXX_PATTERN = re.compile(r'\b[xX]{2,}\b')
+REPEATED_CHAR_PATTERN = re.compile(r'(.)\1{2,}')
 
 class TurkishStr(str):
     lang = 'tr'
@@ -39,25 +42,23 @@ def process_text(text: str, emoji_map=None) -> str:
         str: Temizlenmiş metin.
     """
 
-
     if emoji.emoji_count(text) > 0:
         if emoji_map is not False and emoji_map is not None:
             text = emoji_map.process_text(text)
         else:
             text = emoji.replace_emoji(text, replace='emoji')
 
-
     metin = str(text)  # Metni string'e çevir
-    secilen_kategoriler = ['Ll',"Nd"]
+    secilen_kategoriler = ['Ll', "Nd"]
     metin = TurkishStr(metin).lower()
     zamirler = nltk.corpus.stopwords.words('turkish')
     kategoriler = [unicodedata.category(karakter) for karakter in metin]
     yeni_metin = "".join([metin[j] if kategoriler[j] in secilen_kategoriler
                           else ' ' for j in range(len(metin))])
-    metin = re.sub(' +', ' ', yeni_metin)
-    metin = re.sub(r'\b[xX]{2,}\b', '', metin)
+    metin = WHITESPACE_PATTERN.sub(' ', yeni_metin)
     # remove repeated letters (only if 3 or more repetitions)
-    metin = re.sub(r'(.)\1{2,}', r'\1', metin)
+    metin = REPEATED_CHAR_PATTERN.sub(r'\1\1', metin)
+
     metin = [i for i in metin.split() if i not in zamirler]
     metin = ' '.join(metin)
     metin = remove_space_between_terms(metin, r"\d+", "gb", "next")
@@ -72,14 +73,26 @@ def metin_temizle_turkish(df: pd.DataFrame, desired_column: str, emoji_map=None)
     Bu fonksiyon, verilen DataFrame'deki belirtilen sütundaki metinleri temizler.
     Temizleme işlemi, metindeki özel karakterleri ve sayıları kaldırmayı içerir.
 
+    Updates the DataFrame in place for memory efficiency.
+
     Args:
         df (pd.DataFrame): İşlenecek DataFrame.
         desired_column (str): Temizlenecek metin sütununun adı.
+        emoji_map: Optional emoji mapping.
 
     Returns:
-        pd.DataFrame: Temizlenmiş metinleri içeren DataFrame.
+        pd.DataFrame: Temizlenmiş metinleri içeren DataFrame (same object, modified in place).
     """
 
-    metin = [process_text(i, emoji_map) for i in df[desired_column].values]
+    inplace = True  # We will modify the DataFrame in place
+    if inplace:
+        print(f"Processing in-place")
+        # Process each text and update DataFrame in place
+        for i, text in enumerate(df[desired_column].values):
+            processed = process_text(text, emoji_map)
+            df.iloc[i, df.columns.get_loc(desired_column)] = processed
 
-    return metin
+        return df[desired_column].to_list()  # Return the cleaned text as a list
+    else:
+        metin = [process_text(text, emoji_map) for text in df[desired_column].values]
+        return metin
