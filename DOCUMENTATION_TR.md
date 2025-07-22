@@ -388,6 +388,28 @@ Kelime Bulutları → Dağılım Grafikleri → Excel Dışa Aktarma → JSON De
 | `word_pairs_out` | bool | Kelime birlikte bulunma hesapla | False |
 | `norm_thresh` | float | NMF normalleştirme eşiği | 0.005 |
 
+### Veri Filtreleme Seçenekleri
+
+`filter_app` etkinleştirildiğinde, `data_filter_options` sözlüğünü kullanarak gelişmiş filtreleme yapılandırabilirsiniz:
+
+| Parametre | Tür | Açıklama | Varsayılan |
+|-----------|-----|----------|------------|
+| `filter_app_name` | str | Filtrelenecek uygulama adı | "" |
+| `filter_app_column` | str | Uygulama filtrelemesi için sütun adı | "PACKAGE_NAME" |
+| `filter_app_country` | str | Ülke koduna göre filtreleme (büyük/küçük harf duyarsız) | "" |
+| `filter_app_country_column` | str | Ülke filtrelemesi için sütun adı | "COUNTRY" |
+
+**Örnek filtreleme konfigürasyonu:**
+```python
+"filter_app": True,
+"data_filter_options": {
+    "filter_app_name": "com.example.app",      # Belirli uygulama ID'sine göre filtrele
+    "filter_app_column": "PACKAGE_NAME",       # Uygulama tanımlayıcılarını içeren sütun
+    "filter_app_country": "TR",                # Türkçe verilere göre filtrele (büyük/küçük harf duyarsız)
+    "filter_app_country_column": "COUNTRY"     # Ülke kodlarını içeren sütun
+}
+```
+
 ### Örnek Konfigürasyon
 
 ```python
@@ -403,7 +425,14 @@ seçenekler = {
     "generate_wordclouds": True,
     "export_excel": True,
     "word_pairs_out": False,
-    "topic_distribution": True
+    "topic_distribution": True,
+    "filter_app": True,
+    "data_filter_options": {
+        "filter_app_name": "MyApp",
+        "filter_app_column": "APP_NAME",
+        "filter_app_country": "TR",
+        "filter_app_country_column": "COUNTRY_CODE"
+    }
 }
 ```
 
@@ -594,6 +623,40 @@ sonuç = run_topic_analysis(
 )
 ```
 
+### Örnek 5: Gelişmiş Veri Filtreleme
+
+```python
+# Belirli uygulama ve ülke için filtrelenmiş analiz
+seçenekler = {
+    "lemmatize": False,                   # Türkçe için gerekli değil
+    "words_per_topic": 15,                # Konu başına 15 kelime
+    "tokenizer_type": "bpe",              # BPE tokenizasyon kullan
+    "nmf_method": "nmf",                  # Standart NMF
+    "separator": "|",                     # Pipe ayırıcısı
+    "generate_wordclouds": True,          # Kelime bulutları oluştur
+    "export_excel": True,                 # Excel'e dışa aktar
+    "topic_distribution": True,           # Dağılım grafikleri oluştur
+    "filter_app": True,                   # Filtrelemeyi etkinleştir
+    "data_filter_options": {
+        "filter_app_name": "com.example.app",      # Belirli uygulamaya göre filtrele
+        "filter_app_column": "PACKAGE_NAME",       # Uygulama adlarını içeren sütun
+        "filter_app_country": "TR",                # Ülkeye göre filtrele (büyük/küçük harf duyarsız)
+        "filter_app_country_column": "COUNTRY"     # Ülke kodlarını içeren sütun
+    }
+}
+
+# Filtrelenmiş analizle çalıştır
+sonuç = run_topic_analysis(
+    filepath="app_yorumlari.csv",
+    column="yorum_metni",
+    language="TR",
+    topics=5,
+    **seçenekler
+)
+
+print(f"Filtrelenmiş analiz sonucu: {sonuç['state']}")
+```
+
 ---
 
 ## Sorun Giderme
@@ -664,7 +727,26 @@ sonuç = run_topic_analysis(
 # Veya her çalıştırma için farklı table_name kullanın
 ```
 
-#### 7. Eksik Bağımlılıklar
+#### 7. Veri Filtreleme Sorunları
+
+**Sorun**: Filtreleme çalışmıyor veya "filter columns are not present" hatası
+
+**Çözümler**:
+- Belirtilen filtre sütunlarının veri setinizde bulunduğunu doğrulayın
+- Sütun adlarının tam eşleşmelerini kontrol edin (büyük/küçük harf duyarlı)
+- Veri yapınızı incelemek için önce `pandas.read_csv()` kullanın
+- Ülke filtrelemesinin artık büyük/küçük harf duyarsız olduğunu unutmayın (otomatik olarak büyük harfe dönüştürülür)
+- Filtre değerlerinin veri formatıyla eşleştiğinden emin olun (örn. ülke kodları "TR", "US" gibi büyük harf olmalı)
+
+```python
+# Filtreleme sorunlarını debug etme
+import pandas as pd
+df = pd.read_csv("dosyaniz.csv")
+print(df.columns.tolist())  # Mevcut sütunları kontrol edin
+print(df['COUNTRY'].unique())  # Mevcut ülke değerlerini kontrol edin
+```
+
+#### 8. Eksik Bağımlılıklar
 
 **Sorun**: Gerekli paketler için import hataları
 

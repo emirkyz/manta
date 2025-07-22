@@ -395,7 +395,7 @@ When `filter_app` is enabled, you can configure advanced filtering using the `da
 |-----------|------|-------------|---------|
 | `filter_app_name` | str | App name to filter by | "" |
 | `filter_app_column` | str | Column name for app filtering | "PACKAGE_NAME" |
-| `filter_app_country` | str | Country code to filter by | "" |
+| `filter_app_country` | str | Country code to filter by (case-insensitive) | "" |
 | `filter_app_country_column` | str | Column name for country filtering | "COUNTRY" |
 
 **Example filtering configuration:**
@@ -404,7 +404,7 @@ When `filter_app` is enabled, you can configure advanced filtering using the `da
 "data_filter_options": {
     "filter_app_name": "com.example.app",      # Filter by specific app ID
     "filter_app_column": "PACKAGE_NAME",       # Column containing app identifiers
-    "filter_app_country": "TR",                # Filter by Turkish data only
+    "filter_app_country": "TR",                # Filter by Turkish data (case-insensitive)
     "filter_app_country_column": "COUNTRY"      # Column containing country codes
 }
 ```
@@ -576,7 +576,7 @@ options = {
     "data_filter_options": {
         "filter_app_name": "com.example.app",      # Filter by specific app
         "filter_app_column": "PACKAGE_NAME",       # Column containing app names
-        "filter_app_country": "TR",                # Filter by country
+        "filter_app_country": "TR",                # Filter by country (case-insensitive)
         "filter_app_country_column": "COUNTRY"      # Column containing country codes
     }
 }
@@ -712,9 +712,10 @@ print(f"Processed {len(results)} files successfully")
 
 **Solutions**:
 - Verify that the specified filter columns exist in your dataset
-- Check column names for exact matches (case-sensitive)
+- Check column names for exact matches (case-sensitive)  
 - Use `pandas.read_csv()` to inspect your data structure first
-- Ensure filter values match the data format (e.g., country codes)
+- Note that country filtering is now case-insensitive (automatically converted to uppercase)
+- Ensure filter values match the data format (e.g., country codes should be uppercase like "TR", "US")
 
 ```python
 # Debug filtering issues

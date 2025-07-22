@@ -47,6 +47,12 @@ manta-topic-modelling analyze data.csv --column content --language EN --topics 1
 # Türkçe metin için özel tokenizer
 manta-topic-modelling analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
 
+# Uygulama adı ve ülkeye göre filtreleme
+manta-topic-modelling analyze reviews.csv --column REVIEW --language TR --topics 5 --filter-app MyApp --filter-country TR
+
+# Özel filtreleme sütunları
+manta-topic-modelling analyze data.csv --column text --language TR --topics 5 --filter-app-column APP_ID --filter-country-column REGION
+
 # Daha hızlı işleme için emoji işlemeyi devre dışı bırak
 manta-topic-modelling analyze data.csv --column text --language EN --topics 5 --emoji-map False
 ```
@@ -248,6 +254,9 @@ manta-topic-modelling analyze reviews.csv \
 - `--topic-distribution`: Konu dağılım grafikleri oluştur
 - `--separator`: CSV ayırıcı karakteri (varsayılan: "|")
 - `--filter-app`: Belirli uygulama adına göre verileri filtrele
+- `--filter-app-column`: Uygulama filtrelemesi için sütun adı (varsayılan: "PACKAGE_NAME")
+- `--filter-country`: Ülke koduna göre verileri filtrele (örn. TR, US, GB)
+- `--filter-country-column`: Ülke filtrelemesi için sütun adı (varsayılan: "COUNTRY")
 
 ### Python API
 
@@ -265,7 +274,7 @@ results = run_topic_analysis(
     export_excel=True
 )
 
-# Gelişmiş Türkçe metin analizi
+# Filtreleme ile gelişmiş Türkçe metin analizi
 results = run_topic_analysis(
     filepath="turkish_reviews.csv",
     column="yorum_metni",
@@ -276,7 +285,14 @@ results = run_topic_analysis(
     nmf_method="nmf",
     generate_wordclouds=True,
     export_excel=True,
-    topic_distribution=True
+    topic_distribution=True,
+    filter_app=True,
+    data_filter_options={
+        "filter_app_name": "MyApp",
+        "filter_app_column": "APP_NAME",
+        "filter_app_country": "TR",
+        "filter_app_country_column": "COUNTRY_CODE"
+    }
 )
 ```
 
@@ -300,7 +316,11 @@ results = run_topic_analysis(
 - `output_name` (str): Özel çıktı dizini adı (varsayılan: otomatik oluşturulan)
 - `separator` (str): CSV ayırıcı karakteri (varsayılan: ",")
 - `filter_app` (bool): Uygulama filtrelemesini etkinleştir (varsayılan: False)
-- `filter_app_name` (str): Filtreleme için uygulama adı (varsayılan: "")
+- `data_filter_options` (dict): Gelişmiş filtreleme seçenekleri (tüm anahtarlar varsayılan olarak boş string):
+  - `filter_app_name` (str): Filtreleme için uygulama adı
+  - `filter_app_column` (str): Uygulama filtrelemesi için sütun adı (varsayılan: "PACKAGE_NAME")
+  - `filter_app_country` (str): Ülke koduna göre filtreleme (büyük/küçük harf duyarsız)
+  - `filter_app_country_column` (str): Ülke filtrelemesi için sütun adı (varsayılan: "COUNTRY")
 
 ## Çıktılar
 

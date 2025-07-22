@@ -289,7 +289,7 @@ results = run_topic_analysis(
     filter_app=True,
     data_filter_options={
         "filter_app_name": "MyApp",
-        "filter_app_column": "APP_NAME",
+        "filter_app_column": "APP_NAME", 
         "filter_app_country": "TR",
         "filter_app_country_column": "COUNTRY_CODE"
     }
@@ -316,10 +316,10 @@ results = run_topic_analysis(
 - `output_name` (str): Custom output directory name (default: auto-generated)
 - `separator` (str): CSV separator character (default: ",")
 - `filter_app` (bool): Enable app filtering (default: False)
-- `data_filter_options` (dict): Advanced filtering options with keys:
-  - `filter_app_name` (str): App name for filtering (default: "")
+- `data_filter_options` (dict): Advanced filtering options with keys (all default to empty string):
+  - `filter_app_name` (str): App name for filtering
   - `filter_app_column` (str): Column name for app filtering (default: "PACKAGE_NAME")
-  - `filter_app_country` (str): Country code for filtering (default: "")
+  - `filter_app_country` (str): Country code for filtering (case-insensitive)
   - `filter_app_country_column` (str): Column name for country filtering (default: "COUNTRY")
 
 ## Outputs
