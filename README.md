@@ -36,27 +36,6 @@ pip install manta-topic-modelling
 
 After that you can import and use the app.
 
-### Command Line Usage
-```bash
-# Turkish text analysis
-manta-topic-modelling analyze data.csv --column text --language TR --topics 5
-
-# English text analysis with lemmatization and visualizations
-manta-topic-modelling analyze data.csv --column content --language EN --topics 10 --lemmatize --wordclouds --excel
-
-# Custom tokenizer for Turkish text
-manta-topic-modelling analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
-
-# Filter by app name and country
-manta-topic-modelling analyze reviews.csv --column REVIEW --language TR --topics 5 --filter-app MyApp --filter-country TR
-
-# Custom filtering columns
-manta-topic-modelling analyze data.csv --column text --language TR --topics 5 --filter-app-column APP_ID --filter-country-column REGION
-
-# Disable emoji processing for faster processing
-manta-topic-modelling analyze data.csv --column text --language EN --topics 5 --emoji-map False
-```
-
 ### Python API Usage
 ```python
 from manta import run_topic_analysis
@@ -128,6 +107,27 @@ For example:
   "topic_dist_img": "<matplotlib plot object>",
   "topic_document_counts": [____]
 }
+```
+
+### Command Line Usage
+```bash
+# Turkish text analysis
+manta-topic-modelling analyze data.csv --column text --language TR --topics 5
+
+# English text analysis with lemmatization and visualizations
+manta-topic-modelling analyze data.csv --column content --language EN --topics 10 --lemmatize --wordclouds --excel
+
+# Custom tokenizer for Turkish text
+manta-topic-modelling analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
+
+# Filter by app name and country
+manta-topic-modelling analyze reviews.csv --column REVIEW --language TR --topics 5 --filter-app MyApp --filter-country TR
+
+# Custom filtering columns
+manta-topic-modelling analyze data.csv --column text --language TR --topics 5 --filter-app-column APP_ID --filter-country-column REGION
+
+# Disable emoji processing for faster processing
+manta-topic-modelling analyze data.csv --column text --language EN --topics 5 --emoji-map False
 ```
 
 ## Package Structure
