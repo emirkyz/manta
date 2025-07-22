@@ -135,8 +135,8 @@ def process_file(
             try:
                 if options["filter_app"]:
                     if options["data_filter_options"]["filter_app_country"] != "":
-                        df = df[df[options["data_filter_options"]["filter_app_country_column"]] == options["data_filter_options"][
-                            "filter_app_country"]]
+                        df = df[df[options["data_filter_options"]["filter_app_country_column"]].str.upper()
+                                == options["data_filter_options"]["filter_app_country"]]
                     if options["data_filter_options"]["filter_app_name"] != "":
                         df = df[df[options["data_filter_options"]["filter_app_column"]] == options["data_filter_options"][
                             "filter_app_name"]]

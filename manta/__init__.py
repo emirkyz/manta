@@ -154,10 +154,16 @@ def run_topic_analysis(
     options.setdefault('topic_distribution', True)
     options.setdefault('separator', ',')
     options.setdefault('filter_app', False)
-    options.setdefault('filter_app_name', '')
     options.setdefault('emoji_map', False)
     options.setdefault('word_pairs_out', False)
-    
+    # Merge provided data_filter_options with defaults to ensure all keys exist
+    options['data_filter_options'] = {
+        "filter_app_country": '',
+        "filter_app_country_column": '',
+        "filter_app_name": '',
+        "filter_app_column": '',
+        **options.get('data_filter_options', {})
+    }
     try:
         filename = filepath.split("/")[-1].split(".")[0].split("_")[0]
     except:
@@ -188,8 +194,8 @@ def run_topic_analysis(
         "save_excel": options['export_excel'],
         "gen_topic_distribution": options['topic_distribution'],
         "filter_app": options['filter_app'],
-        "filter_app_name": options['filter_app_name'],
-        "emoji_map": options["emoji_map"]
+        "emoji_map": options["emoji_map"],
+        "data_filter_options": options['data_filter_options']
     }
     
     #TODO: APP name based options will be implemented.

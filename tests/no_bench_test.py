@@ -16,6 +16,9 @@ result = manta.run_topic_analysis(
     emoji_map=False,
     word_pairs_out=False,
     nmf_method="nmf",
-    filter_app=False,
-
+    filter_app=True,
+    data_filter_options = {
+        "filter_app_country": "TR",
+        "filter_app_country_column": "REVIEWER_LANGUAGE",
+    },
 )
