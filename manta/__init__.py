@@ -71,6 +71,7 @@ def run_topic_analysis(
         filepath (str): Absolute path to the input file (CSV or Excel format)
         column (str): Name of the column containing text data to analyze
         output_dir (str, optional): Base directory for outputs. Defaults to current working directory.
+        topics (int): Number of topics to extract (default: 5)
         topic_count (int): Number of topics to extract (default: 5)
         nmf_method (str): NMF algorithm variant - "nmf" or "opnmf" (default: "nmf")
         **options: Configuration dictionary with the following options:
@@ -144,6 +145,7 @@ def run_topic_analysis(
     
     # Set defaults
     options.setdefault('language', 'EN')
+    options.setdefault("topics", 5)
     options.setdefault('topic_count', topic_count if topic_count is not None else 5)
     options.setdefault('words_per_topic', 15)
     options.setdefault('nmf_method', nmf_method if nmf_method is not None else 'nmf')
@@ -182,7 +184,7 @@ def run_topic_analysis(
     # Build options dictionary for run_standalone_nmf
     run_options = {
         "LANGUAGE": options['language'].upper(),
-        "DESIRED_TOPIC_COUNT": options['topic_count'],
+        "DESIRED_TOPIC_COUNT": options['topic_count'] if options['topic_count'] is not None else options['topics'],
         "N_TOPICS": options['words_per_topic'],
         "LEMMATIZE": options['lemmatize'],
         "tokenizer_type": options['tokenizer_type'],
