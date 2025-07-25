@@ -145,7 +145,7 @@ def run_topic_analysis(
     
     # Set defaults
     options.setdefault('language', 'EN')
-    options.setdefault("topics", 5)
+    options.setdefault("topics", None)
     options.setdefault('topic_count', topic_count if topic_count is not None else 5)
     options.setdefault('words_per_topic', 15)
     options.setdefault('nmf_method', nmf_method if nmf_method is not None else 'nmf')
