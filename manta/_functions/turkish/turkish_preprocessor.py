@@ -96,3 +96,27 @@ def metin_temizle_turkish(df: pd.DataFrame, desired_column: str, emoji_map=None)
     else:
         metin = [process_text(text, emoji_map) for text in df[desired_column].values]
         return metin
+
+
+def process_texts_generator(csv_generator, desired_column: str, emoji_map=None):
+    """
+    Generator function to process texts one by one from CSV generator.
+    
+    Args:
+        csv_generator: Generator yielding CSV row dictionaries
+        desired_column (str): Name of the column containing text data
+        emoji_map: Optional emoji mapping
+        
+    Yields:
+        str: Processed text string
+    """
+    print(f"Processing texts with generator for column: {desired_column}")
+    
+    for row in csv_generator:
+        if desired_column in row and row[desired_column]:
+            # Skip empty or None values
+            text = row[desired_column]
+            if text and str(text).strip():
+                processed_text = process_text(text, emoji_map)
+                if processed_text and processed_text.strip():  # Only yield non-empty processed texts
+                    yield processed_text

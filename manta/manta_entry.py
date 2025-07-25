@@ -1,6 +1,7 @@
 import os
 import time
 from pathlib import Path
+import csv
 
 import pandas as pd
 from sqlalchemy import create_engine
@@ -8,9 +9,9 @@ from sqlalchemy import create_engine
 from ._functions.common_language.emoji_processor import EmojiMap
 from ._functions.common_language.topic_analyzer import konu_analizi
 
-from ._functions.english.english_entry import process_english_file
+from ._functions.english.english_entry import process_english_file, process_english_file_from_generator
 from ._functions.nmf import run_nmf
-from ._functions.turkish.turkish_entry import process_turkish_file
+from ._functions.turkish.turkish_entry import process_turkish_file, process_turkish_file_from_generator
 from ._functions.turkish.turkish_tokenizer_factory import init_tokenizer
 
 from .utils.coherence_score import calculate_coherence_scores
@@ -18,6 +19,74 @@ from .utils.save_doc_score_pair import save_doc_score_pair
 from .utils.save_word_score_pair import save_word_score_pair
 from .utils.visualizer import create_visualization
 from .utils.json_to_excel import convert_json_to_excel
+
+
+def read_csv_generator(filepath, options):
+    """
+    Generator function to read CSV file line by line with filtering.
+    
+    Args:
+        filepath (str): Path to CSV file
+        options (dict): Configuration options containing separator and filter settings
+        
+    Yields:
+        dict: Row data as dictionary
+    """
+    # Handle CSV preprocessing if needed
+    actual_filepath = filepath
+    if hasattr(options, 'preprocess_csv') and options.get('preprocess_csv', False):
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = f.read()
+            # replace "|" with ";"
+            data = data.replace("|", ";")
+            # remove tab and null characters
+            data = data.replace("\t", "")
+            data = data.replace("\x00", "")
+        
+        new_filepath = filepath.replace(".csv", "_new.csv")
+        with open(new_filepath, "w", encoding="utf-8") as f_out:
+            f_out.write(data)
+        actual_filepath = new_filepath
+    
+    # Read CSV file line by line
+    try:
+        with open(actual_filepath, 'r', encoding='utf-8') as csvfile:
+            # Use csv.Sniffer to detect delimiter if needed, otherwise use provided separator
+            separator = options.get("separator", ",")
+            
+            reader = csv.DictReader(csvfile, delimiter=separator)
+            
+            for row in reader:
+                # Apply filters if specified
+                try:
+                    if options.get("filter_app", False):
+                        filter_options = options.get("data_filter_options", {})
+                        
+                        # Country filter
+                        if filter_options.get("filter_app_country", "") != "":
+                            country_col = filter_options.get("filter_app_country_column", "")
+                            expected_country = filter_options.get("filter_app_country", "")
+                            if country_col in row:
+                                if row[country_col].upper() != expected_country:
+                                    continue
+                        
+                        # App name filter
+                        if filter_options.get("filter_app_name", "") != "":
+                            app_col = filter_options.get("filter_app_column", "")
+                            expected_app = filter_options.get("filter_app_name", "")
+                            if app_col in row:
+                                if row[app_col] != expected_app:
+                                    continue
+                except KeyError:
+                    # Skip row if filter columns are missing
+                    continue
+                
+                # Yield the filtered row
+                yield row
+                
+    except Exception as e:
+        print(f"Error reading CSV file: {e}")
+        raise
 
 def process_file(
     filepath: str,
@@ -104,118 +173,139 @@ def process_file(
         # Clean up the desired_columns
         desired_columns = desired_columns.strip() if desired_columns else None
 
-        # Read the input file
-        print("Reading input file...")
-        # if file is csv, read it with read_csv
-        if str(filepath).endswith(".csv"):
-            preprocess_csv = False
-            if preprocess_csv:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    data = f.read()
-                    # replace "|" with ";"
-                    data = data.replace("|", ";")
-                    # remove tab and null characters
-                    data = data.replace("\t", "")
-                    data = data.replace("\x00", "")
-                    # save the modified data back to the new file
-                new_filepath = filepath.replace(".csv", "_new.csv")
-                with open(new_filepath, "w", encoding="utf-8") as f_out:
-                    f_out.write(data)
-                filepath = new_filepath
-            # Read the CSV file with the specified separator
-
-            df = pd.read_csv(
-                filepath,
-                encoding="utf-8",
-                sep=options["separator"],
-                engine="python",
-                on_bad_lines="skip",
-            )
-            # get rows where it is country is TR
-            try:
-                if options["filter_app"]:
-                    if options["data_filter_options"]["filter_app_country"] != "":
-                        df = df[df[options["data_filter_options"]["filter_app_country_column"]].str.upper()
-                                == options["data_filter_options"]["filter_app_country"]]
-                    if options["data_filter_options"]["filter_app_name"] != "":
-                        df = df[df[options["data_filter_options"]["filter_app_column"]] == options["data_filter_options"][
-                            "filter_app_name"]]
-            except:
-                print("Either no filter is applied or the filter columns are not present in the data.")
-
-
+        # Read the input file using generators for memory efficiency
+        print("Reading input file using generator...")
+        
+        use_generators = True  # Flag to enable generator-based processing
+        
+        if use_generators and str(filepath).endswith(".csv"):
+            # Use generator-based CSV reading
+            csv_gen = read_csv_generator(filepath, options)
+            row_count = 0
+            for _ in csv_gen:
+                row_count += 1
+            print(f"File has {row_count} rows.")
+            # Recreate generator since we consumed it for counting
+            csv_gen = read_csv_generator(filepath, options)
+            df = None  # We don't use DataFrame in generator mode
         else:
-            df = pd.read_excel(filepath)
+            # Fallback to original DataFrame-based processing
+            if str(filepath).endswith(".csv"):
+                preprocess_csv = False
+                if preprocess_csv:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        data = f.read()
+                        # replace "|" with ";"
+                        data = data.replace("|", ";")
+                        # remove tab and null characters
+                        data = data.replace("\t", "")
+                        data = data.replace("\x00", "")
+                        # save the modified data back to the new file
+                    new_filepath = filepath.replace(".csv", "_new.csv")
+                    with open(new_filepath, "w", encoding="utf-8") as f_out:
+                        f_out.write(data)
+                    filepath = new_filepath
+                # Read the CSV file with the specified separator
 
-        # Add to main database
+                df = pd.read_csv(
+                    filepath,
+                    encoding="utf-8",
+                    sep=options["separator"],
+                    engine="python",
+                    on_bad_lines="skip",
+                )
+                # get rows where it is country is TR
+                try:
+                    if options["filter_app"]:
+                        if options["data_filter_options"]["filter_app_country"] != "":
+                            df = df[df[options["data_filter_options"]["filter_app_country_column"]].str.upper()
+                                    == options["data_filter_options"]["filter_app_country"]]
+                        if options["data_filter_options"]["filter_app_name"] != "":
+                            df = df[df[options["data_filter_options"]["filter_app_column"]] == options["data_filter_options"][
+                                "filter_app_name"]]
+                except:
+                    print("Either no filter is applied or the filter columns are not present in the data.")
 
-        # INSTEAD OF SAVING WHOLE TABLE TO DATABASE, SAVE ONLY THE DESIRED COLUMNS
-        # app_col = "PACKAGE_NAME"
-        # get only bip
-        # df = df[df[app_col] == "com.turkcell.bip"]
-        # drop duplicates based on ID column
+            else:
+                df = pd.read_excel(filepath)
 
-        # df = df.drop_duplicates(subset=['ID'])
-        df = df[desired_columns]
-        # Use double brackets to select columns
-        df = df.drop_duplicates()
-        df = df.dropna()
-
-        """
-        # remove duplicates
-        count_of_duplicates = df.duplicated().sum()
-        total_rows = len(df)
-        if total_rows*0.9 < count_of_duplicates:
-            print(f"Warning: {count_of_duplicates} duplicates found in the data, which is more than 90% of the total rows ({total_rows}).")
+            # Add to main database
+            # INSTEAD OF SAVING WHOLE TABLE TO DATABASE, SAVE ONLY THE DESIRED COLUMNS
+            df = df[desired_columns]
+            # Use double brackets to select columns
             df = df.drop_duplicates()
-        """
-        # df = df.drop_duplicates()
-        print(f"File has {len(df)} rows.")
+            df = df.dropna()
+            print(f"File has {len(df)} rows.")
 
-        options["save_to_db"] = False
-        if options["save_to_db"]:
-            print("Adding data to main database...")
-            # Check if table exists using a SQL query instead of direct table read
-            tables_query = "SELECT name FROM sqlite_master WHERE type='table'"
-            existing_tables = pd.read_sql_query(tables_query, main_db_eng)
-            if table_name in existing_tables["name"].tolist():
-                # Use the main_db_eng directly
-                df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
-            elif table_name not in existing_tables["name"].tolist():
-                df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
-            # Get data from database
-            # Read directly using the main_db_eng
-            del df
-            df = pd.read_sql_table(table_name, main_db_eng)
-
-        else:
-            df = pd.DataFrame(df)
-            print("Not saving data to main database...")
+            options["save_to_db"] = False
+            if options["save_to_db"]:
+                print("Adding data to main database...")
+                # Check if table exists using a SQL query instead of direct table read
+                tables_query = "SELECT name FROM sqlite_master WHERE type='table'"
+                existing_tables = pd.read_sql_query(tables_query, main_db_eng)
+                if table_name in existing_tables["name"].tolist():
+                    # Use the main_db_eng directly
+                    df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
+                elif table_name not in existing_tables["name"].tolist():
+                    df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
+                # Get data from database
+                # Read directly using the main_db_eng
+                del df
+                df = pd.read_sql_table(table_name, main_db_eng)
+            else:
+                df = pd.DataFrame(df)
+                print("Not saving data to main database...")
+            csv_gen = None  # Not using generator in DataFrame mode
 
         # Start topic modeling process
         print("Starting preprocessing...")
 
-        if options["LANGUAGE"] == "TR":
-            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, emoji_map = (
-                process_turkish_file(
-                    df,
+        if use_generators and csv_gen is not None:
+            # Use generator-based processing
+            if options["LANGUAGE"] == "TR":
+                tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, emoji_map = (
+                    process_turkish_file_from_generator(
+                        csv_gen,
+                        desired_columns,
+                        options["tokenizer"],
+                        tokenizer_type=options["tokenizer_type"],
+                        emoji_map=options["emoji_map"],
+                    )
+                )
+
+            elif options["LANGUAGE"] == "EN":
+                tdm, sozluk, sayisal_veri, metin_array = process_english_file_from_generator(
+                    csv_gen,
                     desired_columns,
-                    options["tokenizer"],
-                    tokenizer_type=options["tokenizer_type"],
+                    options["LEMMATIZE"],
                     emoji_map=options["emoji_map"],
                 )
-            )
 
-        elif options["LANGUAGE"] == "EN":
-            tdm, sozluk, sayisal_veri, metin_array = process_english_file(
-                df,
-                desired_columns,
-                options["LEMMATIZE"],
-                emoji_map=options["emoji_map"],
-            )
-
+            else:
+                raise ValueError(f"Invalid language: {options['LANGUAGE']}")
         else:
-            raise ValueError(f"Invalid language: {options['LANGUAGE']}")
+            # Use traditional DataFrame-based processing
+            if options["LANGUAGE"] == "TR":
+                tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, emoji_map = (
+                    process_turkish_file(
+                        df,
+                        desired_columns,
+                        options["tokenizer"],
+                        tokenizer_type=options["tokenizer_type"],
+                        emoji_map=options["emoji_map"],
+                    )
+                )
+
+            elif options["LANGUAGE"] == "EN":
+                tdm, sozluk, sayisal_veri, metin_array = process_english_file(
+                    df,
+                    desired_columns,
+                    options["LEMMATIZE"],
+                    emoji_map=options["emoji_map"],
+                )
+
+            else:
+                raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
         # Create table-specific output directory to save everything under one folder
         table_output_dir = output_dir / table_name
@@ -252,7 +342,7 @@ def process_file(
                 W=W,
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
                 sozluk=sozluk,
-                documents=[str(doc).strip() for doc in df[desired_columns]],
+                documents=metin_array,
                 topics_db_eng=topics_db_eng,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
@@ -388,7 +478,7 @@ def run_standalone_nmf(
     )
 
     end_time = time.time()
-    print(f"NMF process completed in {end_time - start_time:.2f} seconds")
+    print(f"Topic analysis process completed in {end_time - start_time:.2f} seconds")
     return result
 
 

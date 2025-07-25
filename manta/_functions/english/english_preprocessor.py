@@ -91,3 +91,28 @@ def metin_temizle_english(metin=None, lemmatize=False, kategoriler=frozenset(), 
 
     metin = [preprocess(metin=i, lemmatize=lemmatize, kategoriler=kategoriler, emoji_map=emoji_map) for i in metin]
     return metin
+
+
+def process_texts_generator_english(csv_generator, desired_column: str, lemmatize=False, emoji_map=None):
+    """
+    Generator function to process English texts one by one from CSV generator.
+    
+    Args:
+        csv_generator: Generator yielding CSV row dictionaries
+        desired_column (str): Name of the column containing text data
+        lemmatize (bool): Whether to apply lemmatization
+        emoji_map: Optional emoji mapping
+        
+    Yields:
+        str: Processed text string
+    """
+    print(f"Processing English texts with generator for column: {desired_column}")
+    
+    for row in csv_generator:
+        if desired_column in row and row[desired_column]:
+            # Skip empty or None values
+            text = row[desired_column]
+            if text and str(text).strip():
+                processed_text = preprocess(text, lemmatize=lemmatize, kategoriler=frozenset(), emoji_map=emoji_map)
+                if processed_text and processed_text.strip():  # Only yield non-empty processed texts
+                    yield processed_text

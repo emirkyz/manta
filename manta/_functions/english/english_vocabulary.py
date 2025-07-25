@@ -37,20 +37,48 @@ def sozluk_yarat(cleaned_data: List[str], alanadi: str,lemmatize=False,emoji_map
     
     return sorted(sozluk), len(cleaned_data)
 
-    # def sozluk_goster(self):
-    #     return self.sozluk
-    #
-    # def sozluk_sil(self, key):
-    #     del self.sozluk[key]
-    #
-    # def sozluk_ara(self, key):
-    #     return self.sozluk[key]
-    #
-    # def sozluk_guncelle(self, key, value):
-    #     self.sozluk[key] = value
-    #
-    # def sozluk_uzunlugu(self):
-    #     return len(self.sozluk)
-    #
-    # def sozluk_temizle(self):
-    #     self.sozluk.clear()
+
+def sozluk_yarat_from_generator(text_generator, alanadi: str, lemmatize=False, emoji_map=None) -> tuple:
+    """
+    Creates a vocabulary list from preprocessed text data using a generator (streaming).
+
+    This function takes a generator yielding preprocessed text data and creates a vocabulary by 
+    extracting unique tokens incrementally. Memory efficient for large datasets.
+
+    Args:
+        text_generator: Generator yielding preprocessed text strings
+        alanadi (str): Name of the field/column containing the text data (used for logging)
+        lemmatize (bool, optional): Whether lemmatization was applied during preprocessing. 
+                                  Defaults to False.
+        emoji_map (EmojiMap, optional): Emoji mapping instance used during preprocessing.
+                                      Defaults to None.
+
+    Returns:
+        tuple: A tuple containing:
+            - list: Sorted vocabulary list of unique tokens
+            - int: Number of documents processed
+
+    Note:
+        The input text_generator should yield already preprocessed text strings.
+    """
+    if lemmatize:
+        print("Lemmatization is enabled")
+    else:
+        print("Lemmatization is disabled")
+    
+    print(f"Creating vocabulary from generator for column: {alanadi}")
+    
+    vocab_set = set()
+    doc_count = 0
+    
+    for text in text_generator:
+        if text and text.strip():  # Skip empty texts
+            # Add words from this document to vocabulary
+            words = text.split()
+            vocab_set.update(words)
+            doc_count += 1
+
+    
+    print(f"Vocabulary creation completed. Total documents: {doc_count}, vocabulary size: {len(vocab_set)}")
+    return sorted(vocab_set), doc_count
+
