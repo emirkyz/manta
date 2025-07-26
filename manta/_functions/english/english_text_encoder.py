@@ -1,9 +1,28 @@
-from .english_preprocessor import preprocess
+import pandas as pd
 
- 
+
+def veri_sayisallastir(arr, tokenizer):
+    """
+    Convert text data from DataFrame to numerical format using the tokenizer.
+    Takes a list of text data and a trained tokenizer.
+    Args:
+        arr: list of text data
+        tokenizer: trained Tokenizer object
+    
+    Returns:
+        list of numerical representations of documents
+    """
+    # Ensure all documents are strings before tokenization
+    sayisal_veri = [tokenizer.encode(str(dokuman)).ids for dokuman in arr if not pd.isna(dokuman)]
+    return sayisal_veri
+
+
 def sayisallastirma(N, sozluk, data, alanadi, lemmatize):
     """
-    Convert text documents to numerical representation using vocabulary indices.
+    DEPRECATED: Convert text documents to numerical representation using vocabulary indices.
+    
+    This function is kept for backward compatibility but is deprecated.
+    Use veri_sayisallastir() with tokenizers instead.
     
     This function takes preprocessed text documents and converts them to numerical form by mapping
     each word to its index in the vocabulary. Words not found in the vocabulary are mapped to 0.

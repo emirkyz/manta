@@ -176,7 +176,7 @@ def process_file(
         # Read the input file using generators for memory efficiency
         print("Reading input file using generator...")
         
-        use_generators = True  # Flag to enable generator-based processing
+        use_generators = False  # Flag to enable generator-based processing
         
         if use_generators and str(filepath).endswith(".csv"):
             # Use generator-based CSV reading
@@ -274,7 +274,7 @@ def process_file(
                 )
 
             elif options["LANGUAGE"] == "EN":
-                tdm, sozluk, sayisal_veri, metin_array = process_english_file_from_generator(
+                tdm, sozluk, sayisal_veri, tokenizer, metin_array, emoji_map = process_english_file_from_generator(
                     csv_gen,
                     desired_columns,
                     options["LEMMATIZE"],
@@ -297,10 +297,12 @@ def process_file(
                 )
 
             elif options["LANGUAGE"] == "EN":
-                tdm, sozluk, sayisal_veri, metin_array = process_english_file(
+                tdm, sozluk, sayisal_veri, tokenizer, metin_array, emoji_map = process_english_file(
                     df,
                     desired_columns,
                     options["LEMMATIZE"],
+                    tokenizer=options.get("tokenizer"),
+                    tokenizer_type=options.get("tokenizer_type", "wordpiece"),
                     emoji_map=options["emoji_map"],
                 )
 

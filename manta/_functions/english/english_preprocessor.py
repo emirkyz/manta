@@ -70,11 +70,12 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(), emoji_map=N
     metin = [word for word in metin.split() if word not in STOPWORDS]
 
     # Process words in bulk using map() instead of list comprehension
+    '''
     if lemmatize:
         metin = list(map(budayici.lemmatize, metin))
     else:
         metin = list(map(budayici.stem, metin))
-
+    '''
     # Join with space
     metin = ' '.join(metin)
     return metin
