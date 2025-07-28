@@ -26,3 +26,4 @@ local/Output
 local/instance
 tests/TopicAnalysis
 manta/utils/other
+local_dev

@@ -1,17 +1,17 @@
 import manta
 
-file_path = "../veri_setleri/PLAYSTORE_REVIEWS_yeni.csv"
-column = "REVIEW_TEXT"
+file_path = "../veri_setleri/bbc_news.csv"
+column = "text"
 
 result = manta.run_topic_analysis(
     filepath=file_path,
     column=column,
-    separator='|',
-    language="TR",
+    separator=',',
+    language="EN",
     tokenizer_type="bpe",
     lemmatize=True,
     generate_wordclouds=True,
-    topic_count=8,
+    topic_count=10,
     words_per_topic=15,
     emoji_map=False,
     word_pairs_out=False,
