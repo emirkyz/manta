@@ -7,12 +7,15 @@ from scipy import sparse as sp
 from .nmf_initialization import nmf_initialization_nndsvd, nmf_initialization_random
 from .nmf_projective_basic import projective_nmf
 from .nmf_basic import _basic_nmf
+from .nmtf.nmtf import nmtf
+from .nmtf.nmtf_init import nmtf_initialization_random
+
 
 def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
              norm_thresh: float = 1.0, zero_threshold: float = 0.0001,
              init_func: Callable = nmf_initialization_nndsvd,
              konu_sayisi=-1,
-             nmf_method:str = "nmf") -> tuple[sp.csr_matrix, sp.csc_matrix]:
+             nmf_method:str = "nmf") -> dict[sp.csr_matrix, sp.csc_matrix]:
     """
     Performs Non-Negative Matrix Factorization (NMF) on the input sparse matrix
     while offering customization options for initialization, logging, thresholding, and
@@ -64,18 +67,25 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
         print("Performing NMF...")
         start = datetime.now()
 
+    nmf_output = None
+
     if nmf_method == "opnmf":
         # If projective NMF is used, we do not need to run the core NMF function
-        w, h = projective_nmf(in_mat, r=konu_sayisi, W_mat=w,h_mat=h,norm_func=np.linalg.norm)
+        nmf_output = projective_nmf(in_mat, r=konu_sayisi, W_mat=w,h_mat=h,norm_func=np.linalg.norm)
     elif nmf_method == "nmf":
-        w, h = _basic_nmf(in_mat, w, h, start, log=log, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
+        nmf_output = _basic_nmf(in_mat, w, h, start, log=log, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
                        norm_func=np.linalg.norm)
+    elif nmf_method == "nmtf":
+        # If NMTF is used, we run the NMTF function
+        nmf_output = nmtf(in_mat, rank_factor=rank_factor, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
+                    init_func=nmtf_initialization_random)
+
     in_mat = in_mat.tocsr()
 
     w = sp.csr_matrix(w)
     h = sp.csc_matrix(h)
 
-    return w, h
+    return nmf_output
 
 
 def run_nmf(num_of_topics: int, sparse_matrix: scipy.sparse.csr.csr_matrix, init = nmf_initialization_nndsvd, norm_thresh=0.001, zero_threshold=0.00001,nmf_method:str = "nmf"):
@@ -101,7 +111,10 @@ def run_nmf(num_of_topics: int, sparse_matrix: scipy.sparse.csr.csr_matrix, init
     :rtype: Tuple[numpy.ndarray, numpy.ndarray]
     """
     sparse_matrix = sparse_matrix.tocsc()
-    w, h = _nmf_cpu(sparse_matrix,
+    
+    # convert all matrices to dense with toarray()
+    
+    outputs = _nmf_cpu(sparse_matrix,
                     log=True,
                     rank_factor=1.0,
                     norm_thresh=norm_thresh,
@@ -110,7 +123,10 @@ def run_nmf(num_of_topics: int, sparse_matrix: scipy.sparse.csr.csr_matrix, init
                     konu_sayisi=num_of_topics,
                     nmf_method = nmf_method
                     )
-
-    w = w.toarray()
-    h = h.toarray()
-    return w, h
+    
+    # convert all matrices to dense with toarray()
+    outputs["W"] = outputs["W"].toarray()
+    outputs["H"] = outputs["H"].toarray()
+    outputs["S"] = outputs["S"].toarray()
+    
+    return outputs

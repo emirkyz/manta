@@ -46,7 +46,7 @@ def process_file(
                 "LEMMATIZE": bool,                  # Lemmatize English text (ignored for Turkish)
                 "tokenizer_type": str,              # "bpe" or "wordpiece" for Turkish
                 "tokenizer": object,                # Pre-initialized tokenizer (optional)
-                "nmf_type": str,                    # "opnmf" or "nmf" algorithm variant
+                "nmf_type": str,                    # "pnmf" or "nmf" algorithm variant
                 "gen_cloud": bool,                  # Generate word clouds for topics
                 "save_excel": bool,                 # Export results to Excel format
                 "gen_topic_distribution": bool,     # Generate topic distribution plots
@@ -222,7 +222,7 @@ def process_file(
         table_output_dir.mkdir(parents=True, exist_ok=True)
 
         # nmf
-        W, H = run_nmf(
+        nmf_output = run_nmf(
             num_of_topics=int(options["DESIRED_TOPIC_COUNT"]),
             sparse_matrix=tdm,
             norm_thresh=0.005,
@@ -230,11 +230,13 @@ def process_file(
         )
 
         # Find dominant words for each topic and dominant documents for each topic
+        #TODO: Simplfy this part, it is too long and complex. Konu analizi is a complex function that does many things.
+
         print("Generating topic groups...")
         if options["LANGUAGE"] == "TR":
             word_result, document_result = konu_analizi(
-                H=H,
-                W=W,
+                H=nmf_output["H"],
+                W=nmf_output["W"],
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
                 sozluk=sozluk,
                 tokenizer=options["tokenizer"],
@@ -248,8 +250,9 @@ def process_file(
             )
         elif options["LANGUAGE"] == "EN":
             word_result, document_result = konu_analizi(
-                H=H,
-                W=W,
+                H=nmf_output["H"],
+                W=nmf_output["W"],
+                doc_word_pairs=nmf_output["S"] if "nmtf" in options["nmf_type"] else None,
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
                 sozluk=sozluk,
                 documents=[str(doc).strip() for doc in df[desired_columns]],
@@ -293,8 +296,8 @@ def process_file(
         )
 
         visual_returns = create_visualization(
-            W,
-            H,
+            nmf_output["W"],
+            nmf_output["H"],
             sozluk,
             table_output_dir,
             table_name,
