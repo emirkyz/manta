@@ -52,6 +52,37 @@ def train_tokenizer(tokenizer: Tokenizer, arr: list, tokenizer_type: str = "word
     return tokenizer
 
 
+def train_tokenizer_from_generator(tokenizer: Tokenizer, text_generator, tokenizer_type: str = "wordpiece"):
+    """
+    Train an initialized tokenizer on text data from a generator (streaming).
+    
+    Args:
+        tokenizer: An initialized Tokenizer object
+        text_generator: Generator yielding text strings
+        tokenizer_type: Type of tokenizer ("bpe" or "wordpiece")
+    
+    Returns:
+        Tokenizer: The trained tokenizer
+    """
+    if tokenizer_type == "bpe":
+        trainer = BpeTrainer(vocab_size=128 * 1024,
+                           min_frequency=5,
+                           special_tokens=["[BİLİNMİYOR]"])
+        print("Initialized BPE trainer for streaming")
+    elif tokenizer_type == "wordpiece":
+        trainer = WordPieceTrainer(vocab_size=128 * 1024,
+                                   min_frequency=5,
+                                   special_tokens=["[BİLİNMİYOR]"])
+        print("Initialized WordPiece trainer for streaming")
+    else:
+        raise ValueError(f"Invalid tokenizer type: {tokenizer_type}")
+    
+    print("Training tokenizer from generator...")
+    tokenizer.train_from_iterator(text_generator, trainer)
+    print("Tokenizer training completed")
+    return tokenizer
+
+
 def gen_token(arr, tokenizer_type: str = "wordpiece"):
     """
     Generate a WordPiece tokenizer from the text in the specified DataFrame column.
