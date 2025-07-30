@@ -196,7 +196,7 @@ def process_file(
         print("Starting preprocessing...")
 
         if options["LANGUAGE"] == "TR":
-            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, emoji_map = (
+            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, options["emoji_map"] = (
                 process_turkish_file(
                     df,
                     desired_columns,
@@ -207,7 +207,7 @@ def process_file(
             )
 
         elif options["LANGUAGE"] == "EN":
-            tdm, sozluk, sayisal_veri, metin_array = process_english_file(
+            tdm, sozluk, sayisal_veri, metin_array,  options["emoji_map"] = process_english_file(
                 df,
                 desired_columns,
                 options["LEMMATIZE"],
@@ -411,7 +411,6 @@ if __name__ == "__main__":
     )
     desired_columns = "REVIEW"
 
-    emj_map = EmojiMap()
     options = {
         "LEMMATIZE": LEMMATIZE,
         "N_TOPICS": N_WORDS,

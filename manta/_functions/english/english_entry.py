@@ -40,4 +40,4 @@ def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=Non
     tdm = tf_idf_english(N, sozluk=sozluk, data=sayisal_veri, alanadi=desired_columns, output_dir=None,
                                  lemmatize=lemmatize)
 
-    return tdm, sozluk, sayisal_veri, metin_array
+    return tdm, sozluk, sayisal_veri, metin_array,emoji_map
