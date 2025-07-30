@@ -131,11 +131,11 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
         dict: Dictionary of document_id -> document_text:score strings
     """
     document_skor_listesi = {}
-    
+
     for doc_id in doc_ids:
         if doc_id < len(documents):
             skor = topic_doc_vector[doc_id]
-            
+
             if hasattr(documents, 'iloc'):
                 document_text = documents.iloc[doc_id]
             else:

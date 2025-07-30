@@ -78,7 +78,7 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
     elif nmf_method == "nmtf":
         # If NMTF is used, we run the NMTF function
         nmf_output = nmtf(in_mat, rank_factor=rank_factor, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
-                    init_func=nmtf_initialization_random)
+                    init_func=nmtf_initialization_random,konu_sayisi=konu_sayisi)
 
     in_mat = in_mat.tocsr()
 
