@@ -1,7 +1,7 @@
 import manta
 
-file_path = "../veri_setleri/findings.csv"
-column = "findings"
+file_path = "../veri_setleri/bbc_news.csv"
+column = "text"
 
 result = manta.run_topic_analysis(
     filepath=file_path,

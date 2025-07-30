@@ -10,6 +10,13 @@ from sqlalchemy import create_engine, text
 import gensim
 from gensim.models.coherencemodel import CoherenceModel
 from gensim.corpora.dictionary import Dictionary
+import multiprocessing as mp
+
+def fix_multiprocessing_fork():
+      try:
+          mp.set_start_method('fork', force=True)
+      except RuntimeError:
+          pass  # Already set
 
 # --- UMassCoherence Class from umass_test.py ---
 
@@ -272,6 +279,7 @@ def c_uci(topics_json, table_name=None, column_name=None, documents=None, epsilo
 
 def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None):
     print("Calculating coherence scores...")
+    fix_multiprocessing_fork()
 
     u_mass_manual = False
     if u_mass_manual:
@@ -291,6 +299,7 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
         results = {}
     # Add Gensim comparison if cleaned_data is available
     gensim_cal = True
+    coherence_method = "c_v"
     if cleaned_data and gensim_cal:
         try:
             # Check if cleaned_data is already tokenized (list of lists) or needs tokenization (list of strings)
@@ -310,7 +319,7 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
                 topics=topics_list,
                 texts=cleaned_data_token,  # Use the tokenized documents directly, not the corpus
                 dictionary=dictionary,
-                coherence='u_mass'
+                coherence=coherence_method,
             )
             umass_gensim = gensim_results.get_coherence()
             umass_per_topic = gensim_results.get_coherence_per_topic()
@@ -320,10 +329,10 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
                 topic_coherence_dict[f"konu {i+1}"] = score.tolist() if hasattr(score, 'tolist') else score
 
             results["gensim"] = {
-                "umass_average": umass_gensim,
-                "umass_per_topic": topic_coherence_dict
+                f"{coherence_method}_average": umass_gensim,
+                f"{coherence_method}_per_topic": topic_coherence_dict
             }
-            print(f"Gensim U-Mass: {umass_gensim:.4f}")
+            print(f"Gensim {coherence_method} Average: {umass_gensim:.4f}")
             #print(f"Difference (Class - Gensim): {coherence_scores['average_coherence'] - umass_gensim:.4f}")
             
         except Exception as e:
@@ -431,8 +440,8 @@ def prepare_gensim_data(topics_json, documents):
 
 
 
-# --- Example Usage ---
-if __name__ == '__main__':
+def main():
+    """Main function for example usage and testing"""
     # Create sample topics and documents for comparison
     print("=== Coherence Score Comparison: Manual vs Gensim ===\n")
     
@@ -466,7 +475,7 @@ if __name__ == '__main__':
         ["machine", "learning", "algorithm", "data", "science", "model", "prediction"],
         ["neural", "network", "deep", "learning", "artificial", "intelligence"],
         ["natural", "language", "processing", "text", "nlp", "analysis"],
-        ["machine", "learning", "model", "training", "data", "algorithm"],
+        ["machine", "learning", "model", " spotraining", "data", "algorithm"],
         ["deep", "neural", "network", "artificial", "intelligence", "learning"],
         ["text", "processing", "natural", "language", "nlp", "analysis"],
         ["data", "science", "machine", "learning", "model", "algorithm"],
@@ -514,7 +523,8 @@ if __name__ == '__main__':
             topics=topics_list,
             texts=sample_documents,
             dictionary=dictionary,
-            coherence='u_mass'
+            coherence='u_mass',
+            processes=1  # Disable multiprocessing to prevent restart issues
         )
         umass_gensim = cm_umass.get_coherence()
         umass_per_topic = cm_umass.get_coherence_per_topic()
@@ -529,7 +539,8 @@ if __name__ == '__main__':
             topics=topics_list,
             texts=sample_documents,
             dictionary=dictionary,
-            coherence='c_v'
+            coherence='c_v',
+            processes=1  # Disable multiprocessing to prevent restart issues
         )
         cv_gensim = cm_cv.get_coherence()
         cv_per_topic = cm_cv.get_coherence_per_topic()
@@ -544,7 +555,8 @@ if __name__ == '__main__':
             topics=topics_list,
             texts=sample_documents,
             dictionary=dictionary,
-            coherence='c_uci'
+            coherence='c_uci',
+            processes=1  # Disable multiprocessing to prevent restart issues
         )
         cuci_gensim = cm_cuci.get_coherence()
         cuci_per_topic = cm_cuci.get_coherence_per_topic()
