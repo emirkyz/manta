@@ -75,4 +75,9 @@ def _basic_nmf(in_mat, w, h, start, log: bool = True, norm_thresh=0.005, zero_th
             break
     w[w < zero_threshold] = 0
     h[h < zero_threshold] = 0
-    return w, h 
+    
+    nmf_output = {}
+    nmf_output["W"] = w
+    nmf_output["H"] = h
+    
+    return nmf_output
