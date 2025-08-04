@@ -98,9 +98,10 @@ def process_file(
         f'sqlite:///{instance_path / "scopus.db"}'
     )  # Main data DB
 
-    try:
-        print(f"Starting topic modeling for {table_name}")
+    print(f"Starting topic modeling for {table_name}")
 
+
+    try:
         # Clean up the desired_columns
         desired_columns = desired_columns.strip() if desired_columns else None
 
@@ -217,6 +218,8 @@ def process_file(
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
+
+        print("Starting NMF processing...")
         # Create table-specific output directory to save everything under one folder
         table_output_dir = output_dir / table_name
         table_output_dir.mkdir(parents=True, exist_ok=True)
@@ -266,7 +269,7 @@ def process_file(
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
-        # save result to json
+        print("Saving topic results...")
         # Convert the topics_data format to the desired format
         topic_word_scores = save_word_score_pair(
             base_dir=None,
@@ -286,6 +289,7 @@ def process_file(
             data_frame_name=table_name,
         )
 
+        print("Calculating coherence scores...")
         # Calculate and save coherence scores
         coherence_scores = calculate_coherence_scores(
             topic_word_scores,
@@ -295,6 +299,7 @@ def process_file(
             table_name=table_name,
         )
 
+        print("Generating visual outputs.")
         visual_returns = create_visualization(
             nmf_output["W"],
             nmf_output["H"],
@@ -375,7 +380,7 @@ def run_standalone_nmf(
 
     """
     start_time = time.time()
-    print("Starting standalone NMF process...")
+    print("Starting MANTA Topic Analysis Process...")
     # Initialize tokenizer once before processing
     tokenizer = init_tokenizer(tokenizer_type=options["tokenizer_type"])
     options["tokenizer"] = tokenizer
