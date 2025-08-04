@@ -15,13 +15,13 @@
 
 ## Project Overview
 
-**MANTA (Multi-lingual Advanced NMF-based Topic Analysis)** is a comprehensive topic modeling tool that uses **Non-negative Matrix Factorization (NMF)** to extract meaningful topics from text documents. The system supports both **Turkish** and **English** languages and provides end-to-end processing from raw text data to visualized topic results.
+**MANTA (Multi-lingual Advanced NMF-based Topic Analysis)** is a comprehensive topic modeling tool that uses **Non-negative Matrix Factorization (NMF)** and **Non-negative Matrix Tri-Factorization (NMTF)** to extract meaningful topics from text documents. The system supports both **Turkish** and **English** languages and provides end-to-end processing from raw text data to visualized topic results.
 
 ### Key Features
 - **Bilingual Support**: Handles both Turkish and English text processing
 - **Multiple Tokenization Methods**: BPE (Byte-Pair Encoding) and WordPiece for Turkish
-- **Flexible NMF Algorithms**: Standard NMF and Orthogonal Projective NMF (OPNMF)
-- **Rich Output Generation**: Word clouds, topic distributions, Excel reports, and coherence scores
+- **Multiple NMF Factorization Algorithms**: Standard NMF, Projective NMF (PNMF), and Non-negative Matrix Tri-Factorization (NMTF)
+- **Rich Output Generation**: Word clouds, topic distributions, Excel reports, coherence scores, and topic relationship analysis (NMTF)
 - **Database Integration**: SQLite databases for persistent storage
 - **Comprehensive Preprocessing**: Text cleaning, tokenization, and TF-IDF vectorization
 
@@ -61,8 +61,9 @@
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    NMF DECOMPOSITION                            │
-│              W (Document-Topic) × H (Topic-Word)                │
+│                 MATRIX FACTORIZATION                            │
+│    NMF: W (Document-Topic) × H (Topic-Word)                     │
+│    NMTF: W (Document-Topic) × S (Topic-Topic) × H (Topic-Word)  │
 └─────────────────────────┬───────────────────────────────────────┘
                           │
                           ▼
@@ -178,7 +179,7 @@ def process_file(
         tokenizer_type (str): "bpe" or "wordpiece" for Turkish
         gen_topic_distribution (bool): Generate topic distribution plots
         separator (str): CSV separator character
-        nmf_type (str): "nmf" or "opnmf" algorithm choice
+        nmf_type (str): "nmf" or "pnmf" algorithm choice
     
     Returns:
         dict: Results containing:
@@ -243,7 +244,7 @@ The main entry point function that provides a simplified interface.
 ```python
 def run_topic_analysis(filepath, table_name, desired_columns, options):
     """
-    Simplified entry point for NMF topic modeling.
+    Simplified entry point for NMF/NMTF topic modeling.
     
     Args:
         filepath (str): Path to input file
@@ -254,13 +255,14 @@ def run_topic_analysis(filepath, table_name, desired_columns, options):
             - N_TOPICS: int (words per topic)
             - DESIRED_TOPIC_COUNT: int
             - tokenizer_type: str
-            - nmf_type: str
+            - nmf_type: str ("nmf", "pnmf", or "nmtf")
             - LANGUAGE: str
             - separator: str
             - gen_topic_distribution: bool
     
     Returns:
-        dict: Process results with timing information
+        dict: Process results with timing information and:
+            - topic_relationships: S matrix (only for NMTF)
     """
 ```
 
@@ -365,17 +367,17 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 
 ### Core Parameters
 
-| Parameter | Type | Description | Default | Options |
-|-----------|------|-------------|---------|---------|
-| `LANGUAGE` | str | Text language | "TR" | "TR", "EN" |
-| `desired_topic_count` | int | Number of topics to extract | 5 | 2-50+ |
-| `N_TOPICS` | int | Words per topic to display | 15 | 5-30 |
-| `LEMMATIZE` | bool | Enable lemmatization (English) | True | True, False |
-| `tokenizer_type` | str | Tokenizer type (Turkish) | "bpe" | "bpe", "wordpiece" |
-| `nmf_type` | str | NMF algorithm | "nmf" | "nmf", "opnmf" |
+| Parameter | Type | Description                         | Default | Options |
+|-----------|------|-------------------------------------|---------|---------|
+| `LANGUAGE` | str | Text language                       | "TR" | "TR", "EN" |
+| `desired_topic_count` | int | Number of topics to extract         | 5 | 2-50+ |
+| `N_TOPICS` | int | Words per topic to display          | 15 | 5-30 |
+| `LEMMATIZE` | bool | Enable lemmatization (English)      | True | True, False |
+| `tokenizer_type` | str | Tokenizer type (Turkish)            | "bpe" | "bpe", "wordpiece" |
+| `nmf_type` | str | NMF Factorization algorithm         | "nmf" | "nmf", "pnmf", "nmtf" |
 | `emoji_map` | bool | Enable emoji processing and mapping | True | True, False |
-| `separator` | str | CSV file separator | "," | ",", ";", "\\t" |
-| `filter_app` | bool | Enable data filtering | False | True, False |
+| `separator` | str | CSV file separator                  | "," | ",", ";", "\\t" |
+| `filter_app` | bool | Enable data filtering               | False | True, False |
 
 ### Advanced Options
 
@@ -417,7 +419,7 @@ options = {
     "N_TOPICS": 15,
     "DESIRED_TOPIC_COUNT": 8,
     "tokenizer_type": "bpe",
-    "nmf_type": "opnmf",
+    "nmf_type": "pnmf",
     "LANGUAGE": "TR",
     "separator": ";",
     "emoji_map": True,
@@ -540,7 +542,7 @@ options = {
     "N_TOPICS": 25,                       # 25 words per topic
     "DESIRED_TOPIC_COUNT": 10,            # Extract 10 topics
     "tokenizer_type": None,               # Not used for English
-    "nmf_type": "opnmf",                  # Orthogonal NMF
+    "nmf_type": "pnmf",                  # Orthogonal NMF
     "LANGUAGE": "EN",                     # English language
     "separator": ",",
     "gen_cloud": True,
@@ -692,7 +694,7 @@ print(f"Processed {len(results)} files successfully")
 - Improve text preprocessing
 - Add domain-specific stopwords
 - Adjust NMF parameters (`norm_thresh`)
-- Try different `nmf_type` ("nmf" vs "opnmf")
+- Try different `nmf_type` ("nmf" vs "pnmf" vs "nmtf")
 
 #### 6. Database Lock Errors
 
@@ -738,6 +740,37 @@ uv pip install -r requirements.txt
 pip install -r requirements.txt
 ```
 
+#### 9. NMTF Convergence Issues
+
+**Problem**: NMTF takes too long to converge or doesn't converge
+
+**Solutions**:
+- Reduce the number of topics (`DESIRED_TOPIC_COUNT`)
+- Adjust the normalization threshold (`norm_thresh`) to a higher value (e.g., 0.01)
+- Increase the convergence threshold (`epsilon`) for faster convergence
+- Check that your data has sufficient complexity for the requested number of topics
+
+```python
+# Example configuration for faster NMTF convergence
+options = {
+    "nmf_type": "nmtf",
+    "DESIRED_TOPIC_COUNT": 5,  # Reduce topic count
+    "norm_thresh": 0.01,       # Higher threshold for faster convergence
+    # ... other options
+}
+```
+
+#### 10. NMTF Memory Issues
+
+**Problem**: Out of memory errors when running NMTF
+
+**Solutions**:
+- NMTF requires more memory than standard NMF due to the additional S matrix
+- Reduce the dataset size or filter to fewer documents
+- Reduce the number of topics
+- Consider using standard NMF if memory is limited
+- Ensure you have sufficient RAM (recommended: 8GB+ for medium datasets)
+
 ### Performance Optimization Tips
 
 1. **For Large Datasets**:
@@ -747,7 +780,7 @@ pip install -r requirements.txt
 
 2. **For Better Topic Quality**:
    - Increase `desired_topic_count` for more granular topics
-   - Use `nmf_type="opnmf"` for better topic separation
+   - Use `nmf_type="pnmf"` for better topic separation
    - Enable `LEMMATIZE=True` for English text
 
 3. **For Faster Processing**:

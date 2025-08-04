@@ -338,7 +338,8 @@ def process_file(
             "topic_doc_scores": topic_doc_scores,
             "coherence_scores": coherence_scores,
             "topic_dist_img": visual_returns[0] if options["gen_topic_distribution"] else None,
-            "topic_document_counts": visual_returns[1] if options["gen_topic_distribution"] else None
+            "topic_document_counts": visual_returns[1] if options["gen_topic_distribution"] else None,
+            "topic_relationships": nmf_output.get("S", None),
         }
 
     except Exception as e:

@@ -98,7 +98,7 @@ Examples:
     
     analyze_parser.add_argument(
         '--nmf-method',
-        choices=['nmf', 'opnmf'],
+        choices=['nmf', 'pnmf', 'nmtf'],
         default='nmf',
         help='NMF algorithm variant (default: nmf)'
     )

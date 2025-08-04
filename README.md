@@ -5,7 +5,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A comprehensive topic modeling system using Non-negative Matrix Factorization (NMF) that supports both English and Turkish text processing. Features advanced tokenization techniques, multiple NMF algorithms, and rich visualization capabilities.
+A comprehensive topic modeling system using Non-negative Matrix Factorization (NMF) and Non-negative Matrix Tri-Factorization (NMTF) that supports both English and Turkish text processing. Features advanced tokenization techniques, multiple factorization algorithms including NMTF for topic relationship analysis, and rich visualization capabilities.
 
 ## Quick Start
 ### Installing locally for Development
@@ -58,9 +58,19 @@ results = run_topic_analysis(
     tokenizer_type="bpe",
     generate_wordclouds=True
 )
+
+# NMTF analysis for topic relationship discovery
+results = run_topic_analysis(
+    filepath="data.csv",
+    column="text_content",
+    language="TR", 
+    topics=6,
+    nmf_method="nmtf",
+    generate_wordclouds=True
+)
 ```
 
-## Result Structre
+## Result Structure
 ```
 {
 "state": State of the analysis, either "success" or "error",
@@ -69,8 +79,9 @@ results = run_topic_analysis(
 "topic_word_scores": JSON object containing topics and their top words with scores,
 "topic_doc_scores": JSON object containing topics and their top documents with scores,
 "coherence_scores": JSON object containing coherence scores for each topic,
-"topic_dist_img": Matplplotlib plt object of topic distribution plot if `gen_topic_distribution` is True,
+"topic_dist_img": Matplotlib plt object of topic distribution plot if `gen_topic_distribution` is True,
 "topic_document_counts": Count of documents per topic,
+"topic_relationships": Topic-to-topic relationship matrix (only for NMTF method),
 }
 ```
 ```
@@ -120,6 +131,9 @@ manta-topic-modelling analyze data.csv --column content --language EN --topics 1
 # Custom tokenizer for Turkish text
 manta-topic-modelling analyze reviews.csv --column review_text --language TR --topics 8 --tokenizer bpe --wordclouds
 
+# NMTF analysis for topic relationship discovery
+manta-topic-modelling analyze data.csv --column text --language TR --topics 5 --nmf-method nmtf
+
 # Filter by app name and country
 manta-topic-modelling analyze reviews.csv --column REVIEW --language TR --topics 5 --filter-app MyApp --filter-country TR
 
@@ -151,7 +165,9 @@ manta/
 │   │   ├── nmf_initialization.py        # Matrix initialization strategies
 │   │   ├── nmf_basic.py                 # Standard NMF algorithm
 │   │   ├── nmf_projective_basic.py      # Basic projective NMF
-│   │   └── nmf_projective_enhanced.py   # Enhanced projective NMF
+│   │   ├── nmf_projective_enhanced.py   # Enhanced projective NMF
+│   │   ├── nmtf/                        # Non-negative Matrix Tri-Factorization
+│   │   │   └── nmtf.py                  # NMTF implementation with topic relationships
 │   ├── tfidf/                    # TF-IDF calculation modules
 │   │   ├── tfidf_english_calculator.py  # English TF-IDF implementation
 │   │   ├── tfidf_turkish_calculator.py  # Turkish TF-IDF implementation
@@ -226,7 +242,7 @@ manta-topic-modelling analyze reviews.csv \
   --language EN \
   --topics 10 \
   --words-per-topic 20 \
-  --nmf-method opnmf \
+  --nmf-method pnmf \
   --lemmatize \
   --wordclouds \
   --excel \
@@ -245,7 +261,7 @@ manta-topic-modelling analyze reviews.csv \
 - `--topics, -t`: Number of topics to extract (default: 5)
 - `--output-name, -o`: Custom name for output files (default: auto-generated)
 - `--tokenizer`: Tokenizer type for Turkish ("bpe" or "wordpiece", default: "bpe")
-- `--nmf-method`: NMF algorithm ("nmf" or "opnmf", default: "nmf")
+- `--nmf-method`: Factorization algorithm ("nmf", "pnmf", or "nmtf", default: "nmf")
 - `--words-per-topic`: Number of top words per topic (default: 15)
 - `--lemmatize`: Apply lemmatization for English text
 - `--emoji-map`: Enable emoji processing and mapping (default: True). Use --emoji-map False to disable
@@ -306,7 +322,7 @@ results = run_topic_analysis(
 - `language` (str): "TR" for Turkish, "EN" for English (default: "EN")
 - `topics` (int): Number of topics to extract (default: 5)
 - `words_per_topic` (int): Top words to show per topic (default: 15)
-- `nmf_method` (str): "nmf" or "opnmf" algorithm variant (default: "nmf")
+- `nmf_method` (str): "nmf", "pnmf", or "nmtf" algorithm variant (default: "nmf")
 - `tokenizer_type` (str): "bpe" or "wordpiece" for Turkish (default: "bpe")
 - `lemmatize` (bool): Apply lemmatization for English (default: True)
 - `generate_wordclouds` (bool): Create word cloud visualizations (default: True)
@@ -336,7 +352,7 @@ The analysis generates several outputs in an `Output/` directory (created at run
 
 - **Multi-language Support**: Optimized processing for both Turkish and English texts
 - **Advanced Tokenization**: BPE and WordPiece tokenizers for Turkish, traditional tokenization for English
-- **Multiple NMF Algorithms**: Standard NMF and Orthogonal Projective NMF (OPNMF)
+- **Multiple Factorization Algorithms**: Standard NMF, Orthogonal Projective NMF (PNMF), and Non-negative Matrix Tri-Factorization (NMTF)
 - **Rich Visualizations**: Word clouds and topic distribution plots
 - **Flexible Export**: Excel and JSON export formats
 - **Coherence Evaluation**: Built-in topic coherence scoring
