@@ -69,7 +69,7 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
 
     nmf_output = None
 
-    if nmf_method == "opnmf":
+    if nmf_method == "pnmf":
         # If projective NMF is used, we do not need to run the core NMF function
         nmf_output = projective_nmf(in_mat, r=konu_sayisi, W_mat=w,h_mat=h,norm_func=np.linalg.norm)
     elif nmf_method == "nmf":
@@ -79,6 +79,11 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
         # If NMTF is used, we run the NMTF function
         nmf_output = nmtf(in_mat, rank_factor=rank_factor, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
                     init_func=nmtf_initialization_random,konu_sayisi=konu_sayisi)
+    else:
+        raise ValueError(f"Unknown NMF method: {nmf_method}. Supported methods are: 'nmf', 'pnmf', 'nmtf'")
+
+    if nmf_output is None:
+        raise RuntimeError(f"NMF computation failed for method: {nmf_method}")
 
     in_mat = in_mat.tocsr()
 
@@ -125,8 +130,5 @@ def run_nmf(num_of_topics: int, sparse_matrix: scipy.sparse.csr.csr_matrix, init
                     )
     
     # convert all matrices to dense with toarray()
-    outputs["W"] = outputs["W"].toarray()
-    outputs["H"] = outputs["H"].toarray()
-    outputs["S"] = outputs["S"].toarray()
-    
+
     return outputs

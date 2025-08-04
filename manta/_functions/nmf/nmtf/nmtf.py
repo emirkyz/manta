@@ -55,17 +55,24 @@ def _nmtf(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
 
 
 def s_matrix_confusion(s_matrix):
-    # lets do a confusion matrix for the s matrix
+    ind = []
+    max_values = []
+
+    for i in range(s_matrix.shape[1]):
+        col = s_matrix[:, i]
+        max_ind = np.argmax(col)
+        max_values.append(col[max_ind])
+        ind.append((i, max_ind))
+
+    ind_sorted = np.argsort(max_values)[::-1]
+    ind = np.array(ind)[ind_sorted]
+    max_values = np.array(max_values)[ind_sorted]
     
+    for index, value in enumerate(max_values):
+        print(f"Topic {index} has the connection with Topic {ind[index][1]}")
+        print(f"The connection strength is {value}")
+        print("--------------------------------")
     
-    # lets do a confusion matrix for the s matrix
-    confusion_matrix = np.zeros((s_matrix.shape[0], s_matrix.shape[1]))
-    for i in range(s_matrix.shape[0]):
-        for j in range(s_matrix.shape[1]):
-            confusion_matrix[i, j] = s_matrix[i, j]
-            
-    # print the confusion matrix
-    print(confusion_matrix)
     return
 
 
@@ -154,9 +161,9 @@ def nmtf(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
     w, s, h = _nmtf(in_mat, log, rank_factor, norm_thresh, zero_threshold, init_func,konu_sayisi)
     
     nmf_output = {}
-    nmf_output["W"] = w
-    nmf_output["S"] = s
+    nmf_output["W"] = w.toarray()
+    nmf_output["S"] = s.toarray()
 
-    nmf_output["H"] = h
+    nmf_output["H"] = h.toarray()
     
     return nmf_output
