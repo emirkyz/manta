@@ -19,6 +19,10 @@ def _sort_matrices(s: np.ndarray) -> tuple[list[tuple[int, int]], list[float]]:
         max_values.append(col[max_ind])
         ind.append((i, max_ind))
 
+    ind_sorted = np.argsort(max_values)[::-1]
+    ind = np.array(ind)[ind_sorted]
+    max_values = np.array(max_values)[ind_sorted]
+
     return ind, max_values
 
 
@@ -75,6 +79,7 @@ def _apply_word_similarity_filtering(kelime, kelime_skor_listesi):
         if "/" in prev_word_text:
             prev_word_text = prev_word_text.split("/")[0].strip()
 
+        distance = calc_levenstein_distance(prev_word_text, kelime)
         distance = calc_cosine_distance(prev_word_text, kelime)
         if distance > 0.8:
             kelime = f"{prev_word_org} / {kelime}"
@@ -144,7 +149,7 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
             if emoji_map is not None:
                 if emoji_map.check_if_text_contains_tokenized_emoji_doc(document_text):
                     document_text = emoji_map.decode_text_doc(document_text)
-                    
+            document_text = document_text.translate(str.maketrans('', '', '\n')).replace('\"', '')
             document_skor_listesi[f"{doc_id}"] = f"{document_text}:{skor:.16f}"
             
     return document_skor_listesi
