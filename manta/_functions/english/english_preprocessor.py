@@ -17,7 +17,7 @@ XXX_PATTERN = re.compile(r'\b[xX]{2,}\b')
 
 
 @functools.cache
-def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(), emoji_map=None) -> str:
+def preprocess(text=None, lemmatize=False, categories=frozenset(), emoji_map=None) -> str:
     """
     Preprocesses text data by applying lemmatization (if enabled) and removing stopwords.
 
@@ -26,9 +26,9 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(), emoji_map=N
     and applies lemmatization (if enabled).
 
     Args:
-        metin (str): The text data to be preprocessed.
+        text (str): The text data to be preprocessed.
         lemmatize (bool): Whether to apply lemmatization to the text data.
-        kategoriler (frozenset): A set of character categories to be removed.
+        categories (frozenset): A set of character categories to be removed.
 
     Returns:
         List[str]: A list of preprocessed words.
@@ -44,43 +44,43 @@ def preprocess(metin=None, lemmatize=False, kategoriler=frozenset(), emoji_map=N
     else:
         budayici = STEMMER
     
-    if emoji.emoji_count(metin) > 0:
+    if emoji.emoji_count(text) > 0:
         if emoji_map is not False and emoji_map is not None:
-            metin = emoji_map.process_text(metin)
+            text = emoji_map.process_text(text)
         else:
-            metin = emoji.replace_emoji(metin, replace='emoji')
+            text = emoji.replace_emoji(text, replace='emoji')
 
-    if metin is None:
+    if text is None:
         return []
 
-    metin = metin.lower()
-    metin = unicodedata.normalize('NFKD', metin)
+    text = text.lower()
+    text = unicodedata.normalize('NFKD', text)
 
     # Optimize Unicode character filtering
     secilen_kategoriler = ['Ll']
     yeni_metin = ''.join(char if unicodedata.category(char) in secilen_kategoriler else ' '
-                         for char in metin)
+                         for char in text)
 
     # Use precompiled patterns
-    metin = WHITESPACE_PATTERN.sub(' ', yeni_metin)
-    metin = XXX_PATTERN.sub('', metin)
-    metin = metin.strip()
+    text = WHITESPACE_PATTERN.sub(' ', yeni_metin)
+    text = XXX_PATTERN.sub('', text)
+    text = text.strip()
 
     # Split and filter stopwords in one pass
-    metin = [word for word in metin.split() if word not in STOPWORDS]
+    text = [word for word in text.split() if word not in STOPWORDS]
 
     # Process words in bulk using map() instead of list comprehension
     if lemmatize:
-        metin = list(map(budayici.lemmatize, metin))
+        text = list(map(budayici.lemmatize, text))
     else:
-        metin = list(map(budayici.stem, metin))
+        text = list(map(budayici.stem, text))
 
     # Join with space
-    metin = ' '.join(metin)
-    return metin
+    text = ' '.join(text)
+    return text
 
 
-def metin_temizle_english(metin=None, lemmatize=False, kategoriler=frozenset(), emoji_map=None) -> List[str]:
+def clean_english_text(metin=None, lemmatize=False, kategoriler=frozenset(), emoji_map=None) -> List[str]:
     """
     Preprocesses text data by applying lemmatization (if enabled) and removing stopwords.
 
@@ -89,5 +89,5 @@ def metin_temizle_english(metin=None, lemmatize=False, kategoriler=frozenset(), 
     and applies lemmatization (if enabled).
     """
 
-    metin = [preprocess(metin=i, lemmatize=lemmatize, kategoriler=kategoriler, emoji_map=emoji_map) for i in metin]
+    metin = [preprocess(text=i, lemmatize=lemmatize, categories=kategoriler, emoji_map=emoji_map) for i in metin]
     return metin

@@ -27,32 +27,32 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
         csr_matrix: A sparse TF-IDF or BM25 matrix.
     """
     
-    dokuman_sayisi = len(veri)
-    kelime_sayisi = tokenizer.get_vocab_size()
+    document_counts = len(veri)
+    word_count = tokenizer.get_vocab_size()
 
-    matris = lil_matrix((dokuman_sayisi, kelime_sayisi), dtype=int)
+    matris = lil_matrix((document_counts, word_count), dtype=int)
 
     for i, dokuman in enumerate(veri):
         histogram = Counter(dokuman)
         gecici = [(k, v) for k, v in histogram.items()]
-        sutunlar = [a[0] for a in gecici]
-        degerler = [b[1] for b in gecici]
-        matris[i, sutunlar] = degerler
+        columns = [a[0] for a in gecici]
+        values = [b[1] for b in gecici]
+        matris[i, columns] = values
 
     matris = matris.tocsr()
 
-    df_girdi_matrisi = matris.tocsc(copy=True)
-    df_girdi_matrisi.data = np.ones_like(df_girdi_matrisi.data)
-    #df = np.array((df_girdi_matrisi > 0).sum(axis=0)).flatten()
-    df = np.add.reduceat(df_girdi_matrisi.data, df_girdi_matrisi.indptr[:-1])
+    df_input_matrix = matris.tocsc(copy=True)
+    df_input_matrix.data = np.ones_like(df_input_matrix.data)
+    #df = np.array((df_input_matrix > 0).sum(axis=0)).flatten()
+    df = np.add.reduceat(df_input_matrix.data, df_input_matrix.indptr[:-1])
 
     use_bm25 = False
     if use_bm25:
         # Use BM25 scoring
-        tf_idf = bm25_generator(matris, df, dokuman_sayisi, k1, b)
+        tf_idf = bm25_generator(matris, df, document_counts, k1, b)
     else:
         # Use traditional TF-IDF scoring
-        idf = idf_p(df, dokuman_sayisi)
+        idf = idf_p(df, document_counts)
         tf_idf = tf_L(matris).multiply(idf).tocsr()
         tf_idf.eliminate_zeros()
         

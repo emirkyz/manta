@@ -197,7 +197,7 @@ def process_file(
         print("Starting preprocessing...")
 
         if options["LANGUAGE"] == "TR":
-            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, options["emoji_map"] = (
+            tdm, vocab, counterized_data, options["tokenizer"], text_array, options["emoji_map"] = (
                 process_turkish_file(
                     df,
                     desired_columns,
@@ -208,7 +208,7 @@ def process_file(
             )
 
         elif options["LANGUAGE"] == "EN":
-            tdm, sozluk, sayisal_veri, metin_array,  options["emoji_map"] = process_english_file(
+            tdm, vocab, counterized_data, text_array,  options["emoji_map"] = process_english_file(
                 df,
                 desired_columns,
                 options["LEMMATIZE"],
@@ -240,10 +240,11 @@ def process_file(
             word_result, document_result = konu_analizi(
                 H=nmf_output["H"],
                 W=nmf_output["W"],
-                konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
-                sozluk=sozluk,
+                doc_word_pairs=nmf_output.get("S", None),
+                topic_count=int(options["DESIRED_TOPIC_COUNT"]),
+                vocab=vocab,
                 tokenizer=options["tokenizer"],
-                documents=metin_array,
+                documents=text_array,
                 topics_db_eng=topics_db_eng,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
@@ -255,9 +256,9 @@ def process_file(
             word_result, document_result = konu_analizi(
                 H=nmf_output["H"],
                 W=nmf_output["W"],
-                doc_word_pairs=nmf_output["S"] if "nmtf" in options["nmf_type"] else None,
-                konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
-                sozluk=sozluk,
+                doc_word_pairs=nmf_output.get("S", None),
+                topic_count=int(options["DESIRED_TOPIC_COUNT"]),
+                vocab=vocab,
                 documents=[str(doc).strip() for doc in df[desired_columns]],
                 topics_db_eng=topics_db_eng,
                 data_frame_name=table_name,
@@ -295,7 +296,7 @@ def process_file(
             topic_word_scores,
             output_dir=table_output_dir,
             column_name=desired_columns,
-            cleaned_data=metin_array,
+            cleaned_data=text_array,
             table_name=table_name,
         )
 
@@ -303,13 +304,13 @@ def process_file(
         visual_returns = create_visualization(
             nmf_output["W"],
             nmf_output["H"],
-            sozluk,
+            vocab,
             table_output_dir,
             table_name,
             options,
             word_result,
             topic_word_scores,
-            metin_array,
+            text_array,
             topics_db_eng,
             options["emoji_map"],
             program_output_dir,
@@ -324,7 +325,7 @@ def process_file(
                 doc_json_data=topic_doc_scores,
                 output_dir=table_output_dir,
                 data_frame_name=table_name,
-                total_docs_count=len(metin_array),
+                total_docs_count=len(text_array),
             )
 
 

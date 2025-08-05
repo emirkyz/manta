@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def veri_sayisallastir(arr, tokenizer):
+def counterize_turkish(arr, tokenizer):
     """
     Convert text data from DataFrame to numerical format using the tokenizer.
     Takes a list of text data and a trained tokenizer.

@@ -12,10 +12,10 @@ from .tfidf_bm25_turkish import bm25_generator
 
 
 def tf_idf_english(N=None,
-                   sozluk=None,
+                   vocab=None,
                    data=None,
                    output_dir=None,
-                   alanadi=None,
+                   fieldname=None,
                    lemmatize=False,
                    use_bm25=False,
                    k1=1.2,
@@ -31,12 +31,12 @@ def tf_idf_english(N=None,
     
     Args:
         N (int, optional): Total number of documents in the dataset. Used for matrix dimension sizing.
-        sozluk (list, optional): Sorted vocabulary list where each word corresponds to a matrix column index.
+        vocab (list, optional): Sorted vocabulary list where each word corresponds to a matrix column index.
                                 The vocabulary should be pre-sorted for efficient binary search operations.
         data (pandas.DataFrame or dict, optional): Document collection containing the text data to process.
                                                   Should have a column/key specified by alanadi parameter.
         output_dir (str, optional): Directory path for saving output files. Currently unused in implementation.
-        alanadi (str, optional): Field/column name in data containing the document texts to process.
+        fieldname (str, optional): Field/column name in data containing the document texts to process.
         lemmatize (bool, optional): Whether to apply lemmatization during text preprocessing. Default is False.
                                   When True, reduces words to their base forms for better semantic grouping.
         use_bm25 (bool, optional): If True, use BM25 instead of TF-IDF (default: False).
@@ -72,7 +72,7 @@ def tf_idf_english(N=None,
     try:
         # Create initial term frequency matrix
         dokuman_sayisi = len(veri)
-        kelime_sayisi = len(sozluk)
+        kelime_sayisi = len(vocab)
 
         matris = lil_matrix((dokuman_sayisi, kelime_sayisi), dtype=int)
 
@@ -116,7 +116,7 @@ def tf_idf_english(N=None,
                     tf_idf.data = tf_idf.data / np.repeat(pivoted_norms, nnz_per_row)
 
         # Print memory usage statistics
-        gercek_gerekli_alan = N * len(sozluk) * 3 * 8 / 1024 / 1024 / 1024
+        gercek_gerekli_alan = N * len(vocab) * 3 * 8 / 1024 / 1024 / 1024
         print("Gerekli alan : ", gercek_gerekli_alan, "GB")
         temp = tf_idf.tocoo()
         seyrek_matris_gerekli_alan = temp.nnz * 3 * 8 / 1024 / 1024 / 1024
@@ -126,9 +126,9 @@ def tf_idf_english(N=None,
         print(f"{method_name} count nonzero : ", counnt_of_nonzero)
         total_elements = tf_idf.shape[0] * tf_idf.shape[1]
         print(f"{method_name} total elements : ", total_elements)
-        max_optimal_topic_num = counnt_of_nonzero // (N + len(sozluk))
+        max_optimal_topic_num = counnt_of_nonzero // (N + len(vocab))
         print("max_optimal_topic_num : ", max_optimal_topic_num)
-        percentage_of_nonzero = counnt_of_nonzero / (N * len(sozluk))
+        percentage_of_nonzero = counnt_of_nonzero / (N * len(vocab))
         print("percentage_of_nonzero : ", percentage_of_nonzero)
 
         return tf_idf

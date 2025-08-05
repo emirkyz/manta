@@ -68,7 +68,7 @@ def process_text(text: str, emoji_map=None) -> str:
     return metin
 
 
-def metin_temizle_turkish(df: pd.DataFrame, desired_column: str, emoji_map=None) -> list:
+def clean_text_turkish(df: pd.DataFrame, desired_column: str, emoji_map=None) -> list:
     """
     Bu fonksiyon, verilen DataFrame'deki belirtilen sütundaki metinleri temizler.
     Temizleme işlemi, metindeki özel karakterleri ve sayıları kaldırmayı içerir.
@@ -84,7 +84,7 @@ def metin_temizle_turkish(df: pd.DataFrame, desired_column: str, emoji_map=None)
         pd.DataFrame: Temizlenmiş metinleri içeren DataFrame (same object, modified in place).
     """
 
-    inplace = True  # We will modify the DataFrame in place
+    inplace = False  # We will modify the DataFrame in place
     if inplace:
         print(f"Processing in-place")
         # Process each text and update DataFrame in place

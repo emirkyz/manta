@@ -1,7 +1,7 @@
 from .english_preprocessor import preprocess
 
  
-def sayisallastirma(N, sozluk, data, alanadi, lemmatize):
+def counterize_english(N, vocab, data, field_name, lemmatize):
     """
     Convert text documents to numerical representation using vocabulary indices.
     
@@ -11,10 +11,10 @@ def sayisallastirma(N, sozluk, data, alanadi, lemmatize):
     
     Args:
         N (int): Total number of documents in the dataset. Used for validation.
-        sozluk (list): Sorted vocabulary list where each word corresponds to a unique index.
+        vocab (list): Sorted vocabulary list where each word corresponds to a unique index.
                        The vocabulary should match the one used during preprocessing.
         data (list): List of preprocessed text documents, where each document is a space-separated string.
-        alanadi (str): Field/column name in data containing the document texts. Currently unused.
+        field_name (str): Field/column name in data containing the document texts. Currently unused.
         lemmatize (bool): Whether lemmatization was applied during preprocessing. Currently unused.
                          Should match the setting used during preprocessing.
 
@@ -24,22 +24,22 @@ def sayisallastirma(N, sozluk, data, alanadi, lemmatize):
               words are mapped to 0.
 
     Note:
-        The input data should already be preprocessed using functions like metin_temizle_english()
+        The input data should already be preprocessed using functions like clean_english_text()
         and use the same preprocessing parameters (lemmatization, etc.) as when creating the vocabulary.
     """
-    sayisal_veri = []
-    dokumanlar = data
+    numerical_data = []
+    documents = data
     
     # Create vocabulary mapping from word to index
-    vocab_to_index = {word: idx for idx, word in enumerate(sozluk)}
+    vocab_to_index = {word: idx for idx, word in enumerate(vocab)}
     
     # Encode each document
-    for dokuman in dokumanlar:
+    for document in documents:
         # Split document into words
-        words = dokuman.split()
+        words = document.split()
         # Convert words to indices, use 0 for unknown words (out-of-vocabulary)
         document_indices = [vocab_to_index.get(word, 0) for word in words]
-        sayisal_veri.append(document_indices)
+        numerical_data.append(document_indices)
     
-    return sayisal_veri
+    return numerical_data
     

@@ -26,70 +26,70 @@ def _sort_matrices(s: np.ndarray) -> tuple[list[tuple[int, int]], list[float]]:
     return ind, max_values
 
 
-def _process_word_token(word_id, tokenizer, sozluk, emoji_map):
+def _process_word_token(word_id, tokenizer, vocabulary, emoji_map):
     """
     Process a single word token, handling tokenizer vs sozluk and emoji decoding.
     
     Args:
         word_id (int): Token ID to process  
         tokenizer: Turkish tokenizer object (optional)
-        sozluk (list): English vocabulary list (optional)
+        vocabulary (list): English vocabulary list (optional)
         emoji_map: Emoji map for decoding (optional)
         
     Returns:
         str or None: Processed word token, or None if invalid/filtered
     """
     if tokenizer is not None:
-        kelime = tokenizer.id_to_token(word_id)
+        word = tokenizer.id_to_token(word_id)
     else:
-        if word_id < len(sozluk):
-            kelime = sozluk[word_id]
+        if word_id < len(vocabulary):
+            word = vocabulary[word_id]
         else:
             return None
     
     # Handle emoji decoding
-    if emoji_map is not None and kelime is not None:
-        if emoji_map.check_if_text_contains_tokenized_emoji(kelime):
-            kelime = emoji_map.decode_text(kelime)
+    if emoji_map is not None and word is not None:
+        if emoji_map.check_if_text_contains_tokenized_emoji(word):
+            word = emoji_map.decode_text(word)
     
     # Skip subword tokens that start with ##
-    if kelime is not None and kelime.startswith("##"):
+    if word is not None and word.startswith("##"):
         return None
         
-    return kelime
+    return word
 
 
-def _apply_word_similarity_filtering(kelime, kelime_skor_listesi):
+def _apply_word_similarity_filtering(word, word_score_list):
     """
     Apply similarity filtering to combine similar words.
     
     Args:
-        kelime (str): Current word to check
-        kelime_skor_listesi (list): List of existing word:score strings
+        word (str): Current word to check
+        word_score_list (list): List of existing word:score strings
         
     Returns:
         tuple: (processed_word, updated_list) where processed_word might be combined
     """
-    if not kelime_skor_listesi:
-        return kelime, kelime_skor_listesi
+    if not word_score_list:
+        return word, word_score_list
         
-    for prev_word in kelime_skor_listesi[:]:
+    for prev_word in word_score_list[:]:
         prev_word_org = prev_word.split(":")[0]
         prev_word_text = prev_word_org
         if "/" in prev_word_text:
             prev_word_text = prev_word_text.split("/")[0].strip()
 
-        distance = calc_levenstein_distance(prev_word_text, kelime)
-        distance = calc_cosine_distance(prev_word_text, kelime)
+        distance = calc_levenstein_distance(prev_word_text, word)
+        distance = calc_cosine_distance(prev_word_text, word)
         if distance > 0.8:
-            kelime = f"{prev_word_org} / {kelime}"
-            kelime_skor_listesi.remove(prev_word)
+            word = f"{prev_word_org} / {word}"
+            word_score_list.remove(prev_word)
             break
             
-    return kelime, kelime_skor_listesi
+    return word, word_score_list
 
 
-def _extract_topic_words(topic_word_vector, word_ids, tokenizer, sozluk, emoji_map, word_per_topic):
+def _extract_topic_words(topic_word_vector, word_ids, tokenizer, vocabulary, emoji_map, word_per_topic):
     """
     Extract and process words for a single topic.
     
@@ -97,29 +97,29 @@ def _extract_topic_words(topic_word_vector, word_ids, tokenizer, sozluk, emoji_m
         topic_word_vector (numpy.ndarray): Word scores for this topic
         word_ids (numpy.ndarray): Sorted word IDs by score
         tokenizer: Turkish tokenizer (optional)
-        sozluk (list): English vocabulary (optional) 
+        vocabulary (list): English vocabulary (optional)
         emoji_map: Emoji map for decoding (optional)
         word_per_topic (int): Maximum words per topic
         
     Returns:
         list: List of word:score strings
     """
-    kelime_skor_listesi = []
+    word_score_list = []
     
     for word_id in word_ids:
-        kelime = _process_word_token(word_id, tokenizer, sozluk, emoji_map)
-        if kelime is None:
+        word = _process_word_token(word_id, tokenizer, vocabulary, emoji_map)
+        if word is None:
             continue
             
-        kelime, kelime_skor_listesi = _apply_word_similarity_filtering(kelime, kelime_skor_listesi)
+        word, word_score_list = _apply_word_similarity_filtering(word, word_score_list)
         
-        skor = topic_word_vector[word_id]
-        kelime_skor_listesi.append(f"{kelime}:{skor:.8f}")
+        score = topic_word_vector[word_id]
+        word_score_list.append(f"{word}:{score:.8f}")
         
-        if len(kelime_skor_listesi) >= word_per_topic:
+        if len(word_score_list) >= word_per_topic:
             break
             
-    return kelime_skor_listesi
+    return word_score_list
 
 
 def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
@@ -135,11 +135,11 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
     Returns:
         dict: Dictionary of document_id -> document_text:score strings
     """
-    document_skor_listesi = {}
+    document_score_list = {}
 
     for doc_id in doc_ids:
         if doc_id < len(documents):
-            skor = topic_doc_vector[doc_id]
+            score = topic_doc_vector[doc_id]
 
             if hasattr(documents, 'iloc'):
                 document_text = documents.iloc[doc_id]
@@ -150,12 +150,12 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
                 if emoji_map.check_if_text_contains_tokenized_emoji_doc(document_text):
                     document_text = emoji_map.decode_text_doc(document_text)
             document_text = document_text.translate(str.maketrans('', '', '\n')).replace('\"', '')
-            document_skor_listesi[f"{doc_id}"] = f"{document_text}:{skor:.16f}"
+            document_score_list[f"{doc_id}"] = f"{document_text}:{score:.16f}"
             
-    return document_skor_listesi
+    return document_score_list
 
 
-def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None, topics_db_eng=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, output_dir=None, doc_word_pairs=None):
+def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, topics_db_eng=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, output_dir=None, doc_word_pairs=None):
     """
     Performs topic analysis using Non-negative Matrix Factorization (NMF) results for both Turkish and English texts.
     
@@ -168,10 +168,10 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
                           Each row represents a topic, each column represents a word/feature.
         W (numpy.ndarray): Document-topic matrix from NMF decomposition with shape (n_documents, n_topics).
                           Each row represents a document, each column represents a topic.
-        konu_sayisi (int): Number of topics to analyze. Should match the number of topics in H and W matrices.
+        topic_count (int): Number of topics to analyze. Should match the number of topics in H and W matrices.
         tokenizer (object, optional): Turkish tokenizer object with id_to_token() method for converting 
                                     token IDs to words. Required for Turkish text processing.
-        sozluk (list, optional): English vocabulary list where indices correspond to feature indices in H matrix.
+        vocab (list, optional): English vocabulary list where indices correspond to feature indices in H matrix.
                                Required for English text processing.
         documents (pandas.DataFrame or list, optional): Collection of document texts used in the analysis.
                                                        Can be pandas DataFrame or list of strings.
@@ -234,7 +234,7 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
         - Database saving is optional and warnings are shown if engine is not provided
         - File paths are resolved relative to the function's location in the project structure
     """
-    if tokenizer is None and sozluk is None:
+    if tokenizer is None and vocab is None:
         raise ValueError("Either tokenizer (for Turkish) or sozluk (for English) must be provided")
     
     word_result = {}
@@ -263,7 +263,7 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
 
             # Extract words for this topic pair
             word_scores = _extract_topic_words(
-                topic_word_vector, sorted_word_ids, tokenizer, sozluk, emoji_map, word_per_topic
+                topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
             word_result[f"Konu {idx:02d}"] = word_scores
             
@@ -276,7 +276,7 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
                 document_result[f"Konu {idx}"] = doc_scores
     else:
         # Standard NMF: Process all topics sequentially
-        for i in range(konu_sayisi):
+        for i in range(topic_count):
             topic_word_vector = H[i, :]
             topic_doc_vector = W[:, i]
 
@@ -286,7 +286,7 @@ def konu_analizi(H, W, konu_sayisi, tokenizer=None, sozluk=None, documents=None,
 
             # Extract words for this topic
             word_scores = _extract_topic_words(
-                topic_word_vector, sorted_word_ids, tokenizer, sozluk, emoji_map, word_per_topic
+                topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
             word_result[f"Konu {i:02d}"] = word_scores
             

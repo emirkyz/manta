@@ -6,7 +6,7 @@ from scipy.sparse import csr_matrix
 from .tfidf_idf_functions import idf_bm25
 
 
-def bm25_generator(matris: csr_matrix, df: np.ndarray, dokuman_sayisi: int, k1=1.2, b=0.75):
+def bm25_generator(matris: csr_matrix, df: np.ndarray, document_count: int, k1=1.2, b=0.75):
     """
     Generate BM25 scores for a given term-document matrix.
     
@@ -15,7 +15,7 @@ def bm25_generator(matris: csr_matrix, df: np.ndarray, dokuman_sayisi: int, k1=1
     Args:
         matris (csr_matrix): Term-document frequency matrix
         df (np.ndarray): Document frequency for each term
-        dokuman_sayisi (int): Total number of documents
+        document_count (int): Total number of documents
         k1 (float): Term frequency saturation parameter (default: 1.2)
         b (float): Length normalization parameter (default: 0.75)
     
@@ -24,7 +24,7 @@ def bm25_generator(matris: csr_matrix, df: np.ndarray, dokuman_sayisi: int, k1=1
     """
     
     # Calculate IDF using existing BM25 IDF function
-    idf = idf_bm25(df, dokuman_sayisi)
+    idf = idf_bm25(df, document_count)
     
     # Calculate document lengths (number of terms per document)
     doc_lengths = np.asarray(matris.sum(axis=1)).flatten()
@@ -36,7 +36,7 @@ def bm25_generator(matris: csr_matrix, df: np.ndarray, dokuman_sayisi: int, k1=1
     bm25_matrix = matris.copy().astype(np.float64)
     
     # Apply BM25 transformation for each document
-    for i in range(dokuman_sayisi):
+    for i in range(document_count):
         # Get document length for normalization
         doc_len = doc_lengths[i]
         
@@ -53,7 +53,7 @@ def bm25_generator(matris: csr_matrix, df: np.ndarray, dokuman_sayisi: int, k1=1
             
             # Calculate BM25 scores
             # BM25 = IDF × (tf × (k1 + 1)) / (tf + k1 × (1 - b + b × doc_len/avgdl))
-            normalization_factor = k1 * (1 - b + b * doc_len / avgdl)
+            normalization_factor = k1 * (1 - b + b * doc_len / docu)
             numerator = tf * (k1 + 1)
             denominator = tf + normalization_factor
             
