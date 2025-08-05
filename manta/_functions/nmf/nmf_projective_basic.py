@@ -114,4 +114,9 @@ def projective_nmf(X: sp.csr_matrix, r: int, options: Optional[Dict] = None, ini
     # Final normalization
     w = normalize(W, norm='l2', axis=0)
     h = w.T @ X
-    return w , h
+    
+    nmf_output = {}
+    nmf_output["W"] = w
+    nmf_output["H"] = h
+    
+    return nmf_output

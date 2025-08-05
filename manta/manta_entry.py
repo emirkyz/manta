@@ -46,7 +46,7 @@ def process_file(
                 "LEMMATIZE": bool,                  # Lemmatize English text (ignored for Turkish)
                 "tokenizer_type": str,              # "bpe" or "wordpiece" for Turkish
                 "tokenizer": object,                # Pre-initialized tokenizer (optional)
-                "nmf_type": str,                    # "opnmf" or "nmf" algorithm variant
+                "nmf_type": str,                    # "pnmf" or "nmf" algorithm variant
                 "gen_cloud": bool,                  # Generate word clouds for topics
                 "save_excel": bool,                 # Export results to Excel format
                 "gen_topic_distribution": bool,     # Generate topic distribution plots
@@ -98,9 +98,10 @@ def process_file(
         f'sqlite:///{instance_path / "scopus.db"}'
     )  # Main data DB
 
-    try:
-        print(f"Starting topic modeling for {table_name}")
+    print(f"Starting topic modeling for {table_name}")
 
+
+    try:
         # Clean up the desired_columns
         desired_columns = desired_columns.strip() if desired_columns else None
 
@@ -196,7 +197,7 @@ def process_file(
         print("Starting preprocessing...")
 
         if options["LANGUAGE"] == "TR":
-            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, emoji_map = (
+            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, options["emoji_map"] = (
                 process_turkish_file(
                     df,
                     desired_columns,
@@ -207,7 +208,7 @@ def process_file(
             )
 
         elif options["LANGUAGE"] == "EN":
-            tdm, sozluk, sayisal_veri, metin_array = process_english_file(
+            tdm, sozluk, sayisal_veri, metin_array,  options["emoji_map"] = process_english_file(
                 df,
                 desired_columns,
                 options["LEMMATIZE"],
@@ -217,12 +218,14 @@ def process_file(
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
+
+        print("Starting NMF processing...")
         # Create table-specific output directory to save everything under one folder
         table_output_dir = output_dir / table_name
         table_output_dir.mkdir(parents=True, exist_ok=True)
 
         # nmf
-        W, H = run_nmf(
+        nmf_output = run_nmf(
             num_of_topics=int(options["DESIRED_TOPIC_COUNT"]),
             sparse_matrix=tdm,
             norm_thresh=0.005,
@@ -230,11 +233,13 @@ def process_file(
         )
 
         # Find dominant words for each topic and dominant documents for each topic
+        #TODO: Simplfy this part, it is too long and complex. Konu analizi is a complex function that does many things.
+
         print("Generating topic groups...")
         if options["LANGUAGE"] == "TR":
             word_result, document_result = konu_analizi(
-                H=H,
-                W=W,
+                H=nmf_output["H"],
+                W=nmf_output["W"],
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
                 sozluk=sozluk,
                 tokenizer=options["tokenizer"],
@@ -248,8 +253,9 @@ def process_file(
             )
         elif options["LANGUAGE"] == "EN":
             word_result, document_result = konu_analizi(
-                H=H,
-                W=W,
+                H=nmf_output["H"],
+                W=nmf_output["W"],
+                doc_word_pairs=nmf_output["S"] if "nmtf" in options["nmf_type"] else None,
                 konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
                 sozluk=sozluk,
                 documents=[str(doc).strip() for doc in df[desired_columns]],
@@ -263,7 +269,7 @@ def process_file(
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
-        # save result to json
+        print("Saving topic results...")
         # Convert the topics_data format to the desired format
         topic_word_scores = save_word_score_pair(
             base_dir=None,
@@ -283,6 +289,7 @@ def process_file(
             data_frame_name=table_name,
         )
 
+        print("Calculating coherence scores...")
         # Calculate and save coherence scores
         coherence_scores = calculate_coherence_scores(
             topic_word_scores,
@@ -292,9 +299,10 @@ def process_file(
             table_name=table_name,
         )
 
+        print("Generating visual outputs.")
         visual_returns = create_visualization(
-            W,
-            H,
+            nmf_output["W"],
+            nmf_output["H"],
             sozluk,
             table_output_dir,
             table_name,
@@ -330,7 +338,8 @@ def process_file(
             "topic_doc_scores": topic_doc_scores,
             "coherence_scores": coherence_scores,
             "topic_dist_img": visual_returns[0] if options["gen_topic_distribution"] else None,
-            "topic_document_counts": visual_returns[1] if options["gen_topic_distribution"] else None
+            "topic_document_counts": visual_returns[1] if options["gen_topic_distribution"] else None,
+            "topic_relationships": nmf_output.get("S", None),
         }
 
     except Exception as e:
@@ -372,7 +381,7 @@ def run_standalone_nmf(
 
     """
     start_time = time.time()
-    print("Starting standalone NMF process...")
+    print("Starting MANTA Topic Analysis Process...")
     # Initialize tokenizer once before processing
     tokenizer = init_tokenizer(tokenizer_type=options["tokenizer_type"])
     options["tokenizer"] = tokenizer
@@ -408,7 +417,6 @@ if __name__ == "__main__":
     )
     desired_columns = "REVIEW"
 
-    emj_map = EmojiMap()
     options = {
         "LEMMATIZE": LEMMATIZE,
         "N_TOPICS": N_WORDS,
