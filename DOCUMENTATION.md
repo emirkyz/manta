@@ -111,7 +111,7 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
 ```
 
 **Process Flow:**
-1. **Text Cleaning** (`metin_temizle_turkish`): Removes noise, special characters, and normalizes text
+1. **Text Cleaning** (`clean_text_turkish`): Removes noise, special characters, and normalizes text
 2. **Tokenizer Initialization**: Creates BPE or WordPiece tokenizer if not provided
 3. **Tokenizer Training**: Trains tokenizer on the corpus to build vocabulary
 4. **Vocabulary Extraction**: Extracts word tokens from trained tokenizer
@@ -141,7 +141,7 @@ def process_english_file(df, desired_columns: str, lemmatize: bool):
 ```
 
 **Process Flow:**
-1. **Dictionary Creation** (`sozluk_yarat`): Builds vocabulary with optional lemmatization
+1. **Dictionary Creation** (`create_english_vocab`): Builds vocabulary with optional lemmatization
 2. **TF-IDF Calculation** (`tf_idf_english`): Computes TF-IDF weights directly
 3. **Matrix Preparation**: Prepares the final document-term matrix
 

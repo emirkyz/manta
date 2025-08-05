@@ -110,7 +110,7 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
 ```
 
 **İşlem Akışı:**
-1. **Metin Temizleme** (`metin_temizle_turkish`): Gürültüyü, özel karakterleri kaldırır ve metni normalleştirir
+1. **Metin Temizleme** (`clean_text_turkish`): Gürültüyü, özel karakterleri kaldırır ve metni normalleştirir
 2. **Tokenizer Başlatma**: Sağlanmadıysa BPE veya WordPiece tokenizer oluşturur
 3. **Tokenizer Eğitimi**: Kelime dağarcığı oluşturmak için tokenizer'ı korpus üzerinde eğitir
 4. **Kelime Dağarcığı Çıkarımı**: Eğitilmiş tokenizer'dan kelime tokenlarını çıkarır
@@ -140,7 +140,7 @@ def process_english_file(df, desired_columns: str, lemmatize: bool):
 ```
 
 **İşlem Akışı:**
-1. **Sözlük Oluşturma** (`sozluk_yarat`): İsteğe bağlı lemmatizasyon ile kelime dağarcığı oluşturur
+1. **Sözlük Oluşturma** (`create_english_vocab`): İsteğe bağlı lemmatizasyon ile kelime dağarcığı oluşturur
 2. **TF-IDF Hesaplama** (`tf_idf_english`): TF-IDF ağırlıklarını doğrudan hesaplar
 3. **Matris Hazırlama**: Son doküman-terim matrisini hazırlar
 

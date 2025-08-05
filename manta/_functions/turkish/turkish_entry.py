@@ -1,6 +1,6 @@
-from .turkish_preprocessor import metin_temizle_turkish
+from .turkish_preprocessor import clean_text_turkish
 from .turkish_tokenizer_factory import init_tokenizer, train_tokenizer
-from .turkish_text_encoder import veri_sayisallastir
+from .turkish_text_encoder import counterize_turkish
 from ..tfidf import tf_idf_turkish
 
 
@@ -23,10 +23,10 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
     Returns:
         tuple: A tuple containing:
             - tdm (scipy.sparse matrix): Term-document matrix (TF-IDF transformed)
-            - sozluk (list): Vocabulary list from the tokenizer
-            - sayisal_veri (scipy.sparse matrix): Numerical representation of documents
+            - vocabulary (list): Vocabulary list from the tokenizer
+            - counterized_data (scipy.sparse matrix): Numerical representation of documents
             - tokenizer: Trained tokenizer instance
-            - metin_array (list): Cleaned text array
+            - text_array (list): Cleaned text array
             - emoji_map (EmojiMap): Emoji mapping instance used
 
     Raises:
@@ -34,19 +34,19 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
         KeyError: If desired_columns is not found in the DataFrame
     """
 
-    metin_array = metin_temizle_turkish(df, desired_columns, emoji_map=emoji_map)
-    print(f"Number of documents: {len(metin_array)}")
+    text_array = clean_text_turkish(df, desired_columns, emoji_map=emoji_map)
+    print(f"Number of documents: {len(text_array)}")
 
     # Initialize tokenizer if not provided
     if tokenizer is None:
         tokenizer = init_tokenizer(tokenizer_type=tokenizer_type)
 
     # Train the tokenizer
-    tokenizer = train_tokenizer(tokenizer, metin_array, tokenizer_type=tokenizer_type)
-    sozluk = list(tokenizer.get_vocab().keys())
+    tokenizer = train_tokenizer(tokenizer, text_array, tokenizer_type=tokenizer_type)
+    vocabulary = list(tokenizer.get_vocab().keys())
 
     # sayısallaştır
-    sayisal_veri = veri_sayisallastir(metin_array, tokenizer)
-    tdm = tf_idf_turkish(sayisal_veri, tokenizer)
+    counterized_data = counterize_turkish(text_array, tokenizer)
+    tdm = tf_idf_turkish(counterized_data, tokenizer)
 
-    return tdm, sozluk, sayisal_veri, tokenizer, metin_array, emoji_map
+    return tdm, vocabulary, counterized_data, tokenizer, text_array, emoji_map
