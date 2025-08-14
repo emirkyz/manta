@@ -3,8 +3,8 @@ import os
 
 import numpy as np
 
-from ..english.english_topic_output import save_topics_to_db
 from ...utils.distance_two_words import calc_levenstein_distance, calc_cosine_distance
+from ...utils.database_manager import DatabaseManager, DatabaseConfig
 
 
 
@@ -155,7 +155,7 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
     return document_score_list
 
 
-def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, topics_db_eng=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, output_dir=None, doc_word_pairs=None):
+def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None, db_config=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, doc_word_pairs=None):
     """
     Performs topic analysis using Non-negative Matrix Factorization (NMF) results for both Turkish and English texts.
     
@@ -175,13 +175,12 @@ def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, 
                                Required for English text processing.
         documents (pandas.DataFrame or list, optional): Collection of document texts used in the analysis.
                                                        Can be pandas DataFrame or list of strings.
-        topics_db_eng (sqlalchemy.engine, optional): Database engine for saving topic results to database.
-        data_frame_name (str, optional): Name of the dataset/table, used for file naming and database operations.
+        db_config (DatabaseConfig, optional): Database configuration object containing database engines and output directories.
+        data_frame_name (str, optional): Name of the dataset/table, used for database operations and file naming.
         word_per_topic (int, optional): Maximum number of top words to extract per topic. Default is 20.
         include_documents (bool, optional): Whether to perform document analysis and save document scores.
                                           Default is True.
         emoji_map (EmojiMap, optional): Emoji map for decoding emoji tokens back to emojis. Required for Turkish text processing.
-        output_dir (str, optional): Output directory for saving document analysis results.
         doc_word_pairs (list[tuple[int, int]], optional): List of (word_topic_id, doc_topic_id) pairs for NMTF-style analysis.
                                                          If provided, only these specific topic pairs will be analyzed.
     Returns:
@@ -299,9 +298,9 @@ def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, 
                 document_result[f"Konu {i}"] = doc_scores
 
     # Save to database if provided
-    if topics_db_eng:
-        save_topics_to_db(word_result, data_frame_name, topics_db_eng)
+    if db_config and db_config.topics_db_engine and data_frame_name:
+        DatabaseManager.save_topics_to_database(word_result, data_frame_name, db_config.topics_db_engine)
     else:
-        print("Warning: No database engine provided, skipping database save")
+        print("Warning: No database configuration or data frame name provided, skipping database save")
         
     return word_result, document_result

@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any
 
-from .manta_entry import run_standalone_nmf
+from .manta_entry import run_manta_process
 from ._functions.common_language.emoji_processor import EmojiMap
 
 
@@ -194,7 +194,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
         raise ValueError("Words per topic must be at least 1")
 
 
-def build_options(args: argparse.Namespace) -> Dict[str, Any]:
+def build_options(args: argparse.Namespace) -> tuple[dict[str | Any, Any | None], str | Any]:
     """Build options dictionary from command-line arguments."""
     # Use boolean pattern for emoji map initialization (default: enabled)
     emoji_map = args.emoji_map
@@ -254,7 +254,7 @@ def analyze_command(args: argparse.Namespace) -> int:
         print("-" * 50)
         
         # Run the analysis
-        result = run_standalone_nmf(
+        result = run_manta_process(
             filepath=filepath,
             table_name=table_name,
             desired_columns=args.column,
