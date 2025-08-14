@@ -1,8 +1,6 @@
 from typing import List
-import os
 from pathlib import Path
 from ...database.database_manager import DatabaseManager
-from ...utils.image_to_base import image_to_base64
 from wordcloud import WordCloud
 
 def get_topic_names_out(data_frame_name, num_of_topics: int, sozluk: List[str], word_per_topic: int, topics_db_eng=None,

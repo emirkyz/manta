@@ -1,10 +1,8 @@
-from .gen_cloud import generate_wordclouds
-from .export_excel import export_topics_to_excel
-from .coherence_score import calculate_coherence_scores
-from .save_word_score_pair import save_word_score_pair
-from .topic_dist import gen_topic_dist
-from .word_cooccurrence import calc_word_cooccurrence
-from .word_cooccurrence_analyzer import analyze_word_cooccurrence
+from manta.utils.visualization.gen_cloud import generate_wordclouds
+from manta.utils.export.export_excel import export_topics_to_excel
+from manta.utils.visualization.topic_dist import gen_topic_dist
+from manta.utils.analysis.word_cooccurrence import calc_word_cooccurrence
+from manta.utils.analysis.word_cooccurrence_analyzer import analyze_word_cooccurrence
 
 
 def create_visualization(W, H, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir):

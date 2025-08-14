@@ -1,11 +1,10 @@
-import os
 from pathlib import Path
 import numpy as np
 import scipy.sparse as sp
 from .._functions.nmf.nmf_orchestrator import run_nmf
 from .._functions.common_language.topic_extractor import topic_extract
-from .save_doc_score_pair import save_doc_score_pair
-from .coherence_score import calculate_coherence_scores
+from manta.utils.export.save_doc_score_pair import save_doc_score_pair
+from manta.utils.analysis.coherence_score import calculate_coherence_scores
 
 
 def hierarchy_nmf(W, nmf_matrix, selected_topic, desired_topic_count,

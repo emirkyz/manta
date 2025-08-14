@@ -12,12 +12,12 @@ from ._functions.nmf import run_nmf
 from ._functions.turkish.turkish_entry import process_turkish_file
 from ._functions.turkish.turkish_tokenizer_factory import init_tokenizer
 
-from .utils.coherence_score import calculate_coherence_scores
-from .utils.save_doc_score_pair import save_doc_score_pair
-from .utils.save_word_score_pair import save_word_score_pair
-from .utils.visualizer import create_visualization
-from .utils.json_to_excel import convert_json_to_excel
-from .utils.database_manager import DatabaseManager, DatabaseConfig
+from .utils.analysis.coherence_score import calculate_coherence_scores
+from .utils.export.save_doc_score_pair import save_doc_score_pair
+from .utils.export.save_word_score_pair import save_word_score_pair
+from .utils.visualization.visualizer import create_visualization
+from .utils.export.json_to_excel import convert_json_to_excel
+from .utils.database.database_manager import DatabaseManager
 
 
 def _validate_inputs(filepath: str, desired_columns: str, options: Dict[str, Any]) -> None:
