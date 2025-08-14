@@ -40,4 +40,4 @@ def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=Non
     tdm = tf_idf_english(N, vocab=vocab, data=counterized_data, fieldname=desired_columns, output_dir=None,
                          lemmatize=lemmatize)
 
-    return tdm, vocab, counterized_data, text_array,emoji_map
+    return tdm, vocab, counterized_data, text_array, emoji_map

@@ -49,4 +49,4 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
     counterized_data = counterize_turkish(text_array, tokenizer)
     tdm = tf_idf_turkish(counterized_data, tokenizer)
 
-    return tdm, vocabulary, counterized_data, tokenizer, text_array, emoji_map
+    return tdm, vocabulary, counterized_data, text_array, tokenizer, emoji_map
