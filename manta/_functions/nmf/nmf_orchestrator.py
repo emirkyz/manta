@@ -64,7 +64,7 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
     w, h = init_func(in_mat, konu_sayisi)
 
     if log:
-        print("Performing NMF...")
+        print("Starting Factorization Process..")
         start = datetime.now()
 
     nmf_output = None
