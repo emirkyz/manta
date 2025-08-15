@@ -1,6 +1,6 @@
 from typing import List
 from pathlib import Path
-from ...database.database_manager import DatabaseManager
+from manta.utils.database.database_manager import DatabaseManager
 from wordcloud import WordCloud
 
 def get_topic_names_out(data_frame_name, num_of_topics: int, sozluk: List[str], word_per_topic: int, topics_db_eng=None,

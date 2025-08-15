@@ -1,7 +1,7 @@
 import numpy as np
 
-from manta.utils.analysis.distance_two_words import calc_levenstein_distance, calc_cosine_distance
-from manta.utils.database.database_manager import DatabaseManager
+from ...utils.analysis.distance_two_words import calc_levenstein_distance, calc_cosine_distance
+from ...utils.database.database_manager import DatabaseManager
 
 
 def _sort_matrices(s: np.ndarray) -> tuple[list[tuple[int, int]], list[float]]:

@@ -5,7 +5,6 @@ from typing import Callable
 import numpy as np
 import scipy.sparse as sp
 
-from manta._functions.nmf.nmtf.extract_nmtf_topics import extract_topics
 
 from .nmtf_init import nmtf_initialization_random
 from .nmtf_util import sort_matrices
