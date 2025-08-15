@@ -21,4 +21,5 @@ result = manta.run_topic_analysis(
         "filter_app_country": "TR",
         "filter_app_country_column": "REVIEWER_LANGUAGE",
     },
+    save_to_db=False
 )
