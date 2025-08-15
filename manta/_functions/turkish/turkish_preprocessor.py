@@ -3,7 +3,7 @@ import nltk
 import re
 import pandas as pd
 import emoji.core as emoji
-from ...utils.combine_number_suffix import remove_space_between_terms
+from manta.utils.preprocess.combine_number_suffix import remove_space_between_terms
 
 WHITESPACE_PATTERN = re.compile(r' +')
 XXX_PATTERN = re.compile(r'\b[xX]{2,}\b')

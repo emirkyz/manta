@@ -1,7 +1,6 @@
 import os
 import json
 
-from manta.utils.save_topics_db import save_topics_to_db
 
 def save_word_score_pair(base_dir, output_dir, table_name, topics_data, result, data_frame_name=None, topics_db_eng=None):
     """

@@ -21,8 +21,10 @@
 - **Bilingual Support**: Handles both Turkish and English text processing
 - **Multiple Tokenization Methods**: BPE (Byte-Pair Encoding) and WordPiece for Turkish
 - **Multiple NMF Factorization Algorithms**: Standard NMF, Projective NMF (PNMF), and Non-negative Matrix Tri-Factorization (NMTF)
+- **Advanced NMF Variants**: Hierarchical NMF, Online NMF, and Symmetric NMF implementations
 - **Rich Output Generation**: Word clouds, topic distributions, Excel reports, coherence scores, and topic relationship analysis (NMTF)
-- **Database Integration**: SQLite databases for persistent storage
+- **Database Management**: Comprehensive SQLite database integration with dedicated management utilities
+- **Modular Architecture**: Organized utility modules for analysis, visualization, export, and preprocessing
 - **Comprehensive Preprocessing**: Text cleaning, tokenization, and TF-IDF vectorization
 
 ### Use Cases
@@ -311,7 +313,7 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 
 #### common_language/
 - **`emoji_processor.py`**: Emoji handling utilities
-- **`topic_analyzer.py`**: Cross-language topic analysis
+- **`topic_extractor.py`**: Cross-language topic analysis and extraction
 
 #### english/
 - **`english_entry.py`**: English text processing entry point
@@ -335,6 +337,16 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 - **`nmf_projective_basic.py`**: Basic projective NMF
 - **`nmf_projective_enhanced.py`**: Enhanced projective NMF
 - **`nmf_initialization.py`**: Matrix initialization strategies
+- **`nmtf/`**: Non-negative Matrix Tri-Factorization implementation
+  - **`nmtf.py`**: Core NMTF algorithm with topic relationships
+  - **`nmtf_init.py`**: NMTF initialization utilities
+  - **`nmtf_util.py`**: NMTF helper functions
+  - **`extract_nmtf_topics.py`**: Topic extraction for NMTF results
+  - **`example_usage.py`**: NMTF usage examples
+- **`other/`**: Additional NMF algorithm variants
+  - **`hierarchical_nmf.py`**: Hierarchical NMF implementation
+  - **`nmf_onlineNMF.py`**: Online NMF for streaming data
+  - **`symmetric_nmf.py`**: Symmetric NMF variant
 
 #### tfidf/
 - **`tfidf_english_calculator.py`**: English TF-IDF calculation
@@ -345,21 +357,45 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 
 ### utils/ Directory
 
-- **`coherence_score.py`**: Topic coherence calculation
-- **`combine_number_suffix.py`**: Number and suffix combination utilities
+#### analysis/
+- **`coherence_score.py`**: Topic coherence evaluation
 - **`distance_two_words.py`**: Word distance calculation
-- **`export_excel.py`**: Excel report generation
-- **`gen_cloud.py`**: Word cloud generation
-- **`hierarchy_nmf.py`**: Hierarchical NMF utilities
-- **`image_to_base.py`**: Image to base64 conversion
-- **`save_doc_score_pair.py`**: Document-topic score persistence
-- **`save_topics_db.py`**: Topic database saving
-- **`save_word_score_pair.py`**: Word-score pair saving utilities
-- **`topic_dist.py`**: Topic distribution visualization
 - **`umass_test.py`**: UMass coherence testing
-- **`visualizer.py`**: General visualization utilities
 - **`word_cooccurrence.py`**: Word co-occurrence analysis
-- **`other/`**: Additional utility functions
+- **`word_cooccurrence_analyzer.py`**: Advanced word co-occurrence analysis
+
+#### console/
+- **`console_manager.py`**: Console and logging management utilities
+
+#### database/
+- **`database_manager.py`**: Database connection and management utilities
+- **`save_topics_db.py`**: Topic database saving utilities
+
+#### export/
+- **`export_excel.py`**: Excel report generation
+- **`json_to_excel.py`**: JSON to Excel conversion utilities
+- **`save_doc_score_pair.py`**: Document-topic score persistence
+- **`save_word_score_pair.py`**: Word-score pair saving utilities
+
+#### preprocess/
+- **`combine_number_suffix.py`**: Number and suffix combination utilities
+
+#### visualization/
+- **`gen_cloud.py`**: Word cloud generation
+- **`image_to_base.py`**: Image to base64 conversion
+- **`topic_dist.py`**: Topic distribution visualization
+- **`visualizer.py`**: General visualization utilities
+
+#### agent/
+- **`claude_prompt_generator.py`**: Claude AI prompt generation utilities
+- **`claude_prompt_generator.html`**: HTML interface for prompt generation
+
+#### other/
+- **`backup.py`**: Backup and restoration utilities
+- **`hierarchy_nmf.py`**: Hierarchical NMF utilities
+- **`redis_bridge.py`**: Redis database bridge utilities
+- Additional utility functions and experimental features
+
 
 ---
 

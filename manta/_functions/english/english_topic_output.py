@@ -1,8 +1,6 @@
 from typing import List
-import os
 from pathlib import Path
-from ...utils.save_topics_db import save_topics_to_db
-from ...utils.image_to_base import image_to_base64
+from manta.utils.database.database_manager import DatabaseManager
 from wordcloud import WordCloud
 
 def get_topic_names_out(data_frame_name, num_of_topics: int, sozluk: List[str], word_per_topic: int, topics_db_eng=None,
@@ -71,7 +69,7 @@ def get_topic_names_out(data_frame_name, num_of_topics: int, sozluk: List[str], 
 
     # Save to database if engine is provided
     if topics_db_eng:
-        save_topics_to_db(topics_data, data_frame_name, topics_db_eng)
+        DatabaseManager.save_topics_to_database(topics_data, data_frame_name, topics_db_eng)
     else:
         print("Warning: No database engine provided, skipping database save")
 
