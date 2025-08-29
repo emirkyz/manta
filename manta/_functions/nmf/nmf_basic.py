@@ -1,8 +1,11 @@
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Callable
+
+import scipy as sp
 from sklearn.preprocessing import normalize
-def _basic_nmf(in_mat, w, h, start, log: bool = True, norm_thresh=0.005, zero_threshold=0.0001,
+from tqdm import tqdm
+def _basic_nmf(in_mat:sp.sparse.csc_matrix, w, h, start, log: bool = True, norm_thresh=0.005, zero_threshold=0.0001,
              norm_func: Callable = np.linalg.norm) -> tuple:
     """
     This function is the core of the NMF algorithm.
@@ -22,28 +25,44 @@ def _basic_nmf(in_mat, w, h, start, log: bool = True, norm_thresh=0.005, zero_th
     """
     i = 0
     # check if w or h is zero
-    max_iter = 10_000
+    max_iter = 1_000
     eps = 1e-10
     #obj = np.inf
+    log = True
+    pbar = tqdm(total=max_iter, desc="NMF iterations") if log else None
+
+    #np.show_config()
     while True:
+        w_old = w
+        h_old = h
 
-        w1 = w * ((in_mat @ h.T) / (w @ (h @ h.T) + eps))
-        h1 = h * ((w1.T @ in_mat) / ((w1.T @ w1) @ h + eps))
 
-        w_norm = norm_func(np.abs(w1 - w), 2)
-        h_norm = norm_func(np.abs(h1 - h), 2)
-        if log:
-            duration = datetime.now() - start
-            duration_sec = round(duration.total_seconds())
-            duration = timedelta(seconds=duration_sec)
-            if duration_sec == 0:
-                print(f"{i + 1}. step L2 W: {w_norm:.5f} H: {h_norm:.5f}. Duration: {duration}.", end='\r')
-            else:
-                print(f"{i + 1}. step L2 W: {w_norm:.5f} H: {h_norm:.5f}. Duration: {duration}. "
-                      f"Speed: {round((i + 1) * 10 / duration_sec, 2):.2f} matrix multiplications/sec", end='\r')
+
+        wT_w = w.T @ w
+        numerator_h = w.T @ in_mat
+        denominator_h = wT_w @ h + eps
+        h = h * (numerator_h / denominator_h)
+
+        h_hT = h @ h.T
+        numerator_w = in_mat @ h.T
+        denominator_w = w @ h_hT + eps
+        w = w * (numerator_w / denominator_w)
+
+        #w1 = w * ((in_mat @ h.T) / (w @ (h @ h.T) + eps))
+        #h1 = h * ((w1.T @ in_mat) / ((w1.T @ w1) @ h + eps))
+
+        w_norm = np.linalg.norm(w - w_old) / np.linalg.norm(w_old)
+        h_norm = np.linalg.norm(h - h_old) / np.linalg.norm(h_old)
+        if log and pbar:
+            pbar.update(1)
+            pbar.set_postfix({"W_norm": f"{w_norm:.5f}", "H_norm": f"{h_norm:.5f}"})
         if i >= max_iter:
             if log:
                 print('\n', 'Max iteration reached, giving up...')
+            break
+
+        if w_norm < norm_thresh and h_norm < norm_thresh:
+            print('\nConvergence threshold achieved.')
             break
 
         ''' 
@@ -63,19 +82,12 @@ def _basic_nmf(in_mat, w, h, start, log: bool = True, norm_thresh=0.005, zero_th
         obj = norm_func(np.abs(in_mat-(w1@h1)), 2)
         '''
 
-
-
-        w = w1
-        h = h1
         i += 1
 
-        if w_norm < norm_thresh and h_norm < norm_thresh:
-            if log:
-                print('\n', 'Requested Norm Threshold achieved, giving up...')
-            break
+        
     w[w < zero_threshold] = 0
     h[h < zero_threshold] = 0
-    
+
     nmf_output = {}
     nmf_output["W"] = w
     nmf_output["H"] = h

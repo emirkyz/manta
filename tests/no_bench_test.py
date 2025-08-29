@@ -1,17 +1,17 @@
 import manta
 
-file_path = "../veri_setleri/findings.csv"
-column = "findings"
+file_path = "../veri_setleri/Headlines_5000.csv"
+column = "headline"
 
 result = manta.run_topic_analysis(
     filepath=file_path,
     column=column,
-    separator=',',
+    separator=",",
     language="EN",
     tokenizer_type="bpe",
     lemmatize=True,
     generate_wordclouds=True,
-    topic_count=-1,
+    topic_count=5,
     words_per_topic=15,
     emoji_map=True,
     word_pairs_out=False,
