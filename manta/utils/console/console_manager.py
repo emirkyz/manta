@@ -46,6 +46,7 @@ class ConsoleManager:
         self.current_tasks = {}
         self.start_time = None
         self.stage_times = {}
+        self.use_rich = False
         
     def print_header(self, title: str, subtitle: Optional[str] = None):
         """Print a formatted header."""
@@ -62,11 +63,10 @@ class ConsoleManager:
             )
             self.console.print(panel)
         else:
-            print(f"\n{'=' * 60}")
-            print(f"🔬 {title}")
+            print(f"\n{title}")
             if subtitle:
-                print(f"   {subtitle}")
-            print('=' * 60)
+                print(f"{subtitle}")
+            print()
             
     def display_config(self, options: Dict[str, Any], filepath: str, column: str, table_name: str):
         """
@@ -195,30 +195,29 @@ class ConsoleManager:
         
     def _display_config_plain(self, options: Dict[str, Any], filepath: str, column: str, table_name: str):
         """Display configuration using plain text formatting."""
-        print("\n📋 Analysis Configuration")
-        print("=" * 50)
-        print(f"📄 Input File: {str(filepath).split('/')[-1]}")
-        print(f"📝 Text Column: {column}")
-        print(f"📁 Output Name: {table_name}")
+        print("\nAnalysis Configuration")
+        print(f"Input File: {str(filepath).split('/')[-1]}")
+        print(f"Text Column: {column}")
+        print(f"Output Name: {table_name}")
         print()
-        print(f"🌐 Language: {options.get('LANGUAGE', 'EN')}")
-        print(f"🎯 Topics: {options.get('DESIRED_TOPIC_COUNT', 5)}")
-        print(f"📊 Words per Topic: {options.get('N_TOPICS', 15)}")
+        print(f"Language: {options.get('LANGUAGE', 'EN')}")
+        print(f"Topics: {options.get('DESIRED_TOPIC_COUNT', 5)}")
+        print(f"Words per Topic: {options.get('N_TOPICS', 15)}")
         
         if options.get('LANGUAGE') == 'TR':
-            print(f"🔤 Tokenizer: {options.get('tokenizer_type', 'bpe').upper()}")
+            print(f"Tokenizer: {options.get('tokenizer_type', 'bpe').upper()}")
         elif options.get('LANGUAGE') == 'EN':
-            print(f"🔄 Lemmatization: {'✓' if options.get('LEMMATIZE') else '✗'}")
+            print(f"Lemmatization: {'Enabled' if options.get('LEMMATIZE') else 'Disabled'}")
             
-        print(f"⚙️ NMF Method: {options.get('nmf_type', 'nmf').upper()}")
+        print(f"NMF Method: {options.get('nmf_type', 'nmf').upper()}")
         print()
         print("Output Options:")
-        print(f"  ☁️  Word Clouds: {'✓' if options.get('gen_cloud') else '✗'}")
-        print(f"  📈 Excel Export: {'✓' if options.get('save_excel') else '✗'}")
-        print(f"  📊 Distribution Plots: {'✓' if options.get('gen_topic_distribution') else '✗'}")
-        print(f"  💾 Database Storage: {'✓' if options.get('save_to_db') else '✗'}")
-        print(f"  😀 Emoji Processing: {'✓' if options.get('emoji_map') else '✗'}")
-        print("=" * 50)
+        print(f"  Word Clouds: {'Enabled' if options.get('gen_cloud') else 'Disabled'}")
+        print(f"  Excel Export: {'Enabled' if options.get('save_excel') else 'Disabled'}")
+        print(f"  Distribution Plots: {'Enabled' if options.get('gen_topic_distribution') else 'Disabled'}")
+        print(f"  Database Storage: {'Enabled' if options.get('save_to_db') else 'Disabled'}")
+        print(f"  Emoji Processing: {'Enabled' if options.get('emoji_map') else 'Disabled'}")
+        print()
         
     @contextmanager
     def progress_context(self, title: str = "Processing..."):
@@ -268,7 +267,7 @@ class ConsoleManager:
             self.current_tasks[description] = task_id
             return task_id
         else:
-            print(f"  • {description}...")
+            print(f"  {description}...")
             return description
             
     def update_task(self, task_id: Union[TaskID, str], advance: int = 1, description: Optional[str] = None):
@@ -286,7 +285,7 @@ class ConsoleManager:
                 update_kwargs["description"] = description
             self.progress.update(task_id, **update_kwargs)
         elif not self.use_rich and description:
-            print(f"  • {description}...")
+            print(f"  {description}...")
             
     def complete_task(self, task_id: Union[TaskID, str], description: Optional[str] = None):
         """
@@ -307,7 +306,7 @@ class ConsoleManager:
                         break
         elif not self.use_rich:
             if description:
-                print(f"  ✓ {description}")
+                print(f"  {description} - Complete")
                 
     def print_status(self, message: str, status: str = "info", timestamp: bool = True):
         """
@@ -346,15 +345,15 @@ class ConsoleManager:
             
             self.console.print(f"{time_prefix}{icon} [{style}]{message}[/{style}]")
         else:
-            icons = {
-                "info": "ℹ️",
-                "success": "✅",
-                "warning": "⚠️", 
-                "error": "❌",
-                "processing": "⚙️"
+            prefixes = {
+                "info": "INFO:",
+                "success": "SUCCESS:",
+                "warning": "WARNING:", 
+                "error": "ERROR:",
+                "processing": "PROCESSING:"
             }
-            icon = icons.get(status, "•")
-            print(f"{time_prefix}{icon} {message}")
+            prefix = prefixes.get(status, "")
+            print(f"{time_prefix}{prefix} {message}" if prefix else f"{time_prefix}{message}")
             
     def print_timing_summary(self, stage_times: Dict[str, float], total_time: float):
         """
@@ -387,13 +386,11 @@ class ConsoleManager:
             
             self.console.print(timing_table)
         else:
-            print("\n⏱️  Timing Summary")
-            print("-" * 40)
+            print("\nTiming Summary")
             for stage, time_taken in stage_times.items():
                 percentage = (time_taken / total_time) * 100 if total_time > 0 else 0
-                print(f"{stage:<25} {time_taken:>6.2f}s ({percentage:>5.1f}%)")
-            print("-" * 40)
-            print(f"{'Total Time':<25} {total_time:>6.2f}s (100.0%)")
+                print(f"{stage}: {time_taken:.2f}s ({percentage:.1f}%)")
+            print(f"Total Time: {total_time:.2f}s (100.0%)")
             
     def print_analysis_summary(self, result: Dict[str, Any], stage_times: Dict[str, float], total_time: float):
         """
@@ -474,13 +471,11 @@ class ConsoleManager:
         
     def _print_success_summary_plain(self, result: Dict[str, Any], stage_times: Dict[str, float], total_time: float):
         """Print success summary using plain text."""
-        print("\n" + "=" * 60)
-        print("🎉 Analysis Completed Successfully!")
-        print("=" * 60)
-        print(f"📊 Dataset: {result.get('data_name', 'Unknown')}")
+        print("\nAnalysis Completed Successfully!")
+        print(f"Dataset: {result.get('data_name', 'Unknown')}")
         
         topic_count = len(result.get('topic_word_scores', {}))
-        print(f"🎯 Topics Found: {topic_count}")
+        print(f"Topics Found: {topic_count}")
         
         if result.get('coherence_scores'):
             # Handle nested coherence score structure  
@@ -495,22 +490,21 @@ class ConsoleManager:
                     avg_coherence = coherence_data['class_based']['average_coherence']
                     
             if avg_coherence is not None:
-                print(f"📈 Average Coherence: {avg_coherence:.4f}")
+                print(f"Average Coherence: {avg_coherence:.4f}")
             
-        print(f"📁 Results saved in: Output/{result.get('data_name', 'Unknown')}/")
+        print(f"Results saved in: Output/{result.get('data_name', 'Unknown')}/")
         
         print("\nGenerated Files:")
         if result.get('topic_word_scores'):
-            print("  📄 Topic-word scores (JSON/Excel)")
+            print("  Topic-word scores (JSON/Excel)")
         if result.get('topic_doc_scores'):
-            print("  📄 Document-topic scores")  
+            print("  Document-topic scores")  
         if result.get('topic_dist_img'):
-            print("  📊 Topic distribution plot")
+            print("  Topic distribution plot")
         if result.get('coherence_scores'):
-            print("  📈 Coherence scores")
+            print("  Coherence scores")
             
         self.print_timing_summary(stage_times, total_time)
-        print("=" * 60)
         
     def start_timing(self):
         """Start timing the analysis."""
@@ -533,8 +527,8 @@ class ConsoleManager:
             header = Text(f"{icon} {title}", style="bold cyan")
             self.console.print(Panel(header, style="cyan", box=box.SIMPLE))
         else:
-            print(f"\n{icon} {title}")
-            print("-" * (len(title) + 4))
+            print(f"\n{title}")
+            print()
 
 
 # Global console manager instance

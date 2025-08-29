@@ -229,7 +229,7 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
         - File paths are resolved relative to the function's location in the project structure
     """
     if tokenizer is None and vocab is None:
-        raise ValueError("Either tokenizer (for Turkish) or sozluk (for English) must be provided")
+        raise ValueError("Either tokenizer (for Turkish) or vocab (for English) must be provided")
     
     word_result = {}
     document_result = {}
@@ -259,7 +259,7 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
             word_scores = _extract_topic_words(
                 topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
-            word_result[f"Konu {idx:02d}"] = word_scores
+            word_result[f"Topic {idx:02d}"] = word_scores
             
             # Extract documents for this topic pair (optional)
             if include_documents and documents is not None:
@@ -267,8 +267,10 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
                 doc_scores = _extract_topic_documents(
                     topic_doc_vector, top_doc_ids, documents, emoji_map
                 )
-                document_result[f"Konu {idx}"] = doc_scores
+                document_result[f"Topic {idx}"] = doc_scores
     else:
+        if topic_count==-1:
+            topic_count = H.shape[0]
         # Standard NMF: Process all topics sequentially
         for i in range(topic_count):
             topic_word_vector = H[i, :]
@@ -282,15 +284,15 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
             word_scores = _extract_topic_words(
                 topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
-            word_result[f"Konu {i:02d}"] = word_scores
+            word_result[f"Topic {i:02d}"] = word_scores
             
             # Extract documents for this topic (optional)
             if include_documents and documents is not None:
-                top_doc_ids = sorted_doc_ids[:10]  # TODO: make configurable
+                top_doc_ids = sorted_doc_ids[:10]
                 doc_scores = _extract_topic_documents(
                     topic_doc_vector, top_doc_ids, documents, emoji_map
                 )
-                document_result[f"Konu {i}"] = doc_scores
+                document_result[f"Topic {i}"] = doc_scores
 
     # Save to database if provided
     if db_config and db_config.topics_db_engine and data_frame_name:
