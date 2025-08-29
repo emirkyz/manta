@@ -32,28 +32,28 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
 
     matris = lil_matrix((document_counts, word_count), dtype=int)
 
-    for i, dokuman in enumerate(veri):
-        histogram = Counter(dokuman)
-        gecici = [(k, v) for k, v in histogram.items()]
-        columns = [a[0] for a in gecici]
-        values = [b[1] for b in gecici]
+    for i, document in enumerate(veri):
+        histogram = Counter(document)
+        temporary = [(k, v) for k, v in histogram.items()]
+        columns = [a[0] for a in temporary]
+        values = [b[1] for b in temporary]
         matris[i, columns] = values
 
     matris = matris.tocsr()
 
-    df_input_matrix = matris.tocsc(copy=True)
-    df_input_matrix.data = np.ones_like(df_input_matrix.data)
+    input_matrix = matris.tocsc(copy=True)
+    input_matrix.data = np.ones_like(input_matrix.data)
     #df = np.array((df_input_matrix > 0).sum(axis=0)).flatten()
-    df = np.add.reduceat(df_input_matrix.data, df_input_matrix.indptr[:-1])
+    df = np.add.reduceat(input_matrix.data, input_matrix.indptr[:-1])
 
     use_bm25 = False
     if use_bm25:
         # Use BM25 scoring
-        tf_idf = bm25_generator(matris, df, document_counts, k1, b)
+        tf_idf = bm25_generator(input_matrix, df, document_counts, k1, b)
     else:
         # Use traditional TF-IDF scoring
         idf = idf_p(df, document_counts)
-        tf_idf = tf_L(matris).multiply(idf).tocsr()
+        tf_idf = tf_L(input_matrix).multiply(idf).tocsr()
         tf_idf.eliminate_zeros()
         
         # Calculate document lengths for pivoted normalization
@@ -70,7 +70,7 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
         
         # Normalize the term frequencies
         # Repeat the normalization factors for each non-zero element in the row
-        nnz_per_row = np.diff(matris.indptr)
+        nnz_per_row = np.diff(input_matrix.indptr)
         tf_idf.data = tf_idf.data / np.repeat(pivoted_norms, nnz_per_row)
 
 

@@ -71,32 +71,32 @@ def tf_idf_english(N=None,
     #update_progress_emit(50, "TF-IDF Hesaplanıyor", "PROCESSING", "tfidf", "tid")
     try:
         # Create initial term frequency matrix
-        dokuman_sayisi = len(veri)
-        kelime_sayisi = len(vocab)
+        document_count = len(veri)
+        vocabulary_count = len(vocab)
 
-        matris = lil_matrix((dokuman_sayisi, kelime_sayisi), dtype=int)
+        matris = lil_matrix((document_count, vocabulary_count), dtype=int)
 
-        for i, dokuman in enumerate(veri):
-            histogram = Counter(dokuman)
-            gecici = [(k, v) for k, v in histogram.items()]
-            sutunlar = [a[0] for a in gecici]
-            degerler = [b[1] for b in gecici]
-            matris[i, sutunlar] = degerler
+        for i, document in enumerate(veri):
+            histogram = Counter(document)
+            temporary = [(k, v) for k, v in histogram.items()]
+            columns = [a[0] for a in temporary]
+            values = [b[1] for b in temporary]
+            matris[i, columns] = values
 
         matris = matris.tocsr()
 
         # Calculate document frequency (DF)
-        df_girdi_matrisi = matris.tocsc(copy=True)
-        df_girdi_matrisi.data = np.ones_like(df_girdi_matrisi.data)
-        df = np.add.reduceat(df_girdi_matrisi.data, df_girdi_matrisi.indptr[:-1])
+        input_matrix = matris.tocsc(copy=True)
+        input_matrix.data = np.ones_like(input_matrix.data)
+        df = np.add.reduceat(input_matrix.data, input_matrix.indptr[:-1])
 
         if use_bm25:
             # Use BM25 scoring
-            tf_idf = bm25_generator(matris, df, N, k1, b)
+            tf_idf = bm25_generator(input_matrix, df, N, k1, b)
         else:
             # Use traditional TF-IDF scoring with modular functions
             idf = idf_t(df, N)
-            tf_idf = tf_L(matris).multiply(idf).tocsr()
+            tf_idf = tf_L(input_matrix).multiply(idf).tocsr()
             tf_idf.eliminate_zeros()
             
             # Apply pivoted normalization if enabled
