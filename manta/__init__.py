@@ -181,7 +181,7 @@ def run_topic_analysis(
                 raise ValueError(f"Unsupported language: {self.language}. Must be one of {self.SUPPORTED_LANGUAGES}")
             
             # Validate topic count
-            if self.topic_count <= 0:
+            if self.topic_count <= 0 and self.topic_count != -1:
                 raise ValueError(f"Invalid topic_count: {self.topic_count}. Must be positive")
             
             # Validate words per topic
@@ -231,6 +231,8 @@ def run_topic_analysis(
             """Generate a descriptive output name based on input file and configuration."""
             filepath_obj = Path(filepath)
             base_name = filepath_obj.stem
+            if topic_count <= 0:
+                return f"{base_name}_{self.nmf_method}_{self.tokenizer_type}_auto"
             return f"{base_name}_{self.nmf_method}_{self.tokenizer_type}_{self.topic_count}"
 
         def to_run_options(self) -> Dict:

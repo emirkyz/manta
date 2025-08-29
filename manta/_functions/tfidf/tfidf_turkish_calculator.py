@@ -79,20 +79,17 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
     nnz_per_row = np.diff(tf_idf.indptr)
     tf_idf.data /= np.repeat(norm_rows, nnz_per_row)
     '''
-    sozluk = list(tokenizer.get_vocab().keys())
+    vocab = list(tokenizer.get_vocab().keys())
     N = len(veri)
-
-    gercek_gerekli_alan = N * len(sozluk) * 3 * 8 / 1024 / 1024 / 1024
-    print("Gerekli alan : ", gercek_gerekli_alan, "GB")
+    required_memory = N * len(vocab) * 3 * 8 / 1024 / 1024 / 1024
+    print("Required memory : ", required_memory, "GB")
     temp = tf_idf.tocoo()
-    seyrek_matris_gerekli_alan = temp.nnz * 3 * 8 / 1024 / 1024 / 1024
+    sparse_matrix_required_memory = temp.nnz * 3 * 8 / 1024 / 1024 / 1024
     method_name = "BM25" if use_bm25 else "TF-IDF"
-    print(f"{method_name} gerekli alan : ", seyrek_matris_gerekli_alan, "GB")
-    counnt_of_nonzero = tf_idf.count_nonzero()
-    print(f"{method_name} count nonzero : ", counnt_of_nonzero)
-    total_elements = tf_idf.shape[0] * tf_idf.shape[1]
-    print(f"{method_name} total elements : ", total_elements)
-    max_optimal_topic_num = counnt_of_nonzero // (N + len(sozluk))
-    print("max_optimal_topic_num : ", max_optimal_topic_num)
+    print(f"{method_name} required memory : ", sparse_matrix_required_memory, "GB")
+    count_of_nonzero = tf_idf.count_nonzero()
+    percentage_of_nonzero = count_of_nonzero / (N * len(vocab))
+    print("Percentage of nonzero elements : ", percentage_of_nonzero)
+
 
     return tf_idf 
