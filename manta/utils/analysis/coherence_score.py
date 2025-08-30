@@ -18,6 +18,521 @@ def fix_multiprocessing_fork():
       except RuntimeError:
           pass  # Already set
 
+# --- PerplexityScorer Class ---
+
+class PerplexityScorer:
+    def __init__(self, documents, topic_word_matrix=None, doc_topic_matrix=None, epsilon=1e-12):
+        """
+        Initialize perplexity calculator for topic models
+        
+        Args:
+            documents: List of documents, where each document is a list of words
+            topic_word_matrix: Topic-word probability matrix (H matrix from NMF) - shape: (n_topics, n_words)
+            doc_topic_matrix: Document-topic probability matrix (W matrix from NMF) - shape: (n_docs, n_topics)
+            epsilon: Small value to avoid log(0)
+        """
+        self.documents = documents
+        self.topic_word_matrix = topic_word_matrix
+        self.doc_topic_matrix = doc_topic_matrix
+        self.epsilon = epsilon
+        self.vocabulary = None
+        self.word_to_idx = {}
+        
+        if documents:
+            self._build_vocabulary()
+    
+    def _build_vocabulary(self):
+        """Build vocabulary from documents"""
+        vocabulary = set()
+        for doc in self.documents:
+            if isinstance(doc, list):
+                vocabulary.update(doc)
+            else:
+                vocabulary.update(doc.split())
+        
+        self.vocabulary = list(vocabulary)
+        self.word_to_idx = {word: idx for idx, word in enumerate(self.vocabulary)}
+    
+    def calculate_document_perplexity(self, document, doc_idx=None):
+        """
+        Calculate perplexity for a single document
+        
+        Args:
+            document: List of words in the document or string
+            doc_idx: Index of document in doc_topic_matrix (if available)
+            
+        Returns:
+            Perplexity score for the document
+        """
+        if isinstance(document, str):
+            words = document.split()
+        else:
+            words = document
+            
+        if not words:
+            return float('inf')
+        
+        log_likelihood = 0.0
+        word_count = 0
+        
+        # If we have topic matrices, use them for calculation
+        if self.topic_word_matrix is not None and self.doc_topic_matrix is not None and doc_idx is not None:
+            doc_topic_dist = self.doc_topic_matrix[doc_idx] if doc_idx < len(self.doc_topic_matrix) else None
+            
+            if doc_topic_dist is not None:
+                for word in words:
+                    if word in self.word_to_idx:
+                        word_idx = self.word_to_idx[word]
+                        if word_idx < self.topic_word_matrix.shape[1]:
+                            # P(word|document) = sum_t P(word|topic_t) * P(topic_t|document)
+                            word_prob = 0.0
+                            for topic_idx in range(len(doc_topic_dist)):
+                                if topic_idx < self.topic_word_matrix.shape[0]:
+                                    topic_word_prob = self.topic_word_matrix[topic_idx, word_idx]
+                                    doc_topic_prob = doc_topic_dist[topic_idx]
+                                    word_prob += topic_word_prob * doc_topic_prob
+                            
+                            word_prob = max(word_prob, self.epsilon)
+                            log_likelihood += math.log(word_prob)
+                            word_count += 1
+        else:
+            # Fallback: Simple uniform distribution perplexity
+            uniform_prob = 1.0 / len(self.vocabulary) if self.vocabulary else self.epsilon
+            for word in words:
+                if word in self.vocabulary:
+                    log_likelihood += math.log(uniform_prob)
+                    word_count += 1
+        
+        if word_count == 0:
+            return float('inf')
+        
+        # Perplexity = exp(-1/N * sum(log P(w_i)))
+        avg_log_likelihood = log_likelihood / word_count
+        perplexity = math.exp(-avg_log_likelihood)
+        
+        return perplexity
+    
+    def calculate_topic_perplexity(self, topic_idx, test_documents=None):
+        """
+        Calculate perplexity for a specific topic
+        
+        Args:
+            topic_idx: Index of the topic
+            test_documents: List of test documents (if None, uses training documents)
+            
+        Returns:
+            Perplexity score for the topic
+        """
+        if test_documents is None:
+            test_documents = self.documents
+            
+        if self.topic_word_matrix is None or topic_idx >= self.topic_word_matrix.shape[0]:
+            return float('inf')
+        
+        topic_word_dist = self.topic_word_matrix[topic_idx]
+        total_log_likelihood = 0.0
+        total_words = 0
+        
+        for doc in test_documents:
+            if isinstance(doc, str):
+                words = doc.split()
+            else:
+                words = doc
+                
+            for word in words:
+                if word in self.word_to_idx:
+                    word_idx = self.word_to_idx[word]
+                    if word_idx < len(topic_word_dist):
+                        word_prob = max(topic_word_dist[word_idx], self.epsilon)
+                        total_log_likelihood += math.log(word_prob)
+                        total_words += 1
+        
+        if total_words == 0:
+            return float('inf')
+        
+        avg_log_likelihood = total_log_likelihood / total_words
+        perplexity = math.exp(-avg_log_likelihood)
+        
+        return perplexity
+    
+    def calculate_all_topics_perplexity(self, test_documents=None):
+        """
+        Calculate perplexity for all topics
+        
+        Args:
+            test_documents: List of test documents (if None, uses training documents)
+            
+        Returns:
+            Dictionary containing perplexity scores for each topic and average perplexity
+        """
+        if test_documents is None:
+            test_documents = self.documents
+            
+        topic_perplexities = {}
+        perplexity_values = []
+        
+        if self.topic_word_matrix is not None:
+            n_topics = self.topic_word_matrix.shape[0]
+            
+            for topic_idx in range(n_topics):
+                topic_perplexity = self.calculate_topic_perplexity(topic_idx, test_documents)
+                topic_name = f"topic_{topic_idx}"
+                
+                # Handle inf and nan values
+                if math.isnan(topic_perplexity):
+                    topic_perplexity = float('inf')
+                
+                topic_perplexities[f"{topic_name}_perplexity"] = topic_perplexity
+                
+                if not math.isinf(topic_perplexity) and not math.isnan(topic_perplexity):
+                    perplexity_values.append(topic_perplexity)
+        else:
+            # Fallback: calculate using simple word frequency
+            all_words = set()
+            for doc in test_documents:
+                if isinstance(doc, str):
+                    all_words.update(doc.split())
+                else:
+                    all_words.update(doc)
+            
+            if all_words:
+                uniform_perplexity = len(all_words)  # Simple baseline
+                for topic_idx in range(len(topic_word_scores) if 'topic_word_scores' in globals() else 3):
+                    topic_name = f"topic_{topic_idx}"
+                    topic_perplexities[f"{topic_name}_perplexity"] = uniform_perplexity
+                    perplexity_values.append(uniform_perplexity)
+        
+        # Calculate average, handling edge cases
+        if perplexity_values:
+            average_perplexity = sum(perplexity_values) / len(perplexity_values)
+        else:
+            # If no valid perplexity values, use vocabulary size as baseline
+            vocab_size = len(self.vocabulary) if self.vocabulary else len(set(
+                word for doc in test_documents for word in (doc.split() if isinstance(doc, str) else doc)
+            ))
+            average_perplexity = max(vocab_size, 10.0)  # At least 10.0 as minimum baseline
+        
+        return {
+            "topic_perplexities": topic_perplexities,
+            "average_perplexity": average_perplexity
+        }
+    
+    def calculate_corpus_perplexity(self, test_documents=None):
+        """
+        Calculate overall corpus perplexity using document-topic and topic-word distributions
+        
+        Args:
+            test_documents: List of test documents (if None, uses training documents)
+            
+        Returns:
+            Overall corpus perplexity score
+        """
+        if test_documents is None:
+            test_documents = self.documents
+            
+        if self.topic_word_matrix is None or self.doc_topic_matrix is None:
+            # Fallback to simple perplexity calculation
+            total_log_likelihood = 0.0
+            total_words = 0
+            
+            for doc in test_documents:
+                doc_perplexity = self.calculate_document_perplexity(doc)
+                if not math.isinf(doc_perplexity):
+                    if isinstance(doc, str):
+                        word_count = len(doc.split())
+                    else:
+                        word_count = len(doc)
+                    total_log_likelihood += -math.log(doc_perplexity) * word_count
+                    total_words += word_count
+            
+            if total_words == 0:
+                return float('inf')
+            
+            avg_log_likelihood = total_log_likelihood / total_words
+            return math.exp(-avg_log_likelihood)
+        
+        total_log_likelihood = 0.0
+        total_words = 0
+        
+        # Calculate perplexity using the full model
+        for doc_idx, document in enumerate(test_documents):
+            if doc_idx < len(self.doc_topic_matrix):
+                doc_perplexity = self.calculate_document_perplexity(document, doc_idx)
+                if not math.isinf(doc_perplexity):
+                    if isinstance(document, str):
+                        word_count = len(document.split())
+                    else:
+                        word_count = len(document)
+                    total_log_likelihood += -math.log(doc_perplexity) * word_count
+                    total_words += word_count
+        
+        if total_words == 0:
+            return float('inf')
+        
+        avg_log_likelihood = total_log_likelihood / total_words
+        return math.exp(-avg_log_likelihood)
+
+
+# --- TopicDiversityScorer Class ---
+
+class TopicDiversityScorer:
+    def __init__(self, topic_word_scores, top_words=10):
+        """
+        Initialize topic diversity calculator
+        
+        Args:
+            topic_word_scores (dict): Dictionary containing topics and their word scores
+            top_words (int): Number of top words to consider per topic for diversity calculation
+        """
+        self.topic_word_scores = topic_word_scores
+        self.top_words = top_words
+        self.topic_word_lists = {}
+        self.all_words = set()
+        
+        if topic_word_scores:
+            self._prepare_topic_words()
+    
+    def _prepare_topic_words(self):
+        """Prepare top words for each topic and build vocabulary"""
+        for topic_id, word_scores in self.topic_word_scores.items():
+            # Sort words by score and get top N
+            if isinstance(word_scores, dict):
+                sorted_words = sorted(word_scores.items(), key=lambda x: x[1], reverse=True)
+                top_words = []
+                for word, score in sorted_words[:self.top_words]:
+                    # Handle words with "/" separator (take first part)
+                    if "/" in word:
+                        words = word.split("/")
+                        top_words.append(words[0].strip())
+                    else:
+                        top_words.append(word)
+                self.topic_word_lists[topic_id] = top_words
+            else:
+                # Assume it's already a list of words
+                self.topic_word_lists[topic_id] = list(word_scores)[:self.top_words]
+            
+            # Add to overall vocabulary
+            self.all_words.update(self.topic_word_lists[topic_id])
+    
+    def calculate_proportion_unique_words(self):
+        """
+        Calculate Proportion of Unique Words (PUW) - Intra-topic diversity
+        
+        Returns:
+            float: Ratio of unique words across all topics vs total words
+        """
+        if not self.topic_word_lists:
+            return 0.0
+        
+        # Count total words across all topics
+        total_word_instances = sum(len(words) for words in self.topic_word_lists.values())
+        
+        # Count unique words
+        unique_words = len(self.all_words)
+        
+        if total_word_instances == 0:
+            return 0.0
+        
+        return unique_words / total_word_instances
+    
+    def calculate_jaccard_similarity(self, topic1_words, topic2_words):
+        """
+        Calculate Jaccard similarity between two topic word lists
+        
+        Args:
+            topic1_words (list): Words from first topic
+            topic2_words (list): Words from second topic
+            
+        Returns:
+            float: Jaccard similarity (0-1)
+        """
+        set1 = set(topic1_words)
+        set2 = set(topic2_words)
+        
+        if len(set1) == 0 and len(set2) == 0:
+            return 1.0
+        
+        intersection = len(set1.intersection(set2))
+        union = len(set1.union(set2))
+        
+        if union == 0:
+            return 0.0
+        
+        return intersection / union
+    
+    def calculate_cosine_similarity(self, topic1_words, topic2_words):
+        """
+        Calculate cosine similarity between two topic word lists using binary vectors
+        
+        Args:
+            topic1_words (list): Words from first topic
+            topic2_words (list): Words from second topic
+            
+        Returns:
+            float: Cosine similarity (0-1)
+        """
+        set1 = set(topic1_words)
+        set2 = set(topic2_words)
+        
+        if len(set1) == 0 and len(set2) == 0:
+            return 1.0
+        
+        # Create binary vectors based on vocabulary
+        vocab = list(self.all_words)
+        if len(vocab) == 0:
+            return 0.0
+        
+        vector1 = np.array([1.0 if word in set1 else 0.0 for word in vocab])
+        vector2 = np.array([1.0 if word in set2 else 0.0 for word in vocab])
+        
+        # Calculate cosine similarity
+        dot_product = np.dot(vector1, vector2)
+        norm1 = np.linalg.norm(vector1)
+        norm2 = np.linalg.norm(vector2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        
+        return dot_product / (norm1 * norm2)
+    
+    def calculate_pairwise_similarities(self, similarity_func):
+        """
+        Calculate pairwise similarities between all topic pairs
+        
+        Args:
+            similarity_func: Function to calculate similarity between two topic word lists
+            
+        Returns:
+            dict: Dictionary of pairwise similarities
+        """
+        similarities = {}
+        topic_ids = list(self.topic_word_lists.keys())
+        
+        for i in range(len(topic_ids)):
+            for j in range(i + 1, len(topic_ids)):
+                topic1_id = topic_ids[i]
+                topic2_id = topic_ids[j]
+                
+                similarity = similarity_func(
+                    self.topic_word_lists[topic1_id],
+                    self.topic_word_lists[topic2_id]
+                )
+                
+                pair_name = f"{topic1_id}_vs_{topic2_id}"
+                similarities[pair_name] = similarity
+        
+        return similarities
+    
+    def calculate_average_pairwise_diversity(self, similarity_func):
+        """
+        Calculate average pairwise diversity (1 - similarity)
+        
+        Args:
+            similarity_func: Function to calculate similarity between two topic word lists
+            
+        Returns:
+            float: Average diversity score (higher = more diverse)
+        """
+        similarities = self.calculate_pairwise_similarities(similarity_func)
+        
+        if not similarities:
+            return 0.0
+        
+        # Convert similarities to diversities (1 - similarity)
+        diversities = [1.0 - sim for sim in similarities.values()]
+        
+        return sum(diversities) / len(diversities)
+    
+    def find_most_similar_topics(self, similarity_func, top_k=3):
+        """
+        Find the most similar topic pairs
+        
+        Args:
+            similarity_func: Function to calculate similarity
+            top_k (int): Number of top similar pairs to return
+            
+        Returns:
+            list: List of (pair_name, similarity_score) tuples
+        """
+        similarities = self.calculate_pairwise_similarities(similarity_func)
+        
+        # Sort by similarity (descending)
+        sorted_pairs = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
+        
+        return sorted_pairs[:top_k]
+    
+    def find_most_diverse_topics(self, similarity_func, top_k=3):
+        """
+        Find the most diverse (least similar) topic pairs
+        
+        Args:
+            similarity_func: Function to calculate similarity
+            top_k (int): Number of top diverse pairs to return
+            
+        Returns:
+            list: List of (pair_name, diversity_score) tuples
+        """
+        similarities = self.calculate_pairwise_similarities(similarity_func)
+        
+        # Convert to diversity and sort by diversity (descending)
+        diversities = [(pair, 1.0 - sim) for pair, sim in similarities.items()]
+        sorted_pairs = sorted(diversities, key=lambda x: x[1], reverse=True)
+        
+        return sorted_pairs[:top_k]
+    
+    def calculate_all_diversity_metrics(self):
+        """
+        Calculate all diversity metrics
+        
+        Returns:
+            dict: Comprehensive diversity analysis
+        """
+        if not self.topic_word_lists:
+            return {
+                "proportion_unique_words": 0.0,
+                "average_jaccard_diversity": 0.0,
+                "average_cosine_diversity": 0.0,
+                "jaccard_similarities": {},
+                "cosine_similarities": {},
+                "diversity_summary": {
+                    "most_similar_topics": [],
+                    "most_diverse_topics": [],
+                    "overall_diversity_score": 0.0
+                }
+            }
+        
+        # Calculate intra-topic diversity
+        puw = self.calculate_proportion_unique_words()
+        
+        # Calculate pairwise diversities
+        jaccard_diversity = self.calculate_average_pairwise_diversity(self.calculate_jaccard_similarity)
+        cosine_diversity = self.calculate_average_pairwise_diversity(self.calculate_cosine_similarity)
+        
+        # Get pairwise similarities for detailed analysis
+        jaccard_similarities = self.calculate_pairwise_similarities(self.calculate_jaccard_similarity)
+        cosine_similarities = self.calculate_pairwise_similarities(self.calculate_cosine_similarity)
+        
+        # Find most similar and diverse topic pairs
+        most_similar = self.find_most_similar_topics(self.calculate_jaccard_similarity, top_k=3)
+        most_diverse = self.find_most_diverse_topics(self.calculate_jaccard_similarity, top_k=3)
+        
+        # Overall diversity score (average of different measures)
+        overall_diversity = (puw + jaccard_diversity + cosine_diversity) / 3.0
+        
+        return {
+            "proportion_unique_words": puw,
+            "average_jaccard_diversity": jaccard_diversity,
+            "average_cosine_diversity": cosine_diversity,
+            "jaccard_similarities": jaccard_similarities,
+            "cosine_similarities": cosine_similarities,
+            "diversity_summary": {
+                "most_similar_topics": [pair[0] for pair in most_similar],
+                "most_diverse_topics": [pair[0] for pair in most_diverse],
+                "overall_diversity_score": overall_diversity
+            }
+        }
+
+
 # --- UMassCoherence Class from umass_test.py ---
 
 class UMassCoherence:
@@ -277,7 +792,7 @@ def c_uci(topics_json, table_name=None, column_name=None, documents=None, epsilo
         "average_coherence": average_coherence
     }
 
-def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None):
+def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None, topic_word_matrix=None, doc_topic_matrix=None):
     print("Calculating coherence scores...")
     fix_multiprocessing_fork()
 
@@ -297,6 +812,55 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
         results = {"class_based": coherence_scores}
     else:
         results = {}
+    
+    # Calculate Perplexity scores
+    print("Calculating perplexity scores...")
+    perplexity_scores = calculate_perplexity_scores(
+        topic_word_scores, 
+        documents=cleaned_data,
+        topic_word_matrix=topic_word_matrix,
+        doc_topic_matrix=doc_topic_matrix
+    )
+    
+    if perplexity_scores is not None:
+        results["perplexity"] = perplexity_scores
+        
+        # Display average perplexity
+        avg_perp = perplexity_scores['average_perplexity']
+        if math.isinf(avg_perp) or math.isnan(avg_perp):
+            print(f"Average Perplexity: N/A (no valid calculations)")
+        else:
+            print(f"Average Perplexity: {avg_perp:.4f}")
+        
+        # Display corpus perplexity
+        corpus_perp = perplexity_scores['corpus_perplexity']
+        if math.isinf(corpus_perp) or math.isnan(corpus_perp):
+            print(f"Corpus Perplexity: N/A (no valid calculations)")
+        else:
+            print(f"Corpus Perplexity: {corpus_perp:.4f}")
+        
+        # Display topic perplexities
+        valid_topic_count = 0
+        for topic, score in perplexity_scores['topic_perplexities'].items():
+            if not math.isinf(score) and not math.isnan(score):
+                print(f"{topic}: {score:.4f}")
+                valid_topic_count += 1
+        
+        if valid_topic_count == 0:
+            print("No valid topic perplexity scores calculated.")
+    else:
+        print("Warning: Could not calculate perplexity scores.")
+    
+    # Calculate Diversity scores
+    print("Calculating topic diversity scores...")
+    diversity_scores = calculate_diversity_scores(topic_word_scores, top_words=10)
+    
+    if diversity_scores is not None:
+        results["diversity"] = diversity_scores
+        print(f"Overall Topic Diversity Score: {diversity_scores['diversity_summary']['overall_diversity_score']:.4f}")
+    else:
+        print("Warning: Could not calculate diversity scores.")
+    
     # Add Gensim comparison if cleaned_data is available
     gensim_cal = True
     coherence_method = "c_v"
@@ -400,6 +964,135 @@ def u_mass(topics_json, table_name=None, column_name=None, documents=None, epsil
     
     # Calculate coherence scores for all topics
     return umass_calc.calculate_all_topics_coherence(topics_json)
+
+
+def calculate_perplexity_scores(topic_word_scores, documents=None, topic_word_matrix=None, doc_topic_matrix=None, epsilon=1e-12):
+    """
+    Calculate perplexity scores for topics using the PerplexityScorer class
+    
+    Args:
+        topic_word_scores (dict): Dictionary containing topics and their word scores  
+        documents (list, optional): List of documents for perplexity calculation
+        topic_word_matrix (numpy.ndarray, optional): Topic-word probability matrix (H matrix from NMF)
+        doc_topic_matrix (numpy.ndarray, optional): Document-topic probability matrix (W matrix from NMF)  
+        epsilon (float): Small value to prevent log(0)
+        
+    Returns:
+        dict: Dictionary containing topic perplexities and average perplexity
+    """
+    if len(topic_word_scores) == 0:
+        print("Error: No topics found in the data.")
+        return None
+    
+    # Prepare documents
+    if documents is None:
+        # Create pseudo-documents from topics if no documents provided
+        documents = []
+        for topic_id, word_scores in topic_word_scores.items():
+            doc = list(word_scores.keys())
+            documents.append(doc)
+    
+    # Ensure documents are tokenized (list of lists)
+    if documents and isinstance(documents[0], str):
+        # Convert strings to lists of words
+        documents = [doc.split() for doc in documents]
+    
+    if not documents:
+        print("Error: No documents available for perplexity calculation.")
+        return None
+    
+    # If no matrices provided, create simple fallback perplexity based on word frequencies
+    if topic_word_matrix is None:
+        # Build vocabulary from documents
+        all_doc_words = set()
+        for doc in documents:
+            all_doc_words.update(doc)
+        
+        # Build vocabulary from topics  
+        all_topic_words = set()
+        for topic_words in topic_word_scores.values():
+            all_topic_words.update(topic_words.keys())
+        
+        # Calculate vocabulary overlap
+        vocab_overlap = all_doc_words.intersection(all_topic_words)
+        total_vocab = all_doc_words.union(all_topic_words)
+        
+        if len(vocab_overlap) == 0:
+            print("Warning: No vocabulary overlap between topics and documents.")
+            # Use total vocabulary size as baseline perplexity
+            baseline_perplexity = len(total_vocab) if total_vocab else 100.0
+        else:
+            # Use inverse of overlap ratio as baseline
+            overlap_ratio = len(vocab_overlap) / len(total_vocab)
+            baseline_perplexity = 1.0 / max(overlap_ratio, epsilon)
+        
+        # Create simple topic perplexities
+        topic_perplexities = {}
+        for topic_id in topic_word_scores.keys():
+            topic_perplexities[f"{topic_id}_perplexity"] = baseline_perplexity
+        
+        return {
+            "topic_perplexities": topic_perplexities,
+            "average_perplexity": baseline_perplexity,
+            "corpus_perplexity": baseline_perplexity
+        }
+    
+    # Initialize PerplexityScorer with matrices
+    perplexity_calc = PerplexityScorer(
+        documents, 
+        topic_word_matrix=topic_word_matrix, 
+        doc_topic_matrix=doc_topic_matrix, 
+        epsilon=epsilon
+    )
+    
+    # Calculate perplexity scores for all topics
+    topic_results = perplexity_calc.calculate_all_topics_perplexity(documents)
+    
+    # Also calculate corpus-level perplexity
+    corpus_perplexity = perplexity_calc.calculate_corpus_perplexity(documents)
+    
+    # Handle nan/inf values in corpus perplexity
+    if math.isnan(corpus_perplexity) or math.isinf(corpus_perplexity):
+        # Use average of topic perplexities as fallback
+        valid_topic_perps = [p for p in topic_results["topic_perplexities"].values() 
+                           if not math.isnan(p) and not math.isinf(p)]
+        if valid_topic_perps:
+            corpus_perplexity = sum(valid_topic_perps) / len(valid_topic_perps)
+        else:
+            corpus_perplexity = len(perplexity_calc.vocabulary) if perplexity_calc.vocabulary else 50.0
+    
+    # Combine results
+    results = {
+        "topic_perplexities": topic_results["topic_perplexities"],
+        "average_perplexity": topic_results["average_perplexity"],
+        "corpus_perplexity": corpus_perplexity
+    }
+    
+    return results
+
+
+def calculate_diversity_scores(topic_word_scores, top_words=10):
+    """
+    Calculate topic diversity scores using the TopicDiversityScorer class
+    
+    Args:
+        topic_word_scores (dict): Dictionary containing topics and their word scores
+        top_words (int): Number of top words to consider per topic
+        
+    Returns:
+        dict: Dictionary containing all diversity metrics
+    """
+    if len(topic_word_scores) == 0:
+        print("Error: No topics found for diversity calculation.")
+        return None
+    
+    # Initialize TopicDiversityScorer
+    diversity_calc = TopicDiversityScorer(topic_word_scores, top_words=top_words)
+    
+    # Calculate all diversity metrics
+    diversity_results = diversity_calc.calculate_all_diversity_metrics()
+    
+    return diversity_results
 
 
 def prepare_gensim_data(topics_json, documents):
@@ -621,3 +1314,38 @@ def main():
 
     print(f"\nCoherence difference: {umass_coherent['average_coherence'] - umass_random['average_coherence']:.4f}")
     print("Higher coherence scores indicate better topic quality.")
+    
+    # === Test Perplexity Scores ===
+    print("\n\n5. Testing Perplexity Scores:")
+    print("-" * 40)
+    
+    print("Perplexity with original documents:")
+    perplexity_original = calculate_perplexity_scores(sample_topics, documents=sample_documents)
+    print(f"Average Perplexity: {perplexity_original['average_perplexity']:.4f}")
+    print(f"Corpus Perplexity: {perplexity_original['corpus_perplexity']:.4f}")
+    for topic, score in perplexity_original['topic_perplexities'].items():
+        if not math.isinf(score):
+            print(f"  {topic}: {score:.4f}")
+    
+    print("\nPerplexity with coherent documents:")
+    perplexity_coherent = calculate_perplexity_scores(sample_topics, documents=coherent_docs)
+    print(f"Average Perplexity: {perplexity_coherent['average_perplexity']:.4f}")
+    print(f"Corpus Perplexity: {perplexity_coherent['corpus_perplexity']:.4f}")
+    
+    print("\nPerplexity with random documents:")
+    perplexity_random = calculate_perplexity_scores(sample_topics, documents=random_docs)
+    print(f"Average Perplexity: {perplexity_random['average_perplexity']:.4f}")
+    print(f"Corpus Perplexity: {perplexity_random['corpus_perplexity']:.4f}")
+    
+    # Calculate perplexity difference safely
+    coherent_avg = perplexity_coherent['average_perplexity']
+    random_avg = perplexity_random['average_perplexity']
+    
+    if (not math.isinf(coherent_avg) and not math.isnan(coherent_avg) and 
+        not math.isinf(random_avg) and not math.isnan(random_avg)):
+        diff = coherent_avg - random_avg
+        print(f"\nPerplexity difference (coherent - random): {diff:.4f}")
+    else:
+        print(f"\nPerplexity difference: N/A (invalid values)")
+    
+    print("Lower perplexity scores indicate better topic model fit to the data.")

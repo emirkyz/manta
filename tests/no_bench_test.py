@@ -1,7 +1,7 @@
 import manta
 
-file_path = "../veri_setleri/Headlines_5000.csv"
-column = "headline"
+file_path = "../veri_setleri/bbc_news.csv"
+column = "text"
 
 result = manta.run_topic_analysis(
     filepath=file_path,
@@ -11,7 +11,7 @@ result = manta.run_topic_analysis(
     tokenizer_type="bpe",
     lemmatize=True,
     generate_wordclouds=True,
-    topic_count=5,
+    topic_count=10,
     words_per_topic=15,
     emoji_map=True,
     word_pairs_out=False,
