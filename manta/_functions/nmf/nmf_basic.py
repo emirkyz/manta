@@ -25,7 +25,7 @@ def _basic_nmf(in_mat:sp.sparse.csc_matrix, w, h, start, log: bool = True, norm_
     """
     i = 0
     # check if w or h is zero
-    max_iter = 1_000
+    max_iter = 10_000
     eps = 1e-10
     #obj = np.inf
     log = True
