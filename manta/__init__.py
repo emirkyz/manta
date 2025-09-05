@@ -56,57 +56,69 @@ __all__ = [
 def run_topic_analysis(
     filepath: str,
     column: str, 
+    separator: str = ",",
+    language: str = "EN",
     topic_count: int = 5,
     nmf_method: str = "nmf",
+    lemmatize: bool = False,
+    tokenizer_type: str = "bpe",
+    words_per_topic: int = 15,
+    word_pairs_out: bool = True,
+    generate_wordclouds: bool = True,
+    export_excel: bool = True,
+    topic_distribution: bool = True,
+    filter_app: bool = False,
+    data_filter_options: dict = None,
+    emoji_map: bool = False,
+    output_name: str = None,
+    save_to_db: bool = False,
     output_dir: str = None,
-    **options
-):
+)->dict:
     """
     Perform comprehensive topic modeling analysis on text data using Non-negative Matrix Factorization (NMF).
     
     This high-level API provides an easy-to-use interface for topic modeling with sensible defaults.
     It supports both Turkish and English languages with various preprocessing and output options.
-
-    Args:
-        filepath (str): Absolute path to the input file (CSV or Excel format)
-        column (str): Name of the column containing text data to analyze
-        topic_count (topics) (int, optional): Number of topics to extract. Defaults to 5.
-        nmf_method (str, optional): NMF algorithm variant - "nmf", "nmtf", or "pnmf". Defaults to "nmf".
-        output_dir (str, optional): Base directory for outputs. Defaults to current working directory.
-        **options: Additional configuration options:
-
-            Language Options:
-                language (str): Language of text data - "TR" for Turkish, "EN" for English (default: "TR")
-                lemmatize (bool): Apply lemmatization for English text (default: False)
-                tokenizer_type (str): Tokenization method for Turkish - "bpe" or "wordpiece" (default: "bpe")
-            Topic Modeling Options:
-                words_per_topic (int): Number of top words to show per topic (default: 15)
-
-            Output Options:
-                word_pairs_out (bool): Create word pairs output (default: True)
-                generate_wordclouds (bool): Create word cloud visualizations (default: True)
-                export_excel (bool): Export results to Excel format (default: True)
-                topic_distribution (bool): Generate topic distribution plots (default: True)
-                output_name (str): Custom name for output directory (default: auto-generated)
-
-            Data Processing Options:
-                separator (str): CSV file separator (default: ",")
-                filter_app (bool): Filter data by application name (default: False)
-                filter_app_name (str): Application name to filter by (default: "")
-                emoji_map (bool): Enable emoji processing (default: False)
     
+    Parameters:
+        filepath: Absolute path to the input file (CSV or Excel format)
+        column: Name of the column containing text data to analyze
+        separator: CSV file separator (default: ",")
+        language: Language of text data - "TR" for Turkish, "EN" for English (default: "EN")
+        topic_count: Number of topics to extract. Defaults to 5 for general use. Set to -1 to auto-select the theoretical maximum number of topics.
+        words_per_topic: Number of top words to show per topic (default: 15 for general use.) Use 10-20 for most cases.
+        nmf_method: NMF algorithm variant - "nmf", "nmtf", or "pnmf". Defaults to "nmf".
+        lemmatize: Apply lemmatization for English text (default: False)
+        tokenizer_type: Tokenization method for Turkish - "bpe" or "wordpiece" (default: "bpe")
+        word_pairs_out: Create word pairs output (default: True)
+        generate_wordclouds: Create word cloud visualizations (default: True)
+        export_excel: Export results to Excel format (default: True)
+        topic_distribution: Generate topic distribution plots (default: True)
+        filter_app: Filter data by application name (default: False)
+        data_filter_options: Dictionary containing filter options for data filtering:
+            - filter_app_name: Application name to filter by (default: "")
+            - filter_app_column: Column name for application filtering
+            - filter_app_country: Country code to filter by (default: "")
+            - filter_app_country_column: Column name for country filtering
+        save_to_db: Whether to persist data to database (default: False)
+        emoji_map: Enable emoji processing (default: False)
+        output_name: Custom name for output directory (default: auto-generated)
+        output_dir: Base directory for outputs. Defaults to current working directory.
     Returns:
-        dict: Processing results containing:
-            state (str): "SUCCESS" if completed successfully, "FAILURE" if error occurred
-            message (str): Descriptive message about the processing outcome 
-            data_name (str): Name of the processed dataset
-            topic_word_scores (dict): Dictionary mapping topic IDs to word-score pairs
-    
+        Dict containing:
+            - state: "SUCCESS" if completed successfully, "FAILURE" if error occurred
+            - message: Descriptive message about the processing outcome 
+            - data_name: Name of the processed dataset
+            - topic_word_scores: Dictionary mapping topic IDs to word-score pairs
+            - topic_doc_scores: Dictionary mapping topic IDs to document-score pairs
+            - coherence_scores: Dictionary mapping coherence metrics for each topic
+            - topic_dist_img: Matplotlib plt object of topic distribution plot if topic_distribution is True
+            - topic_document_counts: Count of documents per topic
+            - topic_relationships: Topic-to-topic relationship matrix (only for NMTF method)
     Raises:
         ValueError: For invalid language code or unsupported file format
         FileNotFoundError: If input file path does not exist
         KeyError: If specified column is missing from input data.
-
     Example:
         >>> # Basic usage for Turkish text
         >>> result = run_topic_analysis(
@@ -117,17 +129,13 @@ def run_topic_analysis(
         ...     generate_wordclouds=True,
         ...     export_excel=True
         ... )
-        >>>
         >>> # Check results
         >>> print(f"Found {len(result['topic_word_scores'])} topics")
-        >>> # Access topic modeling results
-        >>> topics = result['topic_word_scores']
-        >>> print(f"Analysis status: {result['state']}")
-
-    Note:
+    :note:
         - Creates output directories for storing results and visualizations
         - Automatically handles file preprocessing and data cleaning
         - Supports both CSV (with automatic delimiter detection) and Excel files
+
     """
     from pathlib import Path
     
@@ -207,31 +215,11 @@ def run_topic_analysis(
                 if not self.output_name.strip():
                     raise ValueError("output_name cannot be empty or whitespace only")
 
-        @classmethod
-        def from_dict(cls, options: Dict, topic_count: int = None, nmf_method: str = None) -> 'TopicAnalysisConfig':
-            """Create a TopicAnalysisConfig instance from a dictionary of options."""
-            # Handle data filter options
-            data_filter_opts = options.get('data_filter_options', {})
-            data_filter_config = DataFilterOptions(**data_filter_opts)
-            
-            # Remove data_filter_options from options to avoid duplicate processing
-            options_copy = options.copy()
-            options_copy.pop('data_filter_options', None)
-            
-            # Create config with defaults and override with provided options
-            config = cls(
-                topic_count=topic_count if topic_count is not None else 5,
-                nmf_method=nmf_method if nmf_method is not None else 'nmf',
-                data_filter_options=data_filter_config,
-                **options_copy
-            )
-            return config
-
         def generate_output_name(self, filepath: str) -> str:
             """Generate a descriptive output name based on input file and configuration."""
             filepath_obj = Path(filepath)
             base_name = filepath_obj.stem
-            if topic_count <= 0:
+            if self.topic_count <= 0:
                 return f"{base_name}_{self.nmf_method}_{self.tokenizer_type}_auto"
             return f"{base_name}_{self.nmf_method}_{self.tokenizer_type}_{self.topic_count}"
 
@@ -257,8 +245,30 @@ def run_topic_analysis(
                 "output_name": self.output_name  # Added output_name
             }
 
-    # Create configuration object
-    config = TopicAnalysisConfig.from_dict(options, topic_count, nmf_method)
+    # Create configuration object directly from function parameters
+    if data_filter_options is not None:
+        dfo = DataFilterOptions(**data_filter_options)
+    else:
+        dfo = DataFilterOptions()
+
+    config = TopicAnalysisConfig(
+        language=language,
+        topic_count=topic_count,
+        words_per_topic=words_per_topic,
+        nmf_method=nmf_method,
+        tokenizer_type=tokenizer_type,
+        lemmatize=lemmatize,
+        generate_wordclouds=generate_wordclouds,
+        export_excel=export_excel,
+        topic_distribution=topic_distribution,
+        separator=separator,
+        filter_app=filter_app,
+        emoji_map=emoji_map,
+        word_pairs_out=word_pairs_out,
+        save_to_db=save_to_db,
+        data_filter_options=dfo,
+        output_name=output_name
+    )
 
     # Set output name if not provided
     if config.output_name is None:

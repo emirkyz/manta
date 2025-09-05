@@ -1,13 +1,11 @@
 import json
 import math
-import os
 from pathlib import Path
 from itertools import combinations
 from collections import defaultdict
 import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine, text
-import gensim
 from gensim.models.coherencemodel import CoherenceModel
 from gensim.corpora.dictionary import Dictionary
 import multiprocessing as mp
@@ -20,257 +18,6 @@ def fix_multiprocessing_fork():
 
 # --- PerplexityScorer Class ---
 
-class PerplexityScorer:
-    def __init__(self, documents, topic_word_matrix=None, doc_topic_matrix=None, epsilon=1e-12):
-        """
-        Initialize perplexity calculator for topic models
-        
-        Args:
-            documents: List of documents, where each document is a list of words
-            topic_word_matrix: Topic-word probability matrix (H matrix from NMF) - shape: (n_topics, n_words)
-            doc_topic_matrix: Document-topic probability matrix (W matrix from NMF) - shape: (n_docs, n_topics)
-            epsilon: Small value to avoid log(0)
-        """
-        self.documents = documents
-        self.topic_word_matrix = topic_word_matrix
-        self.doc_topic_matrix = doc_topic_matrix
-        self.epsilon = epsilon
-        self.vocabulary = None
-        self.word_to_idx = {}
-        
-        if documents:
-            self._build_vocabulary()
-    
-    def _build_vocabulary(self):
-        """Build vocabulary from documents"""
-        vocabulary = set()
-        for doc in self.documents:
-            if isinstance(doc, list):
-                vocabulary.update(doc)
-            else:
-                vocabulary.update(doc.split())
-        
-        self.vocabulary = list(vocabulary)
-        self.word_to_idx = {word: idx for idx, word in enumerate(self.vocabulary)}
-    
-    def calculate_document_perplexity(self, document, doc_idx=None):
-        """
-        Calculate perplexity for a single document
-        
-        Args:
-            document: List of words in the document or string
-            doc_idx: Index of document in doc_topic_matrix (if available)
-            
-        Returns:
-            Perplexity score for the document
-        """
-        if isinstance(document, str):
-            words = document.split()
-        else:
-            words = document
-            
-        if not words:
-            return float('inf')
-        
-        log_likelihood = 0.0
-        word_count = 0
-        
-        # If we have topic matrices, use them for calculation
-        if self.topic_word_matrix is not None and self.doc_topic_matrix is not None and doc_idx is not None:
-            doc_topic_dist = self.doc_topic_matrix[doc_idx] if doc_idx < len(self.doc_topic_matrix) else None
-            
-            if doc_topic_dist is not None:
-                for word in words:
-                    if word in self.word_to_idx:
-                        word_idx = self.word_to_idx[word]
-                        if word_idx < self.topic_word_matrix.shape[1]:
-                            # P(word|document) = sum_t P(word|topic_t) * P(topic_t|document)
-                            word_prob = 0.0
-                            for topic_idx in range(len(doc_topic_dist)):
-                                if topic_idx < self.topic_word_matrix.shape[0]:
-                                    topic_word_prob = self.topic_word_matrix[topic_idx, word_idx]
-                                    doc_topic_prob = doc_topic_dist[topic_idx]
-                                    word_prob += topic_word_prob * doc_topic_prob
-                            
-                            word_prob = max(word_prob, self.epsilon)
-                            log_likelihood += math.log(word_prob)
-                            word_count += 1
-        else:
-            # Fallback: Simple uniform distribution perplexity
-            uniform_prob = 1.0 / len(self.vocabulary) if self.vocabulary else self.epsilon
-            for word in words:
-                if word in self.vocabulary:
-                    log_likelihood += math.log(uniform_prob)
-                    word_count += 1
-        
-        if word_count == 0:
-            return float('inf')
-        
-        # Perplexity = exp(-1/N * sum(log P(w_i)))
-        avg_log_likelihood = log_likelihood / word_count
-        perplexity = math.exp(-avg_log_likelihood)
-        
-        return perplexity
-    
-    def calculate_topic_perplexity(self, topic_idx, test_documents=None):
-        """
-        Calculate perplexity for a specific topic
-        
-        Args:
-            topic_idx: Index of the topic
-            test_documents: List of test documents (if None, uses training documents)
-            
-        Returns:
-            Perplexity score for the topic
-        """
-        if test_documents is None:
-            test_documents = self.documents
-            
-        if self.topic_word_matrix is None or topic_idx >= self.topic_word_matrix.shape[0]:
-            return float('inf')
-        
-        topic_word_dist = self.topic_word_matrix[topic_idx]
-        total_log_likelihood = 0.0
-        total_words = 0
-        
-        for doc in test_documents:
-            if isinstance(doc, str):
-                words = doc.split()
-            else:
-                words = doc
-                
-            for word in words:
-                if word in self.word_to_idx:
-                    word_idx = self.word_to_idx[word]
-                    if word_idx < len(topic_word_dist):
-                        word_prob = max(topic_word_dist[word_idx], self.epsilon)
-                        total_log_likelihood += math.log(word_prob)
-                        total_words += 1
-        
-        if total_words == 0:
-            return float('inf')
-        
-        avg_log_likelihood = total_log_likelihood / total_words
-        perplexity = math.exp(-avg_log_likelihood)
-        
-        return perplexity
-    
-    def calculate_all_topics_perplexity(self, test_documents=None):
-        """
-        Calculate perplexity for all topics
-        
-        Args:
-            test_documents: List of test documents (if None, uses training documents)
-            
-        Returns:
-            Dictionary containing perplexity scores for each topic and average perplexity
-        """
-        if test_documents is None:
-            test_documents = self.documents
-            
-        topic_perplexities = {}
-        perplexity_values = []
-        
-        if self.topic_word_matrix is not None:
-            n_topics = self.topic_word_matrix.shape[0]
-            
-            for topic_idx in range(n_topics):
-                topic_perplexity = self.calculate_topic_perplexity(topic_idx, test_documents)
-                topic_name = f"topic_{topic_idx}"
-                
-                # Handle inf and nan values
-                if math.isnan(topic_perplexity):
-                    topic_perplexity = float('inf')
-                
-                topic_perplexities[f"{topic_name}_perplexity"] = topic_perplexity
-                
-                if not math.isinf(topic_perplexity) and not math.isnan(topic_perplexity):
-                    perplexity_values.append(topic_perplexity)
-        else:
-            # Fallback: calculate using simple word frequency
-            all_words = set()
-            for doc in test_documents:
-                if isinstance(doc, str):
-                    all_words.update(doc.split())
-                else:
-                    all_words.update(doc)
-            
-            if all_words:
-                uniform_perplexity = len(all_words)  # Simple baseline
-                for topic_idx in range(len(topic_word_scores) if 'topic_word_scores' in globals() else 3):
-                    topic_name = f"topic_{topic_idx}"
-                    topic_perplexities[f"{topic_name}_perplexity"] = uniform_perplexity
-                    perplexity_values.append(uniform_perplexity)
-        
-        # Calculate average, handling edge cases
-        if perplexity_values:
-            average_perplexity = sum(perplexity_values) / len(perplexity_values)
-        else:
-            # If no valid perplexity values, use vocabulary size as baseline
-            vocab_size = len(self.vocabulary) if self.vocabulary else len(set(
-                word for doc in test_documents for word in (doc.split() if isinstance(doc, str) else doc)
-            ))
-            average_perplexity = max(vocab_size, 10.0)  # At least 10.0 as minimum baseline
-        
-        return {
-            "topic_perplexities": topic_perplexities,
-            "average_perplexity": average_perplexity
-        }
-    
-    def calculate_corpus_perplexity(self, test_documents=None):
-        """
-        Calculate overall corpus perplexity using document-topic and topic-word distributions
-        
-        Args:
-            test_documents: List of test documents (if None, uses training documents)
-            
-        Returns:
-            Overall corpus perplexity score
-        """
-        if test_documents is None:
-            test_documents = self.documents
-            
-        if self.topic_word_matrix is None or self.doc_topic_matrix is None:
-            # Fallback to simple perplexity calculation
-            total_log_likelihood = 0.0
-            total_words = 0
-            
-            for doc in test_documents:
-                doc_perplexity = self.calculate_document_perplexity(doc)
-                if not math.isinf(doc_perplexity):
-                    if isinstance(doc, str):
-                        word_count = len(doc.split())
-                    else:
-                        word_count = len(doc)
-                    total_log_likelihood += -math.log(doc_perplexity) * word_count
-                    total_words += word_count
-            
-            if total_words == 0:
-                return float('inf')
-            
-            avg_log_likelihood = total_log_likelihood / total_words
-            return math.exp(-avg_log_likelihood)
-        
-        total_log_likelihood = 0.0
-        total_words = 0
-        
-        # Calculate perplexity using the full model
-        for doc_idx, document in enumerate(test_documents):
-            if doc_idx < len(self.doc_topic_matrix):
-                doc_perplexity = self.calculate_document_perplexity(document, doc_idx)
-                if not math.isinf(doc_perplexity):
-                    if isinstance(document, str):
-                        word_count = len(document.split())
-                    else:
-                        word_count = len(document)
-                    total_log_likelihood += -math.log(doc_perplexity) * word_count
-                    total_words += word_count
-        
-        if total_words == 0:
-            return float('inf')
-        
-        avg_log_likelihood = total_log_likelihood / total_words
-        return math.exp(-avg_log_likelihood)
 
 
 # --- TopicDiversityScorer Class ---
@@ -792,9 +539,10 @@ def c_uci(topics_json, table_name=None, column_name=None, documents=None, epsilo
         "average_coherence": average_coherence
     }
 
-def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None, topic_word_matrix=None, doc_topic_matrix=None):
+def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None, topic_word_matrix=None, doc_topic_matrix=None, vocabulary=None):
     print("Calculating coherence scores...")
     fix_multiprocessing_fork()
+
 
     u_mass_manual = False
     if u_mass_manual:
@@ -812,55 +560,23 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
         results = {"class_based": coherence_scores}
     else:
         results = {}
-    
-    # Calculate Perplexity scores
-    print("Calculating perplexity scores...")
-    perplexity_scores = calculate_perplexity_scores(
-        topic_word_scores, 
-        documents=cleaned_data,
-        topic_word_matrix=topic_word_matrix,
-        doc_topic_matrix=doc_topic_matrix
-    )
-    
-    if perplexity_scores is not None:
-        results["perplexity"] = perplexity_scores
-        
-        # Display average perplexity
-        avg_perp = perplexity_scores['average_perplexity']
-        if math.isinf(avg_perp) or math.isnan(avg_perp):
-            print(f"Average Perplexity: N/A (no valid calculations)")
-        else:
-            print(f"Average Perplexity: {avg_perp:.4f}")
-        
-        # Display corpus perplexity
-        corpus_perp = perplexity_scores['corpus_perplexity']
-        if math.isinf(corpus_perp) or math.isnan(corpus_perp):
-            print(f"Corpus Perplexity: N/A (no valid calculations)")
-        else:
-            print(f"Corpus Perplexity: {corpus_perp:.4f}")
-        
-        # Display topic perplexities
-        valid_topic_count = 0
-        for topic, score in perplexity_scores['topic_perplexities'].items():
-            if not math.isinf(score) and not math.isnan(score):
-                print(f"{topic}: {score:.4f}")
-                valid_topic_count += 1
-        
-        if valid_topic_count == 0:
-            print("No valid topic perplexity scores calculated.")
-    else:
-        print("Warning: Could not calculate perplexity scores.")
-    
-    # Calculate Diversity scores
+
+
+    # Calculate Diversity scores directly from H matrix
     print("Calculating topic diversity scores...")
-    diversity_scores = calculate_diversity_scores(topic_word_scores, top_words=10)
-    
+    diversity_scores = calculate_diversity_scores_from_matrix(
+        topic_word_matrix=topic_word_matrix, 
+        vocabulary=vocabulary,
+        top_words=50
+    )
+
     if diversity_scores is not None:
         results["diversity"] = diversity_scores
         print(f"Overall Topic Diversity Score: {diversity_scores['diversity_summary']['overall_diversity_score']:.4f}")
     else:
         print("Warning: Could not calculate diversity scores.")
     
+
     # Add Gensim comparison if cleaned_data is available
     gensim_cal = True
     coherence_method = "c_v"
@@ -883,14 +599,15 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
                 topics=topics_list,
                 texts=cleaned_data_token,  # Use the tokenized documents directly, not the corpus
                 dictionary=dictionary,
-                coherence=coherence_method,
+                coherence="c_v",
+                topn=15
             )
             umass_gensim = gensim_results.get_coherence()
             umass_per_topic = gensim_results.get_coherence_per_topic()
             # Create dictionary with topic-specific coherence scores
             topic_coherence_dict = {}
             for i, score in enumerate(umass_per_topic):
-                topic_coherence_dict[f"konu {i+1}"] = score.tolist() if hasattr(score, 'tolist') else score
+                topic_coherence_dict[f"Topic {i+1}"] = score.tolist() if hasattr(score, 'tolist') else score
 
             results["gensim"] = {
                 f"{coherence_method}_average": umass_gensim,
@@ -966,124 +683,162 @@ def u_mass(topics_json, table_name=None, column_name=None, documents=None, epsil
     return umass_calc.calculate_all_topics_coherence(topics_json)
 
 
-def calculate_perplexity_scores(topic_word_scores, documents=None, topic_word_matrix=None, doc_topic_matrix=None, epsilon=1e-12):
+
+
+def calculate_reconstruction_error(original_matrix, W_matrix, H_matrix):
     """
-    Calculate perplexity scores for topics using the PerplexityScorer class
+    Calculate reconstruction error metrics for NMF decomposition
     
     Args:
-        topic_word_scores (dict): Dictionary containing topics and their word scores  
-        documents (list, optional): List of documents for perplexity calculation
-        topic_word_matrix (numpy.ndarray, optional): Topic-word probability matrix (H matrix from NMF)
-        doc_topic_matrix (numpy.ndarray, optional): Document-topic probability matrix (W matrix from NMF)  
-        epsilon (float): Small value to prevent log(0)
+        original_matrix: Original TF-IDF sparse matrix (X)
+        W_matrix: Document-topic matrix (W) from NMF - shape: (n_docs, n_topics) 
+        H_matrix: Topic-word matrix (H) from NMF - shape: (n_topics, n_words)
         
     Returns:
-        dict: Dictionary containing topic perplexities and average perplexity
+        dict: Dictionary containing various reconstruction error metrics
     """
-    if len(topic_word_scores) == 0:
-        print("Error: No topics found in the data.")
-        return None
-    
-    # Prepare documents
-    if documents is None:
-        # Create pseudo-documents from topics if no documents provided
-        documents = []
-        for topic_id, word_scores in topic_word_scores.items():
-            doc = list(word_scores.keys())
-            documents.append(doc)
-    
-    # Ensure documents are tokenized (list of lists)
-    if documents and isinstance(documents[0], str):
-        # Convert strings to lists of words
-        documents = [doc.split() for doc in documents]
-    
-    if not documents:
-        print("Error: No documents available for perplexity calculation.")
-        return None
-    
-    # If no matrices provided, create simple fallback perplexity based on word frequencies
-    if topic_word_matrix is None:
-        # Build vocabulary from documents
-        all_doc_words = set()
-        for doc in documents:
-            all_doc_words.update(doc)
-        
-        # Build vocabulary from topics  
-        all_topic_words = set()
-        for topic_words in topic_word_scores.values():
-            all_topic_words.update(topic_words.keys())
-        
-        # Calculate vocabulary overlap
-        vocab_overlap = all_doc_words.intersection(all_topic_words)
-        total_vocab = all_doc_words.union(all_topic_words)
-        
-        if len(vocab_overlap) == 0:
-            print("Warning: No vocabulary overlap between topics and documents.")
-            # Use total vocabulary size as baseline perplexity
-            baseline_perplexity = len(total_vocab) if total_vocab else 100.0
-        else:
-            # Use inverse of overlap ratio as baseline
-            overlap_ratio = len(vocab_overlap) / len(total_vocab)
-            baseline_perplexity = 1.0 / max(overlap_ratio, epsilon)
-        
-        # Create simple topic perplexities
-        topic_perplexities = {}
-        for topic_id in topic_word_scores.keys():
-            topic_perplexities[f"{topic_id}_perplexity"] = baseline_perplexity
-        
+    if original_matrix is None or W_matrix is None or H_matrix is None:
         return {
-            "topic_perplexities": topic_perplexities,
-            "average_perplexity": baseline_perplexity,
-            "corpus_perplexity": baseline_perplexity
+            "frobenius_norm_squared": None,
+            "mean_squared_error": None,
+            "relative_error": None,
+            "explained_variance_ratio": None,
+            "sparsity_original": None,
+            "sparsity_reconstructed": None
         }
     
-    # Initialize PerplexityScorer with matrices
-    perplexity_calc = PerplexityScorer(
-        documents, 
-        topic_word_matrix=topic_word_matrix, 
-        doc_topic_matrix=doc_topic_matrix, 
-        epsilon=epsilon
-    )
-    
-    # Calculate perplexity scores for all topics
-    topic_results = perplexity_calc.calculate_all_topics_perplexity(documents)
-    
-    # Also calculate corpus-level perplexity
-    corpus_perplexity = perplexity_calc.calculate_corpus_perplexity(documents)
-    
-    # Handle nan/inf values in corpus perplexity
-    if math.isnan(corpus_perplexity) or math.isinf(corpus_perplexity):
-        # Use average of topic perplexities as fallback
-        valid_topic_perps = [p for p in topic_results["topic_perplexities"].values() 
-                           if not math.isnan(p) and not math.isinf(p)]
-        if valid_topic_perps:
-            corpus_perplexity = sum(valid_topic_perps) / len(valid_topic_perps)
+    try:
+        # Convert matrices to dense if they are sparse for calculation
+        if hasattr(original_matrix, 'toarray'):
+            X = original_matrix.toarray()
         else:
-            corpus_perplexity = len(perplexity_calc.vocabulary) if perplexity_calc.vocabulary else 50.0
-    
-    # Combine results
-    results = {
-        "topic_perplexities": topic_results["topic_perplexities"],
-        "average_perplexity": topic_results["average_perplexity"],
-        "corpus_perplexity": corpus_perplexity
-    }
-    
-    return results
+            X = np.array(original_matrix)
+            
+        W = np.array(W_matrix)
+        H = np.array(H_matrix)
+        
+        # Reconstruct the matrix: X_reconstructed = W @ H
+        X_reconstructed = W @ H
+        
+        # Calculate reconstruction error (difference matrix)
+        error_matrix = X - X_reconstructed
+        
+        # 1. Frobenius norm squared: ||X - WH||_F^2
+        frobenius_norm_squared = np.sum(error_matrix ** 2)
+        
+        # 2. Mean Squared Error: MSE = ||X - WH||_F^2 / (m * n)
+        m, n = X.shape
+        mean_squared_error = frobenius_norm_squared / (m * n)
+        
+        # 3. Relative Error: ||X - WH||_F / ||X||_F
+        original_frobenius = np.sqrt(np.sum(X ** 2))
+        if original_frobenius > 0:
+            relative_error = np.sqrt(frobenius_norm_squared) / original_frobenius
+        else:
+            relative_error = 0.0
+        
+        # 4. Explained Variance Ratio: 1 - (||X - WH||_F^2 / ||X||_F^2)  
+        original_frobenius_squared = np.sum(X ** 2)
+        if original_frobenius_squared > 0:
+            explained_variance_ratio = 1.0 - (frobenius_norm_squared / original_frobenius_squared)
+        else:
+            explained_variance_ratio = 1.0
+        
+        # 5. Sparsity metrics (percentage of zeros)
+        total_elements = m * n
+        sparsity_original = np.sum(X == 0) / total_elements
+        sparsity_reconstructed = np.sum(X_reconstructed == 0) / total_elements
+        
+        return {
+            "frobenius_norm_squared": float(frobenius_norm_squared),
+            "mean_squared_error": float(mean_squared_error),
+            "relative_error": float(relative_error),
+            "explained_variance_ratio": float(explained_variance_ratio),
+            "sparsity_original": float(sparsity_original),
+            "sparsity_reconstructed": float(sparsity_reconstructed)
+        }
+        
+    except Exception as e:
+        print(f"Error calculating reconstruction error: {str(e)}")
+        return {
+            "frobenius_norm_squared": None,
+            "mean_squared_error": None,
+            "relative_error": None,
+            "explained_variance_ratio": None,
+            "sparsity_original": None,
+            "sparsity_reconstructed": None
+        }
 
 
-def calculate_diversity_scores(topic_word_scores, top_words=10):
+def extract_topic_words_from_matrix(topic_word_matrix, vocabulary, top_n=50):
     """
-    Calculate topic diversity scores using the TopicDiversityScorer class
+    Extract top N words for each topic directly from the H matrix (topic-word matrix)
     
     Args:
-        topic_word_scores (dict): Dictionary containing topics and their word scores
+        topic_word_matrix (numpy.ndarray): Topic-word probability matrix (H matrix from NMF) - shape: (n_topics, n_words)
+        vocabulary (list): List of words corresponding to matrix columns
+        top_n (int): Number of top words to extract per topic
+        
+    Returns:
+        dict: Dictionary with topic_id as key and dict of {word: score} as value
+    """
+    if topic_word_matrix is None or vocabulary is None:
+        return None
+    
+    topic_word_scores = {}
+    n_topics, n_words = topic_word_matrix.shape
+    
+    # Ensure vocabulary matches matrix dimensions
+    if len(vocabulary) != n_words:
+        print(f"Warning: Vocabulary size ({len(vocabulary)}) doesn't match matrix columns ({n_words})")
+        min_size = min(len(vocabulary), n_words)
+        vocabulary = vocabulary[:min_size]
+        topic_word_matrix = topic_word_matrix[:, :min_size]
+    
+    for topic_idx in range(n_topics):
+        topic_scores = topic_word_matrix[topic_idx]
+        
+        # Get top N words for this topic
+        top_indices = np.argsort(topic_scores)[::-1][:top_n]
+        
+        topic_word_dict = {}
+        for word_idx in top_indices:
+            if word_idx < len(vocabulary):
+                word = vocabulary[word_idx]
+                score = float(topic_scores[word_idx])
+                topic_word_dict[word] = score
+        
+        topic_id = f"topic_{topic_idx}"
+        topic_word_scores[topic_id] = topic_word_dict
+    
+    return topic_word_scores
+
+
+def calculate_diversity_scores_from_matrix(topic_word_matrix, vocabulary, top_words=50):
+    """
+    Calculate topic diversity scores directly from H matrix (topic-word matrix)
+    
+    Args:
+        topic_word_matrix (numpy.ndarray): H matrix - shape: (n_topics, n_words)
+        vocabulary (list): Vocabulary list corresponding to matrix columns
         top_words (int): Number of top words to consider per topic
         
     Returns:
         dict: Dictionary containing all diversity metrics
     """
-    if len(topic_word_scores) == 0:
-        print("Error: No topics found for diversity calculation.")
+    if topic_word_matrix is None or vocabulary is None:
+        print("Error: Both topic_word_matrix and vocabulary are required for diversity calculation.")
+        return None
+    
+    print(f"Calculating diversity directly from H matrix using top {top_words} words per topic")
+    
+    # Extract words directly from H matrix
+    topic_word_scores = extract_topic_words_from_matrix(
+        topic_word_matrix, vocabulary, top_n=top_words
+    )
+    
+    if topic_word_scores is None or len(topic_word_scores) == 0:
+        print("Error: Could not extract topics from H matrix.")
         return None
     
     # Initialize TopicDiversityScorer
@@ -1093,6 +848,30 @@ def calculate_diversity_scores(topic_word_scores, top_words=10):
     diversity_results = diversity_calc.calculate_all_diversity_metrics()
     
     return diversity_results
+
+
+# Alias for convenience - same function with clearer name
+def calculate_topic_diversity(H_matrix, vocabulary, top_words=50):
+    """
+    Convenience function: Calculate topic diversity directly from NMF H matrix
+    
+    Args:
+        H_matrix (numpy.ndarray): NMF H matrix (topic-word matrix) - shape: (n_topics, n_words)
+        vocabulary (list): Vocabulary list from TF-IDF vectorizer
+        top_words (int): Number of top words to consider per topic (default: 50)
+        
+    Returns:
+        dict: Dictionary containing all diversity metrics including:
+            - proportion_unique_words: Ratio of unique words across topics
+            - average_jaccard_diversity: Average Jaccard-based diversity
+            - average_cosine_diversity: Average cosine-based diversity
+            - diversity_summary: Overall analysis with most similar/diverse pairs
+    
+    Example:
+        >>> diversity_results = calculate_topic_diversity(H_matrix, vocabulary, top_words=50)
+        >>> print(f"Overall diversity: {diversity_results['diversity_summary']['overall_diversity_score']:.4f}")
+    """
+    return calculate_diversity_scores_from_matrix(H_matrix, vocabulary, top_words)
 
 
 def prepare_gensim_data(topics_json, documents):
@@ -1132,220 +911,3 @@ def prepare_gensim_data(topics_json, documents):
     return topics_list, dictionary, corpus
 
 
-
-def main():
-    """Main function for example usage and testing"""
-    # Create sample topics and documents for comparison
-    print("=== Coherence Score Comparison: Manual vs Gensim ===\n")
-    
-    # Sample topics (word scores)
-    sample_topics = {
-        "topic_0": {
-            "machine": 0.8,
-            "learning": 0.7,
-            "algorithm": 0.6,
-            "data": 0.5,
-            "model": 0.4
-        },
-        "topic_1": {
-            "neural": 0.9,
-            "network": 0.8,
-            "deep": 0.7,
-            "learning": 0.6,
-            "artificial": 0.5
-        },
-        "topic_2": {
-            "natural": 0.8,
-            "language": 0.7,
-            "processing": 0.6,
-            "text": 0.5,
-            "nlp": 0.4
-        }
-    }
-    
-    # Sample documents (tokenized)
-    sample_documents = [
-        ["machine", "learning", "algorithm", "data", "science", "model", "prediction"],
-        ["neural", "network", "deep", "learning", "artificial", "intelligence"],
-        ["natural", "language", "processing", "text", "nlp", "analysis"],
-        ["machine", "learning", "model", " spotraining", "data", "algorithm"],
-        ["deep", "neural", "network", "artificial", "intelligence", "learning"],
-        ["text", "processing", "natural", "language", "nlp", "analysis"],
-        ["data", "science", "machine", "learning", "model", "algorithm"],
-        ["artificial", "intelligence", "neural", "network", "deep"],
-        ["language", "processing", "text", "natural", "nlp"],
-        ["learning", "machine", "algorithm", "data", "model"]
-    ]
-    
-    print("Sample Topics:")
-    for topic_id, words in sample_topics.items():
-        top_words = sorted(words.items(), key=lambda x: x[1], reverse=True)[:5]
-        print(f"{topic_id}: {[word for word, score in top_words]}")
-    print(f"\nNumber of documents: {len(sample_documents)}")
-    print(f"Sample document: {sample_documents[0]}\n")
-    
-    # === Manual Implementations ===
-    print("1. Manual Implementation Results:")
-    print("-" * 40)
-    
-    # Calculate U-Mass coherence manually
-    print("U-Mass Coherence (Manual):")
-    umass_manual = u_mass(sample_topics, documents=sample_documents)
-    print(f"Average U-Mass: {umass_manual['average_coherence']:.4f}")
-    for topic, score in umass_manual['topic_coherences'].items():
-        print(f"  {topic}: {score:.4f}")
-    
-    print("\nUCI Coherence (Manual):")
-    uci_manual = c_uci(sample_topics, documents=sample_documents)
-    print(f"Average UCI: {uci_manual['average_coherence']:.4f}")
-    for topic, score in uci_manual['topic_coherences'].items():
-        print(f"  {topic}: {score:.4f}")
-    
-    # === Gensim Implementation ===
-    print("\n\n2. Gensim Implementation Results:")
-    print("-" * 40)
-    
-    try:
-        # Prepare data for Gensim
-        
-        topics_list, dictionary, corpus = prepare_gensim_data(sample_topics, sample_documents)
-        
-        print("Gensim U-Mass Coherence:")
-        # Calculate U-Mass using Gensim
-        cm_umass = CoherenceModel(
-            topics=topics_list,
-            texts=sample_documents,
-            dictionary=dictionary,
-            coherence='u_mass',
-            processes=1  # Disable multiprocessing to prevent restart issues
-        )
-        umass_gensim = cm_umass.get_coherence()
-        umass_per_topic = cm_umass.get_coherence_per_topic()
-        
-        print(f"Average U-Mass: {umass_gensim:.4f}")
-        for i, score in enumerate(umass_per_topic):
-            print(f"  topic_{i}_coherence: {score:.4f}")
-        
-        print("\nGensim C_V Coherence:")
-        # Calculate C_V using Gensim (alternative measure)
-        cm_cv = CoherenceModel(
-            topics=topics_list,
-            texts=sample_documents,
-            dictionary=dictionary,
-            coherence='c_v',
-            processes=1  # Disable multiprocessing to prevent restart issues
-        )
-        cv_gensim = cm_cv.get_coherence()
-        cv_per_topic = cm_cv.get_coherence_per_topic()
-        
-        print(f"Average C_V: {cv_gensim:.4f}")
-        for i, score in enumerate(cv_per_topic):
-            print(f"  topic_{i}_coherence: {score:.4f}")
-        
-        print("\nGensim C_UCI Coherence:")
-        # Calculate C_UCI using Gensim
-        cm_cuci = CoherenceModel(
-            topics=topics_list,
-            texts=sample_documents,
-            dictionary=dictionary,
-            coherence='c_uci',
-            processes=1  # Disable multiprocessing to prevent restart issues
-        )
-        cuci_gensim = cm_cuci.get_coherence()
-        cuci_per_topic = cm_cuci.get_coherence_per_topic()
-        
-        print(f"Average C_UCI: {cuci_gensim:.4f}")
-        for i, score in enumerate(cuci_per_topic):
-            print(f"  topic_{i}_coherence: {score:.4f}")
-        
-    except Exception as e:
-        print(f"Error with Gensim calculation: {str(e)}")
-    
-    # === Comparison ===
-    print("\n\n3. Comparison Summary:")
-    print("-" * 40)
-    
-    try:
-        print(f"U-Mass Difference (Manual - Gensim): {umass_manual['average_coherence'] - umass_gensim:.4f}")
-        print(f"Manual U-Mass: {umass_manual['average_coherence']:.4f}")
-        print(f"Gensim U-Mass: {umass_gensim:.4f}")
-        
-        print(f"\nManual UCI: {uci_manual['average_coherence']:.4f}")
-        print(f"Gensim C_UCI: {cuci_gensim:.4f}")
-        print(f"UCI Difference (Manual - Gensim): {uci_manual['average_coherence'] - cuci_gensim:.4f}")
-        
-        print("\nNote: Small differences are expected due to different implementation details,")
-        print("preprocessing steps, and calculation methods between manual and Gensim implementations.")
-        
-    except:
-        print("Could not complete full comparison due to Gensim calculation errors.")
-    
-    # === Test with different document sets ===
-    print("\n\n4. Testing with Different Document Characteristics:")
-    print("-" * 40)
-    
-    # Test with highly coherent documents
-    coherent_docs = [
-        ["machine", "learning", "algorithm", "data"],
-        ["machine", "learning", "model", "data"],
-        ["algorithm", "data", "machine", "learning"],
-        ["neural", "network", "deep", "learning"],
-        ["neural", "network", "artificial", "intelligence"],
-        ["deep", "learning", "neural", "network"]
-    ]
-    
-    print("Testing with highly coherent documents:")
-    umass_coherent = u_mass(sample_topics, documents=coherent_docs)
-    print(f"U-Mass (coherent docs): {umass_coherent['average_coherence']:.4f}")
-    
-    # Test with random documents
-    random_docs = [
-        ["apple", "car", "house", "computer"],
-        ["tree", "phone", "book", "music"],
-        ["water", "fire", "earth", "air"],
-        ["cat", "dog", "bird", "fish"],
-        ["red", "blue", "green", "yellow"]
-    ]
-    
-    print("Testing with random/incoherent documents:")
-    umass_random = u_mass(sample_topics, documents=random_docs)
-    print(f"U-Mass (random docs): {umass_random['average_coherence']:.4f}")
-    
-
-    print(f"\nCoherence difference: {umass_coherent['average_coherence'] - umass_random['average_coherence']:.4f}")
-    print("Higher coherence scores indicate better topic quality.")
-    
-    # === Test Perplexity Scores ===
-    print("\n\n5. Testing Perplexity Scores:")
-    print("-" * 40)
-    
-    print("Perplexity with original documents:")
-    perplexity_original = calculate_perplexity_scores(sample_topics, documents=sample_documents)
-    print(f"Average Perplexity: {perplexity_original['average_perplexity']:.4f}")
-    print(f"Corpus Perplexity: {perplexity_original['corpus_perplexity']:.4f}")
-    for topic, score in perplexity_original['topic_perplexities'].items():
-        if not math.isinf(score):
-            print(f"  {topic}: {score:.4f}")
-    
-    print("\nPerplexity with coherent documents:")
-    perplexity_coherent = calculate_perplexity_scores(sample_topics, documents=coherent_docs)
-    print(f"Average Perplexity: {perplexity_coherent['average_perplexity']:.4f}")
-    print(f"Corpus Perplexity: {perplexity_coherent['corpus_perplexity']:.4f}")
-    
-    print("\nPerplexity with random documents:")
-    perplexity_random = calculate_perplexity_scores(sample_topics, documents=random_docs)
-    print(f"Average Perplexity: {perplexity_random['average_perplexity']:.4f}")
-    print(f"Corpus Perplexity: {perplexity_random['corpus_perplexity']:.4f}")
-    
-    # Calculate perplexity difference safely
-    coherent_avg = perplexity_coherent['average_perplexity']
-    random_avg = perplexity_random['average_perplexity']
-    
-    if (not math.isinf(coherent_avg) and not math.isnan(coherent_avg) and 
-        not math.isinf(random_avg) and not math.isnan(random_avg)):
-        diff = coherent_avg - random_avg
-        print(f"\nPerplexity difference (coherent - random): {diff:.4f}")
-    else:
-        print(f"\nPerplexity difference: N/A (invalid values)")
-    
-    print("Lower perplexity scores indicate better topic model fit to the data.")

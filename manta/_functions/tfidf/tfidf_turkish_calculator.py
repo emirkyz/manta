@@ -63,15 +63,16 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
         # Calculate document lengths (number of terms in each document)
         doc_lengths = np.add.reduceat(matris.data, matris.indptr[:-1])
         avg_doc_length = np.mean(doc_lengths)
-        
-        # Apply pivoted normalization
-        # norm = (1 - slope) + slope * (doc_length / avg_doc_length)
-        pivoted_norms = (1 - slope) + slope * (doc_lengths / avg_doc_length)
-        
-        # Normalize the term frequencies
-        # Repeat the normalization factors for each non-zero element in the row
-        nnz_per_row = np.diff(input_matrix.indptr)
-        tf_idf.data = tf_idf.data / np.repeat(pivoted_norms, nnz_per_row)
+
+        if slope != -1:
+            # Apply pivoted normalization
+            # norm = (1 - slope) + slope * (doc_length / avg_doc_length)
+            pivoted_norms = (1 - slope) + slope * (doc_lengths / avg_doc_length)
+
+            # Normalize the term frequencies
+            # Repeat the normalization factors for each non-zero element in the row
+            nnz_per_row = np.diff(tf_idf.indptr)
+            tf_idf.data = tf_idf.data / np.repeat(pivoted_norms, nnz_per_row)
 
 
     '''    

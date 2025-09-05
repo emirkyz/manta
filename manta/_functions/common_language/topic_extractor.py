@@ -246,6 +246,8 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
         """
         ind, max_vals = _sort_matrices(doc_word_pairs)
         for idx, (word_vec_id, doc_vec_id) in enumerate(ind):
+            if topic_count == -1:
+                topic_count = H.shape[0]
             # Extract topic vectors for this specific pair
             # Handle both sparse and dense matrices
             topic_word_vector = H[word_vec_id, :]
@@ -259,7 +261,7 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
             word_scores = _extract_topic_words(
                 topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
-            word_result[f"Topic {idx:02d}"] = word_scores
+            word_result[f"Topic {idx+1:02d}"] = word_scores
             
             # Extract documents for this topic pair (optional)
             if include_documents and documents is not None:
@@ -267,7 +269,7 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
                 doc_scores = _extract_topic_documents(
                     topic_doc_vector, top_doc_ids, documents, emoji_map
                 )
-                document_result[f"Topic {idx}"] = doc_scores
+                document_result[f"Topic {idx+1}"] = doc_scores
     else:
         if topic_count==-1:
             topic_count = H.shape[0]
@@ -284,7 +286,7 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
             word_scores = _extract_topic_words(
                 topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
-            word_result[f"Topic {i:02d}"] = word_scores
+            word_result[f"Topic {i+1:02d}"] = word_scores
             
             # Extract documents for this topic (optional)
             if include_documents and documents is not None:
@@ -292,7 +294,7 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
                 doc_scores = _extract_topic_documents(
                     topic_doc_vector, top_doc_ids, documents, emoji_map
                 )
-                document_result[f"Topic {i}"] = doc_scores
+                document_result[f"Topic {i+1}"] = doc_scores
 
     # Save to database if provided
     if db_config and db_config.topics_db_engine and data_frame_name:

@@ -51,8 +51,8 @@ def _basic_nmf(in_mat:sp.sparse.csc_matrix, w, h, start, log: bool = True, norm_
         #w1 = w * ((in_mat @ h.T) / (w @ (h @ h.T) + eps))
         #h1 = h * ((w1.T @ in_mat) / ((w1.T @ w1) @ h + eps))
 
-        w_norm = np.linalg.norm(w - w_old) / np.linalg.norm(w_old)
-        h_norm = np.linalg.norm(h - h_old) / np.linalg.norm(h_old)
+        w_norm = norm_func(np.abs(w - w_old), 2)
+        h_norm = norm_func(np.abs(h - h_old), 2)
         if log and pbar:
             pbar.update(1)
             pbar.set_postfix({"W_norm": f"{w_norm:.5f}", "H_norm": f"{h_norm:.5f}"})

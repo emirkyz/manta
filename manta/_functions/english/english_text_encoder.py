@@ -1,4 +1,3 @@
-from .english_preprocessor import preprocess
 
  
 def counterize_english(N, vocab, data, field_name, lemmatize):
