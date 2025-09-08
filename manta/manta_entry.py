@@ -318,6 +318,9 @@ def _perform_topic_modeling(tdm, options: Dict[str, Any], vocab, text_array, df:
         column_name=desired_columns,
         cleaned_data=text_array,
         table_name=table_name,
+        topic_word_matrix=nmf_output["H"],
+        doc_topic_matrix=nmf_output["W"],
+        vocabulary=vocab,
     )
     
     return topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result
