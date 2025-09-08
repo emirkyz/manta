@@ -34,5 +34,5 @@ def generate_wordclouds(topics_data, output_dir, table_name):
 
         wordclouds[topic_name] = wordcloud
         # Save wordcloud image to table-specific subdirectory with 400 DPI
-        image.save(str(wordclouds_dir / f"{topic_name}.png"))
+        image.save(str(wordclouds_dir / f"{topic_name}.png"),dpi=(1000,1000))
         # TODO: Re-add DPI setting if needed, WordCloud does not support DPI directly , dpi=(1000, 1000)
