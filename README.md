@@ -45,7 +45,7 @@ results = run_topic_analysis(
     filepath="data.csv",
     column="review_text",
     language="EN",
-    topics=5,
+    topic_count=5,
     lemmatize=True
 )
 
@@ -54,7 +54,7 @@ results = run_topic_analysis(
     filepath="turkish_reviews.csv", 
     column="yorum_metni",
     language="TR",
-    topics=8,
+    topic_count=8,
     tokenizer_type="bpe",
     generate_wordclouds=True
 )
@@ -64,7 +64,7 @@ results = run_topic_analysis(
     filepath="data.csv",
     column="text_content",
     language="TR", 
-    topics=6,
+    topic_count=6,
     nmf_method="nmtf",
     generate_wordclouds=True
 )
@@ -151,7 +151,7 @@ manta/
 ├── _functions/
 │   ├── common_language/          # Shared functionality across languages
 │   │   ├── emoji_processor.py    # Emoji handling utilities
-│   │   └── topic_analyzer.py     # Cross-language topic analysis
+│   │   └── topic_extractor.py    # Cross-language topic analysis and extraction
 │   ├── english/                  # English text processing modules
 │   │   ├── english_entry.py             # English text processing entry point
 │   │   ├── english_preprocessor.py      # Text cleaning and preprocessing
@@ -166,8 +166,12 @@ manta/
 │   │   ├── nmf_basic.py                 # Standard NMF algorithm
 │   │   ├── nmf_projective_basic.py      # Basic projective NMF
 │   │   ├── nmf_projective_enhanced.py   # Enhanced projective NMF
-│   │   ├── nmtf/                        # Non-negative Matrix Tri-Factorization
-│   │   │   └── nmtf.py                  # NMTF implementation with topic relationships
+│   │   └── nmtf/                        # Non-negative Matrix Tri-Factorization
+│   │       ├── nmtf.py                  # NMTF implementation with topic relationships
+│   │       ├── nmtf_init.py             # NMTF initialization utilities
+│   │       ├── nmtf_util.py             # NMTF helper functions
+│   │       ├── extract_nmtf_topics.py   # Topic extraction for NMTF results
+│   │       └── example_usage.py         # NMTF usage examples
 │   ├── tfidf/                    # TF-IDF calculation modules
 │   │   ├── tfidf_english_calculator.py  # English TF-IDF implementation
 │   │   ├── tfidf_turkish_calculator.py  # Turkish TF-IDF implementation
@@ -180,22 +184,33 @@ manta/
 │       ├── turkish_tokenizer_factory.py # Tokenizer creation and training
 │       ├── turkish_text_encoder.py      # Text-to-numerical conversion
 │       └── turkish_tfidf_generator.py   # TF-IDF matrix generation
-├── utils/                        # Helper utilities
-│   ├── coherence_score.py              # Topic coherence evaluation
-│   ├── combine_number_suffix.py         # Number and suffix combination utilities
-│   ├── distance_two_words.py           # Word distance calculation
-│   ├── export_excel.py                 # Excel export functionality
-│   ├── gen_cloud.py                    # Word cloud generation
-│   ├── hierarchy_nmf.py                # Hierarchical NMF utilities
-│   ├── image_to_base.py                # Image to base64 conversion
-│   ├── save_doc_score_pair.py          # Document-score pair saving utilities
-│   ├── save_topics_db.py               # Topic database saving
-│   ├── save_word_score_pair.py         # Word-score pair saving utilities
-│   ├── topic_dist.py                   # Topic distribution plotting
-│   ├── umass_test.py                   # UMass coherence testing
-│   ├── visualizer.py                   # General visualization utilities
-│   ├── word_cooccurrence.py            # Word co-occurrence analysis
-│   └── other/                           # Additional utility functions
+├── utils/                        # Helper utilities (organized into sub-modules)
+│   ├── analysis/                       # Analysis utilities
+│   │   ├── coherence_score.py              # Topic coherence evaluation
+│   │   ├── distance_two_words.py           # Word distance calculation
+│   │   ├── umass_test.py                   # UMass coherence testing
+│   │   ├── word_cooccurrence.py            # Word co-occurrence analysis
+│   │   └── word_cooccurrence_analyzer.py   # Advanced word co-occurrence analysis
+│   ├── console/                        # Console management
+│   │   └── console_manager.py              # Console and logging management utilities
+│   ├── database/                       # Database utilities
+│   │   ├── database_manager.py             # Database connection and management utilities
+│   │   └── save_topics_db.py               # Topic database saving utilities
+│   ├── export/                         # Export functionality
+│   │   ├── export_excel.py                 # Excel export functionality
+│   │   ├── json_to_excel.py                # JSON to Excel conversion utilities
+│   │   ├── save_doc_score_pair.py          # Document-score pair saving utilities
+│   │   └── save_word_score_pair.py         # Word-score pair saving utilities
+│   ├── preprocess/                     # Preprocessing utilities
+│   │   └── combine_number_suffix.py         # Number and suffix combination utilities
+│   ├── visualization/                  # Visualization utilities
+│   │   ├── gen_cloud.py                    # Word cloud generation
+│   │   ├── image_to_base.py                # Image to base64 conversion
+│   │   ├── topic_dist.py                   # Topic distribution plotting
+│   │   └── visualizer.py                   # General visualization utilities
+│   └── agent/                          # AI assistant utilities
+│       ├── claude_prompt_generator.py       # Claude AI prompt generation utilities
+│       └── claude_prompt_generator.html     # HTML interface for prompt generation
 ├── cli.py                        # Command-line interface
 ├── standalone_nmf.py             # Core NMF implementation
 └── __init__.py                   # Package initialization and public API
@@ -284,7 +299,7 @@ results = run_topic_analysis(
     filepath="data.csv",
     column="review_text",
     language="EN",
-    topics=5,
+    topic_count=5,
     lemmatize=True,
     generate_wordclouds=True,
     export_excel=True
@@ -295,7 +310,7 @@ results = run_topic_analysis(
     filepath="turkish_reviews.csv",
     column="yorum_metni",
     language="TR",
-    topics=10,
+    topic_count=10,
     words_per_topic=15,
     tokenizer_type="bpe",
     nmf_method="nmf",
@@ -319,24 +334,27 @@ results = run_topic_analysis(
 - `column` (str): Name of column containing text data
 
 **Optional:**
+- `separator` (str): CSV separator character (default: ",")
 - `language` (str): "TR" for Turkish, "EN" for English (default: "EN")
-- `topics` (int): Number of topics to extract (default: 5)
-- `words_per_topic` (int): Top words to show per topic (default: 15)
+- `topic_count` (int): Number of topics to extract (default: 5)
 - `nmf_method` (str): "nmf", "pnmf", or "nmtf" algorithm variant (default: "nmf")
+- `lemmatize` (bool): Apply lemmatization for English (default: False)
 - `tokenizer_type` (str): "bpe" or "wordpiece" for Turkish (default: "bpe")
-- `lemmatize` (bool): Apply lemmatization for English (default: True)
+- `words_per_topic` (int): Top words to show per topic (default: 15)
+- `word_pairs_out` (bool): Create word pairs output (default: True)
 - `generate_wordclouds` (bool): Create word cloud visualizations (default: True)
 - `export_excel` (bool): Export results to Excel (default: True)
 - `topic_distribution` (bool): Generate distribution plots (default: True)
-- `emoji_map` (bool): Enable emoji processing and mapping (default: True)
-- `output_name` (str): Custom output directory name (default: auto-generated)
-- `separator` (str): CSV separator character (default: ",")
 - `filter_app` (bool): Enable app filtering (default: False)
 - `data_filter_options` (dict): Advanced filtering options with keys (all default to empty string):
   - `filter_app_name` (str): App name for filtering
   - `filter_app_column` (str): Column name for app filtering (default: "PACKAGE_NAME")
   - `filter_app_country` (str): Country code for filtering (case-insensitive)
   - `filter_app_country_column` (str): Column name for country filtering (default: "COUNTRY")
+- `emoji_map` (bool): Enable emoji processing and mapping (default: False)
+- `output_name` (str): Custom output directory name (default: auto-generated)
+- `save_to_db` (bool): Whether to persist data to database (default: False)
+- `output_dir` (str): Base directory for outputs (default: current working directory)
 
 ## Outputs
 
@@ -353,9 +371,12 @@ The analysis generates several outputs in an `Output/` directory (created at run
 - **Multi-language Support**: Optimized processing for both Turkish and English texts
 - **Advanced Tokenization**: BPE and WordPiece tokenizers for Turkish, traditional tokenization for English
 - **Multiple Factorization Algorithms**: Standard NMF, Orthogonal Projective NMF (PNMF), and Non-negative Matrix Tri-Factorization (NMTF)
+- **Advanced NMF Variants**: Hierarchical NMF, Online NMF, and Symmetric NMF implementations
 - **Rich Visualizations**: Word clouds and topic distribution plots
-- **Flexible Export**: Excel and JSON export formats
-- **Coherence Evaluation**: Built-in topic coherence scoring
+- **Flexible Export**: Excel and JSON export formats with organized export utilities
+- **Coherence Evaluation**: Built-in topic coherence scoring and advanced analysis tools
+- **Database Management**: Comprehensive SQLite database integration with dedicated management utilities
+- **Modular Architecture**: Organized utility modules for analysis, visualization, export, and preprocessing
 - **Text Preprocessing**: Language-specific text cleaning and preprocessing
 
 ## Requirements

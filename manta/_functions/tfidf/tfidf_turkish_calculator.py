@@ -32,28 +32,28 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
 
     matris = lil_matrix((document_counts, word_count), dtype=int)
 
-    for i, dokuman in enumerate(veri):
-        histogram = Counter(dokuman)
-        gecici = [(k, v) for k, v in histogram.items()]
-        columns = [a[0] for a in gecici]
-        values = [b[1] for b in gecici]
+    for i, document in enumerate(veri):
+        histogram = Counter(document)
+        temporary = [(k, v) for k, v in histogram.items()]
+        columns = [a[0] for a in temporary]
+        values = [b[1] for b in temporary]
         matris[i, columns] = values
 
     matris = matris.tocsr()
 
-    df_input_matrix = matris.tocsc(copy=True)
-    df_input_matrix.data = np.ones_like(df_input_matrix.data)
+    input_matrix = matris.tocsc(copy=True)
+    input_matrix.data = np.ones_like(input_matrix.data)
     #df = np.array((df_input_matrix > 0).sum(axis=0)).flatten()
-    df = np.add.reduceat(df_input_matrix.data, df_input_matrix.indptr[:-1])
+    df = np.add.reduceat(input_matrix.data, input_matrix.indptr[:-1])
 
     use_bm25 = False
     if use_bm25:
         # Use BM25 scoring
-        tf_idf = bm25_generator(matris, df, document_counts, k1, b)
+        tf_idf = bm25_generator(input_matrix, df, document_counts, k1, b)
     else:
         # Use traditional TF-IDF scoring
         idf = idf_p(df, document_counts)
-        tf_idf = tf_L(matris).multiply(idf).tocsr()
+        tf_idf = tf_L(input_matrix).multiply(idf).tocsr()
         tf_idf.eliminate_zeros()
         
         # Calculate document lengths for pivoted normalization
@@ -63,15 +63,16 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
         # Calculate document lengths (number of terms in each document)
         doc_lengths = np.add.reduceat(matris.data, matris.indptr[:-1])
         avg_doc_length = np.mean(doc_lengths)
-        
-        # Apply pivoted normalization
-        # norm = (1 - slope) + slope * (doc_length / avg_doc_length)
-        pivoted_norms = (1 - slope) + slope * (doc_lengths / avg_doc_length)
-        
-        # Normalize the term frequencies
-        # Repeat the normalization factors for each non-zero element in the row
-        nnz_per_row = np.diff(matris.indptr)
-        tf_idf.data = tf_idf.data / np.repeat(pivoted_norms, nnz_per_row)
+
+        if slope != -1:
+            # Apply pivoted normalization
+            # norm = (1 - slope) + slope * (doc_length / avg_doc_length)
+            pivoted_norms = (1 - slope) + slope * (doc_lengths / avg_doc_length)
+
+            # Normalize the term frequencies
+            # Repeat the normalization factors for each non-zero element in the row
+            nnz_per_row = np.diff(tf_idf.indptr)
+            tf_idf.data = tf_idf.data / np.repeat(pivoted_norms, nnz_per_row)
 
 
     '''    
@@ -79,20 +80,17 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
     nnz_per_row = np.diff(tf_idf.indptr)
     tf_idf.data /= np.repeat(norm_rows, nnz_per_row)
     '''
-    sozluk = list(tokenizer.get_vocab().keys())
+    vocab = list(tokenizer.get_vocab().keys())
     N = len(veri)
-
-    gercek_gerekli_alan = N * len(sozluk) * 3 * 8 / 1024 / 1024 / 1024
-    print("Gerekli alan : ", gercek_gerekli_alan, "GB")
+    required_memory = N * len(vocab) * 3 * 8 / 1024 / 1024 / 1024
+    print("Required memory : ", required_memory, "GB")
     temp = tf_idf.tocoo()
-    seyrek_matris_gerekli_alan = temp.nnz * 3 * 8 / 1024 / 1024 / 1024
+    sparse_matrix_required_memory = temp.nnz * 3 * 8 / 1024 / 1024 / 1024
     method_name = "BM25" if use_bm25 else "TF-IDF"
-    print(f"{method_name} gerekli alan : ", seyrek_matris_gerekli_alan, "GB")
-    counnt_of_nonzero = tf_idf.count_nonzero()
-    print(f"{method_name} count nonzero : ", counnt_of_nonzero)
-    total_elements = tf_idf.shape[0] * tf_idf.shape[1]
-    print(f"{method_name} total elements : ", total_elements)
-    max_optimal_topic_num = counnt_of_nonzero // (N + len(sozluk))
-    print("max_optimal_topic_num : ", max_optimal_topic_num)
+    print(f"{method_name} required memory : ", sparse_matrix_required_memory, "GB")
+    count_of_nonzero = tf_idf.count_nonzero()
+    percentage_of_nonzero = count_of_nonzero / (N * len(vocab))
+    print("Percentage of nonzero elements : ", percentage_of_nonzero)
+
 
     return tf_idf 

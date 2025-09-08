@@ -1,7 +1,6 @@
 import os
 import json
 
-from manta.utils.save_topics_db import save_topics_to_db
 
 def save_word_score_pair(base_dir, output_dir, table_name, topics_data, result, data_frame_name=None, topics_db_eng=None):
     """
@@ -76,7 +75,7 @@ def save_word_score_pair(base_dir, output_dir, table_name, topics_data, result, 
         os.makedirs(table_output_dir, exist_ok=True)
 
     # Save to table-specific subdirectory
-    wordcloud_file = os.path.join(table_output_dir, f"{table_name}_wordcloud_scores.json")
+    wordcloud_file = os.path.join(table_output_dir, f"{table_name}_word_scores.json")
     try:
         with open(wordcloud_file, "w") as f:
             json.dump(topic_word_scores, f, indent=4,ensure_ascii=False)

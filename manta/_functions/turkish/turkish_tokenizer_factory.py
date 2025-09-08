@@ -41,12 +41,13 @@ def train_tokenizer(tokenizer: Tokenizer, arr: list, tokenizer_type: str = "word
         Tokenizer: The trained tokenizer
     """
     if tokenizer_type == "bpe":
-        trainer = BpeTrainer()
+        trainer = BpeTrainer(min_frequency=5,show_progress=False)
         print("Initialized BPE trainer")
     elif tokenizer_type == "wordpiece":
         trainer = WordPieceTrainer(vocab_size=128* 1024,
                                    min_frequency=5,
-                                   special_tokens=["[BİLİNMİYOR]"])
+                                   special_tokens=["[BİLİNMİYOR]"],
+                                   show_progress=False)
         print("Initialized WordPiece trainer")
     tokenizer.train_from_iterator(arr, trainer)
     return tokenizer

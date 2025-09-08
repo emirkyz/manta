@@ -1,9 +1,9 @@
 import time
 
-from manta._functions.english.english_preprocessor import clean_english_text
-from manta._functions.english.english_text_encoder import counterize_english
-from manta._functions.english.english_vocabulary import create_english_vocab
-from manta._functions.tfidf import tf_idf_english
+from .english_preprocessor import clean_english_text
+from .english_text_encoder import counterize_english
+from .english_vocabulary import create_english_vocab
+from ..._functions.tfidf import tf_idf_english
 
 START_TIME = time.time()
 
@@ -40,4 +40,4 @@ def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=Non
     tdm = tf_idf_english(N, vocab=vocab, data=counterized_data, fieldname=desired_columns, output_dir=None,
                          lemmatize=lemmatize)
 
-    return tdm, vocab, counterized_data, text_array,emoji_map
+    return tdm, vocab, counterized_data, text_array, emoji_map

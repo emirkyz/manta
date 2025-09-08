@@ -66,7 +66,7 @@ results = run_topic_analysis(
     filepath="data.csv",
     column="review_text",
     language="EN",
-    topics=5,
+    topic_count=5,
     lemmatize=True
 )
 
@@ -75,7 +75,7 @@ results = run_topic_analysis(
     filepath="turkish_reviews.csv", 
     column="yorum_metni",
     language="TR",
-    topics=8,
+    topic_count=8,
     tokenizer_type="bpe",
     generate_wordclouds=True
 )
@@ -268,7 +268,7 @@ results = run_topic_analysis(
     filepath="data.csv",
     column="review_text",
     language="EN",
-    topics=5,
+    topic_count=5,
     lemmatize=True,
     generate_wordclouds=True,
     export_excel=True
@@ -279,7 +279,7 @@ results = run_topic_analysis(
     filepath="turkish_reviews.csv",
     column="yorum_metni",
     language="TR",
-    topics=10,
+    topic_count=10,
     words_per_topic=15,
     tokenizer_type="bpe",
     nmf_method="nmf",
@@ -303,24 +303,27 @@ results = run_topic_analysis(
 - `column` (str): Metin verilerini içeren sütun adı
 
 **İsteğe Bağlı:**
+- `separator` (str): CSV ayırıcı karakteri (varsayılan: ",")
 - `language` (str): Türkçe için "TR", İngilizce için "EN" (varsayılan: "EN")
-- `topics` (int): Çıkarılacak konu sayısı (varsayılan: 5)
-- `words_per_topic` (int): Konu başına gösterilecek en önemli kelime (varsayılan: 15)
-- `nmf_method` (str): "nmf" veya "opnmf" algoritma çeşidi (varsayılan: "nmf")
+- `topic_count` (int): Çıkarılacak konu sayısı (varsayılan: 5)
+- `nmf_method` (str): "nmf", "pnmf", veya "nmtf" algoritma çeşidi (varsayılan: "nmf")
+- `lemmatize` (bool): İngilizce için lemmatizasyon uygula (varsayılan: False)
 - `tokenizer_type` (str): Türkçe için "bpe" veya "wordpiece" (varsayılan: "bpe")
-- `lemmatize` (bool): İngilizce için lemmatizasyon uygula (varsayılan: True)
+- `words_per_topic` (int): Konu başına gösterilecek en önemli kelime (varsayılan: 15)
+- `word_pairs_out` (bool): Kelime çiftleri çıktısı oluştur (varsayılan: True)
 - `generate_wordclouds` (bool): Kelime bulutu görselleştirmeleri oluştur (varsayılan: True)
 - `export_excel` (bool): Sonuçları Excel'e dışa aktar (varsayılan: True)
 - `topic_distribution` (bool): Dağılım grafikleri oluştur (varsayılan: True)
-- `emoji_map` (bool): Emoji işleme ve eşlemeyi etkinleştir (varsayılan: True)
-- `output_name` (str): Özel çıktı dizini adı (varsayılan: otomatik oluşturulan)
-- `separator` (str): CSV ayırıcı karakteri (varsayılan: ",")
 - `filter_app` (bool): Uygulama filtrelemesini etkinleştir (varsayılan: False)
 - `data_filter_options` (dict): Gelişmiş filtreleme seçenekleri (tüm anahtarlar varsayılan olarak boş string):
   - `filter_app_name` (str): Filtreleme için uygulama adı
   - `filter_app_column` (str): Uygulama filtrelemesi için sütun adı (varsayılan: "PACKAGE_NAME")
   - `filter_app_country` (str): Ülke koduna göre filtreleme (büyük/küçük harf duyarsız)
   - `filter_app_country_column` (str): Ülke filtrelemesi için sütun adı (varsayılan: "COUNTRY")
+- `emoji_map` (bool): Emoji işleme ve eşlemeyi etkinleştir (varsayılan: False)
+- `output_name` (str): Özel çıktı dizini adı (varsayılan: otomatik oluşturulan)
+- `save_to_db` (bool): Veritabanına kalıcı olarak kaydet (varsayılan: False)
+- `output_dir` (str): Çıktılar için temel dizin (varsayılan: mevcut çalışma dizini)
 
 ## Çıktılar
 

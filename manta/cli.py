@@ -13,8 +13,9 @@ import os
 from pathlib import Path
 from typing import Dict, Any
 
-from .manta_entry import run_standalone_nmf
+from .manta_entry import run_manta_process
 from ._functions.common_language.emoji_processor import EmojiMap
+from .utils.console.console_manager import ConsoleManager
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -175,6 +176,12 @@ Examples:
         help='Generate word co-occurrence analysis and heatmap'
     )
     
+    analyze_parser.add_argument(
+        '--save-to-db',
+        action='store_true',
+        help='Save data to database for persistence'
+    )
+    
     return parser
 
 
@@ -194,7 +201,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
         raise ValueError("Words per topic must be at least 1")
 
 
-def build_options(args: argparse.Namespace) -> Dict[str, Any]:
+def build_options(args: argparse.Namespace) -> tuple[dict[str | Any, Any | None], str | Any]:
     """Build options dictionary from command-line arguments."""
     # Use boolean pattern for emoji map initialization (default: enabled)
     emoji_map = args.emoji_map
@@ -219,7 +226,7 @@ def build_options(args: argparse.Namespace) -> Dict[str, Any]:
         "gen_cloud": args.wordclouds,
         "save_excel": args.excel,
         "gen_topic_distribution": args.topic_distribution,
-        "filter_app": bool(args.filter_app),
+        "filter_app": bool(args.filter_app or args.filter_country),
         "data_filter_options": {
             "filter_app_name": args.filter_app or "",
             "filter_app_column": args.filter_app_column,
@@ -227,7 +234,8 @@ def build_options(args: argparse.Namespace) -> Dict[str, Any]:
             "filter_app_country_column": args.filter_country_column,
         },
         "emoji_map": emoji_map,
-        "word_pairs_out": args.word_pairs
+        "word_pairs_out": args.word_pairs,
+        "save_to_db": args.save_to_db
     }
     
     return options, table_name
@@ -235,8 +243,11 @@ def build_options(args: argparse.Namespace) -> Dict[str, Any]:
 
 def analyze_command(args: argparse.Namespace) -> int:
     """Execute the analyze command."""
+    console = ConsoleManager()
+    
     try:
-        # Validate arguments
+        # Validate arguments with better error formatting
+        console.print_status("Validating input arguments...", "processing")
         validate_arguments(args)
         
         # Build options
@@ -245,16 +256,10 @@ def analyze_command(args: argparse.Namespace) -> int:
         # Convert to absolute path
         filepath = Path(args.filepath).resolve()
         
-        print(f"Starting MANTA topic modeling analysis...")
-        print(f"Input file: {filepath}")
-        print(f"Language: {args.language}")
-        print(f"Topics: {args.topics}")
-        print(f"Column: {args.column}")
-        print(f"Output name: {table_name}")
-        print("-" * 50)
+        console.print_status("Arguments validated successfully", "success")
         
-        # Run the analysis
-        result = run_standalone_nmf(
+        # Run the analysis (this will now show comprehensive output via ConsoleManager)
+        result = run_manta_process(
             filepath=filepath,
             table_name=table_name,
             desired_columns=args.column,
@@ -262,26 +267,21 @@ def analyze_command(args: argparse.Namespace) -> int:
             output_base_dir=args.output_dir
         )
         
+        # The analysis summary is now handled by ConsoleManager in run_manta_process
+        # Just return the appropriate exit code
         if result["state"] == "SUCCESS":
-            print("\n" + "=" * 50)
-            print("✅ Analysis completed successfully!")
-            print(f"📊 Dataset: {result['data_name']}")
-            print(f"📁 Results saved in: Output/{table_name}/")
-            
-            if args.wordclouds:
-                print("🎨 Word clouds generated")
-            if args.excel:
-                print("📈 Excel report exported")
-            if args.topic_distribution:
-                print("📊 Topic distribution plots created")
-                
             return 0
         else:
-            print(f"\n❌ Analysis failed: {result['message']}")
             return 1
             
+    except FileNotFoundError as e:
+        console.print_status(f"Input file not found: {e}", "error")
+        return 1
+    except ValueError as e:
+        console.print_status(f"Invalid argument: {e}", "error")
+        return 1  
     except Exception as e:
-        print(f"\n❌ Error: {str(e)}")
+        console.print_status(f"Unexpected error: {str(e)}", "error")
         return 1
 
 

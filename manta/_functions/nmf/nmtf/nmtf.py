@@ -5,7 +5,6 @@ from typing import Callable
 import numpy as np
 import scipy.sparse as sp
 
-from manta._functions.nmf.nmtf.extract_nmtf_topics import extract_topics
 
 from .nmtf_init import nmtf_initialization_random
 from .nmtf_util import sort_matrices
@@ -156,9 +155,9 @@ def _core_nmtf(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0,
 def nmtf(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
          norm_thresh: float = 1.0, zero_threshold: float = 0.0001,
          init_func: Callable = nmtf_initialization_random,
-         konu_sayisi:int = 10) -> tuple[sp.csr_matrix, sp.csr_matrix, sp.csc_matrix]:
+         topic_count:int = 10) -> tuple[sp.csr_matrix, sp.csr_matrix, sp.csc_matrix]:
     
-    w, s, h = _nmtf(in_mat, log, rank_factor, norm_thresh, zero_threshold, init_func,konu_sayisi)
+    w, s, h = _nmtf(in_mat, log, rank_factor, norm_thresh, zero_threshold, init_func,topic_count)
     
     nmf_output = {}
     nmf_output["W"] = w.toarray()

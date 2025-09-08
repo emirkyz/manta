@@ -4,17 +4,28 @@ import subprocess
 import json
 import tempfile
 import os
+import sys
+
+# Add parent directory to path to import lda functionality
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
 
 
-def create_worker_script(file_path="../veri_setleri/mimic_train_impressions.csv",
-                         column="report",
-                         topic_count=10,
-                         sep=","):
-    """Create a worker script that runs a single MANTA analysis"""
+def create_worker_script_lda(file_path="../veri_setleri/mimic_train_impressions.csv",
+                            column="report",
+                            topic_count=10):
+    """Create a worker script that runs a single LDA analysis"""
 
     # Use f-string for the entire script_content
     script_content = f'''
-import manta
+import os
+import sys
+
+# Add parent directory to path to import lda functionality
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
+
+from tests.lda_bench_test import run_lda_topic_analysis
 import resource
 import platform
 import json
@@ -25,21 +36,19 @@ def run_analysis():
     # Clean up memory before measurement
     gc.collect()
     
-    # Run the analysis
-    result = manta.run_topic_analysis(
+    # Run the LDA analysis
+    result = run_lda_topic_analysis(
         filepath="{file_path}",
         column="{column}",
-        separator="{sep}",
+        separator=',',
         language="EN",
         lemmatize=True,
+        generate_wordclouds=True,
         topic_count={topic_count},
         words_per_topic=15,
-        nmf_method="nmf",
-        emoji_map=False,
-        generate_wordclouds=True,
-        save_to_db=False,
+        emoji_map=True,
         word_pairs_out=False,
-        topic_distribution=False,
+        lda_method="lda"
     )
 
     # Get peak memory usage throughout process lifetime
@@ -70,13 +79,12 @@ if __name__ == "__main__":
         return f.name
 
 
-def main(file_path, column, topic_count,sep):
-    print("MANTA Performance Benchmark - Fresh Process Per Run")
+def main(file_path, column, topic_count):
+    print("LDA Performance Benchmark - Fresh Process Per Run")
     print("=" * 50)
 
     # Create worker script
-
-    worker_script = create_worker_script(file_path, column, topic_count,sep)
+    worker_script = create_worker_script_lda(file_path, column, topic_count)
 
     try:
         execution_times = []
@@ -109,9 +117,19 @@ def main(file_path, column, topic_count,sep):
             # get coherence score from stdout
             try:
                 output_lines = result.stdout.strip().split('\n')
-                line = next(filter(lambda x: 'Gensim c_v Average:' in x, output_lines), None)
-                cv_value = next((float(line.split(': ')[1]) for line in output_lines if 'Gensim c_v Average:' in line),
-                                None)
+                line = next(filter(lambda x: 'Coherence Score:' in x, output_lines), None)
+                if line:
+                    cv_value = float(line.split(': ')[1])
+                else:
+                    # Fallback: look for any coherence value in output
+                    coherence_line = next(filter(lambda x: 'coherence' in x.lower() and ':' in x, output_lines), None)
+                    if coherence_line and any(char.isdigit() for char in coherence_line):
+                        # Try to extract float from the line
+                        import re
+                        numbers = re.findall(r'\d+\.?\d*', coherence_line)
+                        if numbers:
+                            cv_value = float(numbers[-1])  # Take the last number found
+
                 json_line = output_lines[-1]  # Get last line which should be JSON
 
                 metrics = json.loads(json_line)
@@ -157,9 +175,9 @@ def main(file_path, column, topic_count,sep):
             }
         else:
             results = {"error": "No successful runs completed"}
-        with open(f"benchmark_{file_path.split('/')[-1]}_{topic_count}.json", "w") as f:
+        with open(f"benchmark_lda_{file_path.split('/')[-1]}_{topic_count}.json", "w") as f:
             json.dump(results, f, indent=4)
-        print("\nDetailed results saved to benchmark_fresh_process_results.json")
+        print(f"\nDetailed results saved to benchmark_lda_{file_path.split('/')[-1]}_{topic_count}.json")
     finally:
         # Clean up temporary script
         try:
@@ -169,22 +187,17 @@ def main(file_path, column, topic_count,sep):
 
 
 if __name__ == '__main__':
-    ##("../veri_setleri/bbc_news.csv", "text"),
-    ##                ("../veri_setleri/mimic_train_impressions.csv", "report")
-    ## ("../veri_setleri/complaints.csv", "narrative")
+    # Same datasets as NMF benchmark for comparison
     datasets = [
-        #("../veri_setleri/bbc_news.csv", "text",","),
-        #("../veri_setleri/complaints.csv", "narrative",";"),
-        #("../veri_setleri/mimic_train_impressions.csv", "report",",")
-        ("../veri_setleri/covid_abstracts.csv", "abstract",",")
+        #("../veri_setleri/bbc_news.csv", "text"),
+        ("../veri_setleri/complaints.csv", "narrative"),
+        #("../veri_setleri/mimic_train_impressions.csv", "report")
     ]
 
     topics = [5, 10, 15]
 
-    for file_path, column,sep in datasets:
+    for file_path, column in datasets:
         for topic_count in topics:
-            print(f"\nRunning benchmark for topic {topic_count}...")
+            print(f"\nRunning LDA benchmark for topic {topic_count}...")
             print(f"Dataset: {file_path}, Column: {column}")
-            column = column
-            file_path = file_path
-            main(file_path, column, topic_count,sep)
+            main(file_path, column, topic_count)

@@ -1,12 +1,7 @@
-import json
-import os
-
 import numpy as np
 
-from ..english.english_topic_output import save_topics_to_db
-from ...utils.distance_two_words import calc_levenstein_distance, calc_cosine_distance
-
-
+from ...utils.analysis.distance_two_words import calc_levenstein_distance, calc_cosine_distance
+from ...utils.database.database_manager import DatabaseManager
 
 
 def _sort_matrices(s: np.ndarray) -> tuple[list[tuple[int, int]], list[float]]:
@@ -155,7 +150,7 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
     return document_score_list
 
 
-def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, topics_db_eng=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, output_dir=None, doc_word_pairs=None):
+def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None, db_config=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, doc_word_pairs=None):
     """
     Performs topic analysis using Non-negative Matrix Factorization (NMF) results for both Turkish and English texts.
     
@@ -175,13 +170,12 @@ def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, 
                                Required for English text processing.
         documents (pandas.DataFrame or list, optional): Collection of document texts used in the analysis.
                                                        Can be pandas DataFrame or list of strings.
-        topics_db_eng (sqlalchemy.engine, optional): Database engine for saving topic results to database.
-        data_frame_name (str, optional): Name of the dataset/table, used for file naming and database operations.
+        db_config (DatabaseConfig, optional): Database configuration object containing database engines and output directories.
+        data_frame_name (str, optional): Name of the dataset/table, used for database operations and file naming.
         word_per_topic (int, optional): Maximum number of top words to extract per topic. Default is 20.
         include_documents (bool, optional): Whether to perform document analysis and save document scores.
                                           Default is True.
         emoji_map (EmojiMap, optional): Emoji map for decoding emoji tokens back to emojis. Required for Turkish text processing.
-        output_dir (str, optional): Output directory for saving document analysis results.
         doc_word_pairs (list[tuple[int, int]], optional): List of (word_topic_id, doc_topic_id) pairs for NMTF-style analysis.
                                                          If provided, only these specific topic pairs will be analyzed.
     Returns:
@@ -235,7 +229,7 @@ def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, 
         - File paths are resolved relative to the function's location in the project structure
     """
     if tokenizer is None and vocab is None:
-        raise ValueError("Either tokenizer (for Turkish) or sozluk (for English) must be provided")
+        raise ValueError("Either tokenizer (for Turkish) or vocab (for English) must be provided")
     
     word_result = {}
     document_result = {}
@@ -252,6 +246,8 @@ def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, 
         """
         ind, max_vals = _sort_matrices(doc_word_pairs)
         for idx, (word_vec_id, doc_vec_id) in enumerate(ind):
+            if topic_count == -1:
+                topic_count = H.shape[0]
             # Extract topic vectors for this specific pair
             # Handle both sparse and dense matrices
             topic_word_vector = H[word_vec_id, :]
@@ -265,7 +261,7 @@ def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, 
             word_scores = _extract_topic_words(
                 topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
-            word_result[f"Konu {idx:02d}"] = word_scores
+            word_result[f"Topic {idx+1:02d}"] = word_scores
             
             # Extract documents for this topic pair (optional)
             if include_documents and documents is not None:
@@ -273,8 +269,10 @@ def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, 
                 doc_scores = _extract_topic_documents(
                     topic_doc_vector, top_doc_ids, documents, emoji_map
                 )
-                document_result[f"Konu {idx}"] = doc_scores
+                document_result[f"Topic {idx+1}"] = doc_scores
     else:
+        if topic_count==-1:
+            topic_count = H.shape[0]
         # Standard NMF: Process all topics sequentially
         for i in range(topic_count):
             topic_word_vector = H[i, :]
@@ -288,20 +286,20 @@ def konu_analizi(H, W, topic_count, tokenizer=None, vocab=None, documents=None, 
             word_scores = _extract_topic_words(
                 topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
-            word_result[f"Konu {i:02d}"] = word_scores
+            word_result[f"Topic {i+1:02d}"] = word_scores
             
             # Extract documents for this topic (optional)
             if include_documents and documents is not None:
-                top_doc_ids = sorted_doc_ids[:10]  # TODO: make configurable
+                top_doc_ids = sorted_doc_ids[:10]
                 doc_scores = _extract_topic_documents(
                     topic_doc_vector, top_doc_ids, documents, emoji_map
                 )
-                document_result[f"Konu {i}"] = doc_scores
+                document_result[f"Topic {i+1}"] = doc_scores
 
     # Save to database if provided
-    if topics_db_eng:
-        save_topics_to_db(word_result, data_frame_name, topics_db_eng)
+    if db_config and db_config.topics_db_engine and data_frame_name:
+        DatabaseManager.save_topics_to_database(word_result, data_frame_name, db_config.topics_db_engine)
     else:
-        print("Warning: No database engine provided, skipping database save")
+        print("Warning: No database configuration or data frame name provided, skipping database save")
         
     return word_result, document_result
