@@ -12,10 +12,10 @@ from .tfidf_bm25_turkish import bm25_generator
 
 
 def tf_idf_english(N=None,
-                   sozluk=None,
+                   vocab=None,
                    data=None,
                    output_dir=None,
-                   alanadi=None,
+                   fieldname=None,
                    lemmatize=False,
                    use_bm25=False,
                    k1=1.2,
@@ -31,12 +31,12 @@ def tf_idf_english(N=None,
     
     Args:
         N (int, optional): Total number of documents in the dataset. Used for matrix dimension sizing.
-        sozluk (list, optional): Sorted vocabulary list where each word corresponds to a matrix column index.
+        vocab (list, optional): Sorted vocabulary list where each word corresponds to a matrix column index.
                                 The vocabulary should be pre-sorted for efficient binary search operations.
         data (pandas.DataFrame or dict, optional): Document collection containing the text data to process.
                                                   Should have a column/key specified by alanadi parameter.
         output_dir (str, optional): Directory path for saving output files. Currently unused in implementation.
-        alanadi (str, optional): Field/column name in data containing the document texts to process.
+        fieldname (str, optional): Field/column name in data containing the document texts to process.
         lemmatize (bool, optional): Whether to apply lemmatization during text preprocessing. Default is False.
                                   When True, reduces words to their base forms for better semantic grouping.
         use_bm25 (bool, optional): If True, use BM25 instead of TF-IDF (default: False).
@@ -71,32 +71,32 @@ def tf_idf_english(N=None,
     #update_progress_emit(50, "TF-IDF Hesaplanıyor", "PROCESSING", "tfidf", "tid")
     try:
         # Create initial term frequency matrix
-        dokuman_sayisi = len(veri)
-        kelime_sayisi = len(sozluk)
+        document_count = len(veri)
+        vocabulary_count = len(vocab)
 
-        matris = lil_matrix((dokuman_sayisi, kelime_sayisi), dtype=int)
+        matris = lil_matrix((document_count, vocabulary_count), dtype=int)
 
-        for i, dokuman in enumerate(veri):
-            histogram = Counter(dokuman)
-            gecici = [(k, v) for k, v in histogram.items()]
-            sutunlar = [a[0] for a in gecici]
-            degerler = [b[1] for b in gecici]
-            matris[i, sutunlar] = degerler
+        for i, document in enumerate(veri):
+            histogram = Counter(document)
+            temporary = [(k, v) for k, v in histogram.items()]
+            columns = [a[0] for a in temporary]
+            values = [b[1] for b in temporary]
+            matris[i, columns] = values
 
         matris = matris.tocsr()
 
         # Calculate document frequency (DF)
-        df_girdi_matrisi = matris.tocsc(copy=True)
-        df_girdi_matrisi.data = np.ones_like(df_girdi_matrisi.data)
-        df = np.add.reduceat(df_girdi_matrisi.data, df_girdi_matrisi.indptr[:-1])
+        input_matrix = matris.tocsc(copy=True)
+        input_matrix.data = np.ones_like(input_matrix.data)
+        df = np.add.reduceat(input_matrix.data, input_matrix.indptr[:-1])
 
         if use_bm25:
             # Use BM25 scoring
-            tf_idf = bm25_generator(matris, df, N, k1, b)
+            tf_idf = bm25_generator(input_matrix, df, N, k1, b)
         else:
             # Use traditional TF-IDF scoring with modular functions
             idf = idf_t(df, N)
-            tf_idf = tf_L(matris).multiply(idf).tocsr()
+            tf_idf = tf_L(input_matrix).multiply(idf).tocsr()
             tf_idf.eliminate_zeros()
             
             # Apply pivoted normalization if enabled
@@ -116,20 +116,15 @@ def tf_idf_english(N=None,
                     tf_idf.data = tf_idf.data / np.repeat(pivoted_norms, nnz_per_row)
 
         # Print memory usage statistics
-        gercek_gerekli_alan = N * len(sozluk) * 3 * 8 / 1024 / 1024 / 1024
-        print("Gerekli alan : ", gercek_gerekli_alan, "GB")
+        required_memory = N * len(vocab) * 3 * 8 / 1024 / 1024 / 1024
+        print("Required memory : ", required_memory, "GB")
         temp = tf_idf.tocoo()
-        seyrek_matris_gerekli_alan = temp.nnz * 3 * 8 / 1024 / 1024 / 1024
+        sparse_matrix_required_memory = temp.nnz * 3 * 8 / 1024 / 1024 / 1024
         method_name = "BM25" if use_bm25 else "TF-IDF"
-        print(f"{method_name} gerekli alan : ", seyrek_matris_gerekli_alan, "GB")
-        counnt_of_nonzero = tf_idf.count_nonzero()
-        print(f"{method_name} count nonzero : ", counnt_of_nonzero)
-        total_elements = tf_idf.shape[0] * tf_idf.shape[1]
-        print(f"{method_name} total elements : ", total_elements)
-        max_optimal_topic_num = counnt_of_nonzero // (N + len(sozluk))
-        print("max_optimal_topic_num : ", max_optimal_topic_num)
-        percentage_of_nonzero = counnt_of_nonzero / (N * len(sozluk))
-        print("percentage_of_nonzero : ", percentage_of_nonzero)
+        print(f"{method_name} required memory : ", sparse_matrix_required_memory, "GB")
+        count_of_nonzero = tf_idf.count_nonzero()
+        percentage_of_nonzero = count_of_nonzero / (N * len(vocab))
+        print("Percentage of nonzero elements : ", percentage_of_nonzero)
 
         return tf_idf
 

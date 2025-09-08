@@ -19,8 +19,8 @@ from scipy import sparse
 from scipy.sparse import csr_matrix, coo_matrix
 from tokenizers import Tokenizer
 
-from .._functions.turkish.turkish_preprocessor import process_text, metin_temizle_turkish
-from .._functions.common_language.emoji_processor import EmojiMap
+from manta._functions.turkish.turkish_preprocessor import process_text, clean_text_turkish
+from manta._functions.common_language.emoji_processor import EmojiMap
 
 
 class WordCooccurrenceAnalyzer:

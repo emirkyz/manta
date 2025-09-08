@@ -6,7 +6,7 @@ from scipy import sparse as sp
 from scipy.sparse import coo_matrix
 from sklearn.preprocessing import normalize
 
-def projective_nmf(X: sp.csr_matrix, r: int, options: Optional[Dict] = None, init: bool = None, 
+def projective_nmf(X: sp.csc_matrix, r: int, options: Optional[Dict] = None, init: bool = None,
                    W_mat: sp.csr_matrix = None, h_mat: sp.csr_matrix = None,
                    norm_func: Callable = None) -> Tuple[np.ndarray, np.ndarray]:
     """
@@ -114,4 +114,9 @@ def projective_nmf(X: sp.csr_matrix, r: int, options: Optional[Dict] = None, ini
     # Final normalization
     w = normalize(W, norm='l2', axis=0)
     h = w.T @ X
-    return w , h
+    
+    nmf_output = {}
+    nmf_output["W"] = w
+    nmf_output["H"] = h
+    
+    return nmf_output

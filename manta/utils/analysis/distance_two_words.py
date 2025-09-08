@@ -20,7 +20,7 @@ def calc_levenstein_distance(word1, word2):
     Returns:
         int: The Levenshtein edit distance between the two words.
     """
-    return Levenshtein.distance(word1, word2)
+    return Levenshtein.distance(word1, word2, weights = (2,2,1))
 
 def calc_cosine_distance(word1, word2):
     """Calculate cosine similarity between two words.

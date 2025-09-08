@@ -20,10 +20,9 @@ webapp/client/node_modules
 docs
 
 *.tex
-local/webapp/node_modules
-local/webapp/client/node_modules
-local/Output
-local/instance
 tests/TopicAnalysis
 manta/utils/other
 local_dev
+references
+TopicAnalysis
+tests/benchmark_outputs

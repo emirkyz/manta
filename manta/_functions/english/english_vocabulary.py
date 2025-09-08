@@ -3,7 +3,7 @@ from typing import List
 import pandas as pd
 
 
-def sozluk_yarat(cleaned_data: List[str], alanadi: str,lemmatize=False,emoji_map=None) -> tuple:
+def create_english_vocab(cleaned_data: List[str], alanadi: str, lemmatize=False, emoji_map=None) -> tuple:
     """
     Creates a vocabulary list from preprocessed text data.
 
@@ -25,7 +25,7 @@ def sozluk_yarat(cleaned_data: List[str], alanadi: str,lemmatize=False,emoji_map
 
     Note:
         The input cleaned_data should already be preprocessed using functions like
-        metin_temizle_english() which handle tokenization, lemmatization, and other
+        clean_english_text() which handle tokenization, lemmatization, and other
         text cleaning steps.
     """
     if lemmatize:

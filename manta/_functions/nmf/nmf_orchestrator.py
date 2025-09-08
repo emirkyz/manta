@@ -7,12 +7,49 @@ from scipy import sparse as sp
 from .nmf_initialization import nmf_initialization_nndsvd, nmf_initialization_random
 from .nmf_projective_basic import projective_nmf
 from .nmf_basic import _basic_nmf
+from .nmtf.nmtf import nmtf
+from .nmtf.nmtf_init import nmtf_initialization_random
+
+def find_max_rank(sparse_matrix: sp.csc_matrix) -> int:
+    """
+    Computes the theoretical maximum rank of a given sparse matrix.
+
+    The theoretical maximum rank of a matrix is determined by the smaller of its two dimensions:
+    the number of rows and the number of columns. This function takes a sparse matrix as input
+    and returns its maximum possible rank.
+
+    :param sparse_matrix: Input sparse matrix in CSC (Compressed Sparse Column) format.
+    :type sparse_matrix: sp.csc_matrix
+    :return: The theoretical maximum rank of the input matrix.
+    :rtype: int
+    """
+    if not sp.isspmatrix_csc(sparse_matrix):
+        raise ValueError("Input matrix must be in CSC (Compressed Sparse Column) format.")
+
+    # max_rank <= nnz(V) / (m + n)
+
+    # count of non-zero elements
+    counnt_of_nonzero = sparse_matrix.count_nonzero()
+    print(f"Count of nonzero elements : ", counnt_of_nonzero)
+    N = sparse_matrix.shape[0] * sparse_matrix.shape[1]
+    print(f"Count of total elements : ", N)
+
+    # m = number of documents
+    # n = number of words
+    m, n = sparse_matrix.shape
+    max_rank = counnt_of_nonzero / (m + n)
+    print(f"Max theoretical rank : ", max_rank)
+
+    max_rank = int(max_rank)
+    return max_rank
+
+
 
 def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
              norm_thresh: float = 1.0, zero_threshold: float = 0.0001,
              init_func: Callable = nmf_initialization_nndsvd,
-             konu_sayisi=-1,
-             nmf_method:str = "nmf") -> tuple[sp.csr_matrix, sp.csc_matrix]:
+             topic_count=-1,
+             nmf_method:str = "nmf") -> dict[sp.csr_matrix, sp.csc_matrix]:
     """
     Performs Non-Negative Matrix Factorization (NMF) on the input sparse matrix
     while offering customization options for initialization, logging, thresholding, and
@@ -58,24 +95,43 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
         Together, these matrices approximate the input matrix.
     :rtype: tuple[sp.csr_matrix, sp.csc_matrix]
     """
-    w, h = init_func(in_mat, konu_sayisi)
+
+    # Find theorotical max rank of the input matrix
+
+    if topic_count == -1:
+        topic_count = find_max_rank(in_mat)
+
+
+    w, h = init_func(in_mat, topic_count)
 
     if log:
-        print("Performing NMF...")
+        print("Starting Factorization Process..")
         start = datetime.now()
 
-    if nmf_method == "opnmf":
+    nmf_output = None
+
+    if nmf_method == "pnmf":
         # If projective NMF is used, we do not need to run the core NMF function
-        w, h = projective_nmf(in_mat, r=konu_sayisi, W_mat=w,h_mat=h,norm_func=np.linalg.norm)
+        nmf_output = projective_nmf(in_mat, r=topic_count, W_mat=w,h_mat=h,norm_func=np.linalg.norm)
     elif nmf_method == "nmf":
-        w, h = _basic_nmf(in_mat, w, h, start, log=log, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
+        nmf_output = _basic_nmf(in_mat, w, h, start, log=log, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
                        norm_func=np.linalg.norm)
+    elif nmf_method == "nmtf":
+        # If NMTF is used, we run the NMTF function
+        nmf_output = nmtf(in_mat, rank_factor=rank_factor, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
+                    init_func=nmtf_initialization_random,topic_count=topic_count)
+    else:
+        raise ValueError(f"Unknown NMF method: {nmf_method}. Supported methods are: 'nmf', 'pnmf', 'nmtf'")
+
+    if nmf_output is None:
+        raise RuntimeError(f"NMF computation failed for method: {nmf_method}")
+
     in_mat = in_mat.tocsr()
 
     w = sp.csr_matrix(w)
     h = sp.csc_matrix(h)
 
-    return w, h
+    return nmf_output
 
 
 def run_nmf(num_of_topics: int, sparse_matrix: scipy.sparse.csr.csr_matrix, init = nmf_initialization_nndsvd, norm_thresh=0.001, zero_threshold=0.00001,nmf_method:str = "nmf"):
@@ -101,16 +157,19 @@ def run_nmf(num_of_topics: int, sparse_matrix: scipy.sparse.csr.csr_matrix, init
     :rtype: Tuple[numpy.ndarray, numpy.ndarray]
     """
     sparse_matrix = sparse_matrix.tocsc()
-    w, h = _nmf_cpu(sparse_matrix,
+    
+    # convert all matrices to dense with toarray()
+    
+    outputs = _nmf_cpu(sparse_matrix,
                     log=True,
                     rank_factor=1.0,
                     norm_thresh=norm_thresh,
                     zero_threshold=zero_threshold,
                     init_func=init,
-                    konu_sayisi=num_of_topics,
+                    topic_count=num_of_topics,
                     nmf_method = nmf_method
                     )
+    
+    # convert all matrices to dense with toarray()
 
-    w = w.toarray()
-    h = h.toarray()
-    return w, h
+    return outputs

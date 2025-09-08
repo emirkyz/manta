@@ -1,21 +1,22 @@
-from .gen_cloud import generate_wordclouds
-from .export_excel import export_topics_to_excel
-from .coherence_score import calculate_coherence_scores
-from .save_word_score_pair import save_word_score_pair
-from .topic_dist import gen_topic_dist
-from .word_cooccurrence import calc_word_cooccurrence
-from .word_cooccurrence_analyzer import analyze_word_cooccurrence
+
+
+from ..analysis.word_cooccurrence import calc_word_cooccurrence
+from ..analysis.word_cooccurrence_analyzer import analyze_word_cooccurrence
 
 
 def create_visualization(W, H, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir):
     # generate topic distribution plot
+    topic_dist_img_count = 0
     if options["gen_topic_distribution"]:
+        from .topic_dist import gen_topic_dist
         topic_dist_img_count = gen_topic_dist(W, table_output_dir, table_name)
 
     if options["gen_cloud"]:
+        from .gen_cloud import generate_wordclouds
         generate_wordclouds(result, table_output_dir, table_name)
 
     if options["save_excel"]:
+        from ..export.export_excel import export_topics_to_excel
         export_topics_to_excel(topic_word_scores, table_output_dir, table_name)
 
     if options["word_pairs_out"]:

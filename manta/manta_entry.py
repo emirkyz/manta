@@ -1,326 +1,482 @@
 import os
 import time
-from pathlib import Path
+from typing import Dict, Any, Optional
 
 import pandas as pd
-from sqlalchemy import create_engine
 
 from ._functions.common_language.emoji_processor import EmojiMap
-from ._functions.common_language.topic_analyzer import konu_analizi
+from ._functions.common_language.topic_extractor import topic_extract
 
 from ._functions.english.english_entry import process_english_file
 from ._functions.nmf import run_nmf
 from ._functions.turkish.turkish_entry import process_turkish_file
 from ._functions.turkish.turkish_tokenizer_factory import init_tokenizer
 
-from .utils.coherence_score import calculate_coherence_scores
-from .utils.save_doc_score_pair import save_doc_score_pair
-from .utils.save_word_score_pair import save_word_score_pair
-from .utils.visualizer import create_visualization
-from .utils.json_to_excel import convert_json_to_excel
+from .utils.analysis.coherence_score import calculate_coherence_scores
+from .utils.export.save_doc_score_pair import save_doc_score_pair
+from .utils.export.save_word_score_pair import save_word_score_pair
+from .utils.visualization.visualizer import create_visualization
+from .utils.export.json_to_excel import convert_json_to_excel
+from .utils.database.database_manager import DatabaseManager
+from .utils.console.console_manager import ConsoleManager
+
+
+def _validate_inputs(filepath: str, desired_columns: str, options: Dict[str, Any]) -> None:
+    """
+    Validate input parameters for processing.
+    
+    Args:
+        filepath: Path to input file
+        desired_columns: Column name containing text data
+        options: Configuration options
+        
+    Raises:
+        ValueError: If inputs are invalid
+        FileNotFoundError: If file doesn't exist
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Input file not found: {filepath}")
+    
+    if not desired_columns or not desired_columns.strip():
+        raise ValueError("desired_columns cannot be empty")
+        
+    required_options = ["LANGUAGE", "DESIRED_TOPIC_COUNT", "N_TOPICS"]
+    for option in required_options:
+        if option not in options:
+            raise ValueError(f"Missing required option: {option}")
+    
+    if options["LANGUAGE"] not in ["TR", "EN"]:
+        raise ValueError(f"Invalid language: {options['LANGUAGE']}. Must be 'TR' or 'EN'")
+
+
+def _load_data_file(filepath: str, options: Dict[str, Any], console: Optional[ConsoleManager] = None) -> pd.DataFrame:
+    """
+    Load data from CSV or Excel file.
+    
+    Args:
+        filepath: Path to input file
+        options: Configuration options containing separator and filter settings
+        console: Console manager for status messages
+        
+    Returns:
+        Loaded DataFrame
+    """
+    if console:
+        console.print_status("Reading input file...", "processing")
+    else:
+        print("Reading input file...")
+    
+    if str(filepath).endswith(".csv"):
+        # Read the CSV file with the specified separator
+        df = pd.read_csv(
+            filepath,
+            encoding="utf-8",
+            sep=options["separator"],
+            engine="python",
+            on_bad_lines="skip",
+        )
+
+    elif str(filepath).endswith(".xlsx") or str(filepath).endswith(".xls"):
+        df = pd.read_excel(filepath)
+
+    # Apply data filters if specified
+    try:
+        if options.get("filter_app", False):
+            filter_options = options.get("data_filter_options", {})
+            if filter_options.get("filter_app_country", ""):
+                country_col = filter_options.get("filter_app_country_column", "")
+                if country_col in df.columns:
+                    df = df[df[country_col].str.upper() == filter_options["filter_app_country"]]
+                    if console:
+                        console.print_status(f"Applied country filter: {filter_options['filter_app_country']}", "info")
+                else:
+                    msg = f"Warning: Filter column '{country_col}' not found in data"
+                    if console:
+                        console.print_status(msg, "warning")
+                    else:
+                        print(msg)
+
+            if filter_options.get("filter_app_name", ""):
+                app_col = filter_options.get("filter_app_column", "")
+                if app_col in df.columns:
+                    df = df[df[app_col] == filter_options["filter_app_name"]]
+                    if console:
+                        console.print_status(f"Applied app filter: {filter_options['filter_app_name']}", "info")
+                else:
+                    msg = f"Warning: Filter column '{app_col}' not found in data"
+                    if console:
+                        console.print_status(msg, "warning")
+                    else:
+                        print(msg)
+    except KeyError as e:
+        msg = f"Warning: Missing filter configuration: {e}"
+        if console:
+            console.print_status(msg, "warning")
+        else:
+            print(msg)
+    except Exception as e:
+        msg = f"Warning: Error applying data filters: {e}"
+        if console:
+            console.print_status(msg, "warning")
+        else:
+            print(msg)
+
+    return df
+
+
+def _preprocess_dataframe(df: pd.DataFrame, desired_columns: str, options: Dict[str, Any], main_db_eng, table_name: str, console: Optional[ConsoleManager] = None) -> pd.DataFrame:
+    """
+    Preprocess the loaded DataFrame.
+    
+    Args:
+        df: Raw DataFrame
+        desired_columns: Column containing text data
+        options: Configuration options
+        main_db_eng: Database engine for main data
+        table_name: Name for database table
+        console: Console manager for status messages
+        
+    Returns:
+        Preprocessed DataFrame
+    """
+    if console:
+        console.print_status("Preprocessing data...", "processing")
+    
+    # Select only desired columns and validate they exist
+    if desired_columns not in df.columns:
+        available_columns = ", ".join(df.columns.tolist())
+        raise KeyError(f"Column '{desired_columns}' not found in data. Available columns: {available_columns}")
+    
+    df = df[desired_columns]
+    
+    # Remove duplicates and null values
+    initial_count = len(df)
+    df = df.drop_duplicates()
+    df = df.dropna()
+    
+    if len(df) == 0:
+        raise ValueError("No data remaining after removing duplicates and null values")
+    
+    if len(df) < initial_count * 0.1:
+        msg = f"Warning: Only {len(df)} rows remain from original {initial_count} after preprocessing"
+        if console:
+            console.print_status(msg, "warning")
+        else:
+            print(msg)
+
+    msg = f"Preprocessed dataset has {len(df)} rows"
+    if console:
+        console.print_status(msg, "info")
+    else:
+        print(f"File has {len(df)} rows.")
+
+    # Handle database persistence
+    df = DatabaseManager.handle_dataframe_persistence(
+        df, table_name, main_db_eng, save_to_db=options["save_to_db"]
+    )
+    
+    return df
+
+
+def _perform_text_processing(df: pd.DataFrame, desired_columns: str, options: Dict[str, Any], console: Optional[ConsoleManager] = None):
+    """
+    Perform language-specific text processing and feature extraction.
+    
+    Args:
+        df: Preprocessed DataFrame
+        desired_columns: Column containing text data
+        options: Configuration options
+        console: Console manager for status messages
+        
+    Returns:
+        Tuple of (tdm, vocab, counterized_data, text_array, updated_options)
+    """
+    if console:
+        console.print_status(f"Starting text processing ({options['LANGUAGE']})...", "processing")
+    else:
+        print("Starting preprocessing...")
+    
+    if options["LANGUAGE"] == "TR":
+        tdm, vocab, counterized_data, text_array, options["tokenizer"], options["emoji_map"] = (
+            process_turkish_file(
+                df,
+                desired_columns,
+                options["tokenizer"],
+                tokenizer_type=options["tokenizer_type"],
+                emoji_map=options["emoji_map"],
+            )
+        )
+    elif options["LANGUAGE"] == "EN":
+        tdm, vocab, counterized_data, text_array, options["emoji_map"] = process_english_file(
+            df,
+            desired_columns,
+            options["LEMMATIZE"],
+            emoji_map=options["emoji_map"],
+        )
+    else:
+        raise ValueError(f"Invalid language: {options['LANGUAGE']}")
+    
+    if console:
+        console.print_status("Text processing completed", "success")
+    
+    return tdm, vocab, counterized_data, text_array, options
+
+
+def _perform_topic_modeling(tdm, options: Dict[str, Any], vocab, text_array, df: pd.DataFrame, desired_columns: str, db_config, table_name: str, table_output_dir, console: Optional[ConsoleManager] = None):
+    """
+    Perform NMF topic modeling and analysis.
+    
+    Args:
+        console: Console manager for status messages
+    
+    Returns:
+        Tuple of (topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result)
+    """
+    if console:
+        console.print_status(f"Starting NMF processing ({options['nmf_type'].upper()})...", "processing")
+    else:
+        print("Starting NMF processing...")
+    
+    # nmf
+    nmf_output = run_nmf(
+        num_of_topics=int(options["DESIRED_TOPIC_COUNT"]),
+        sparse_matrix=tdm,
+        norm_thresh=0.005,
+        nmf_method=options["nmf_type"],
+    )
+
+    if console:
+        console.print_status("Extracting topics from NMF results...", "processing")
+    else:
+        print("Generating topic groups...")
+        
+    if options["LANGUAGE"] == "TR":
+        word_result, document_result = topic_extract(
+            H=nmf_output["H"],
+            W=nmf_output["W"],
+            doc_word_pairs=nmf_output.get("S", None),
+            topic_count=int(options["DESIRED_TOPIC_COUNT"]),
+            vocab=vocab,
+            tokenizer=options["tokenizer"],
+            documents=text_array,
+            db_config=db_config,
+            data_frame_name=table_name,
+            word_per_topic=options["N_TOPICS"],
+            include_documents=True,
+            emoji_map=options["emoji_map"],
+        )
+    elif options["LANGUAGE"] == "EN":
+        word_result, document_result = topic_extract(
+            H=nmf_output["H"],
+            W=nmf_output["W"],
+            doc_word_pairs=nmf_output.get("S", None),
+            topic_count=int(options["DESIRED_TOPIC_COUNT"]),
+            vocab=vocab,
+            documents=[str(doc).strip() for doc in df[desired_columns]],
+            db_config=db_config,
+            data_frame_name=table_name,
+            word_per_topic=options["N_TOPICS"],
+            include_documents=True,
+            emoji_map=options["emoji_map"],
+        )
+    else:
+        raise ValueError(f"Invalid language: {options['LANGUAGE']}")
+
+    if console:
+        console.print_status("Saving topic results...", "processing")
+    else:
+        print("Saving topic results...")
+        
+    # Convert the topics_data format to the desired format
+    topic_word_scores = save_word_score_pair(
+        base_dir=None,
+        output_dir=table_output_dir,
+        table_name=table_name,
+        topics_data=word_result,
+        result=None,
+        data_frame_name=table_name,
+        topics_db_eng=db_config.topics_db_engine,
+    )
+    # save document result to json
+    topic_doc_scores = save_doc_score_pair(
+        document_result,
+        base_dir=None,
+        output_dir=table_output_dir,
+        table_name=table_name,
+        data_frame_name=table_name,
+    )
+
+    if console:
+        console.print_status("Calculating coherence scores...", "processing")
+    else:
+        print("Calculating coherence scores...")
+        
+    # Calculate and save coherence scores
+    coherence_scores = calculate_coherence_scores(
+        topic_word_scores,
+        output_dir=table_output_dir,
+        column_name=desired_columns,
+        cleaned_data=text_array,
+        table_name=table_name,
+        topic_word_matrix=nmf_output["H"],
+        doc_topic_matrix=nmf_output["W"],
+        vocabulary=vocab,
+    )
+    
+    return topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result
+
+
+def _generate_outputs(nmf_output, vocab, table_output_dir, table_name: str, options: Dict[str, Any], word_result, topic_word_scores, text_array, topics_db_eng, program_output_dir, output_dir, topic_doc_scores, console: Optional[ConsoleManager] = None):
+    """
+    Generate visualizations and output files.
+    
+    Args:
+        console: Console manager for status messages
+    
+    Returns:
+        Visual returns from visualization generation
+    """
+    if console:
+        console.print_status("Generating visualizations and exports...", "processing")
+    else:
+        print("Generating visual outputs.")
+        
+    visual_returns = create_visualization(
+        nmf_output["W"],
+        nmf_output["H"],
+        vocab,
+        table_output_dir,
+        table_name,
+        options,
+        word_result,
+        topic_word_scores,
+        text_array,
+        topics_db_eng,
+        options["emoji_map"],
+        program_output_dir,
+        output_dir,
+    )
+
+    save_to_excel = True
+    if save_to_excel:
+        if console:
+            console.print_status("Exporting results to Excel...", "processing")
+        # save jsons to excel format
+        convert_json_to_excel(
+            word_json_data=topic_word_scores,
+            doc_json_data=topic_doc_scores,
+            output_dir=table_output_dir,
+            data_frame_name=table_name,
+            total_docs_count=len(text_array),
+        )
+    
+    if console:
+        console.print_status("Output generation completed", "success")
+    
+    return visual_returns
+
 
 def process_file(
     filepath: str,
     table_name: str,
     desired_columns: str,
-    options: dict,
-    output_base_dir: str = None,
-) -> dict:
+    options: Dict[str, Any],
+    output_base_dir: Optional[str] = None,
+    console: Optional[ConsoleManager] = None,
+) -> Dict[str, Any]:
     """
-    Process a file and perform comprehensive topic modeling analysis.
-
-    This is the main processing function that handles file reading, data preprocessing,
-    topic modeling using Non-negative Matrix Factorization (NMF), and result generation.
-    It supports both Turkish and English languages with various output options.
-
+    Process a file and perform NMF topic modeling analysis.
+    
+    This function handles the complete topic modeling pipeline including data loading,
+    preprocessing, NMF analysis, and output generation. It validates inputs, processes
+    text according to language, performs topic modeling, and generates visualizations.
+    
     Args:
-        filepath (str): Absolute path to the input file (CSV or Excel format)
-        table_name (str): Unique identifier for the dataset, used for database storage
-                         and output file naming
-        desired_columns (str): Name of the column containing text data to analyze
-        options (dict): Configuration dictionary with the following structure:
-            {
-                "LANGUAGE": str,                    # "TR" for Turkish, "EN" for English
-                "DESIRED_TOPIC_COUNT": int,         # Number of topics to extract
-                "N_TOPICS": int,                    # Top words per topic to display
-                "LEMMATIZE": bool,                  # Lemmatize English text (ignored for Turkish)
-                "tokenizer_type": str,              # "bpe" or "wordpiece" for Turkish
-                "tokenizer": object,                # Pre-initialized tokenizer (optional)
-                "nmf_type": str,                    # "opnmf" or "nmf" algorithm variant
-                "gen_cloud": bool,                  # Generate word clouds for topics
-                "save_excel": bool,                 # Export results to Excel format
-                "gen_topic_distribution": bool,     # Generate topic distribution plots
-                "filter_app": bool,                 # Filter data by application name
-                "filter_app_name": str,             # App name to filter (if filter_app=True)
-                "emoji_map": EmojiMap              # Emoji processing for Turkish texts
-            }
-
+        filepath: Path to input CSV or Excel file containing the text data for analysis
+        table_name: Unique identifier used for naming output files and database tables
+        desired_columns: Column name in the input file containing the text to analyze
+        options: Dictionary containing processing configuration parameters including:
+            - LANGUAGE: Text language ("TR" or "EN")
+            - DESIRED_TOPIC_COUNT: Number of topics to extract 
+            - N_TOPICS: Number of top words per topic
+            - tokenizer_type: Type of tokenizer for Turkish text (bpe or wordpiece)
+            - gen_cloud: Whether to generate word clouds
+            - gen_topic_distribution: Whether to generate topic distribution plots
+            - save_to_db: Whether to persist data to database
+        output_base_dir: Base directory for outputs (optional). Defaults to current directory.
+    
     Returns:
-        dict: Processing result containing:
-            - state (str): "SUCCESS" if completed successfully, "FAILURE" if error occurred
-            - message (str): Descriptive message about the processing outcome
-            - data_name (str): Name of the processed dataset
-            - topic_word_scores (dict): Dictionary mapping topic IDs to word-score pairs
-
+        Dict containing:
+            - state: "SUCCESS" or "FAILURE"
+            - message: Status/error message
+            - data_name: Input table name
+            - topic_word_scores: Dictionary mapping topics to word scores 
+            - topic_doc_scores: Document-topic distribution scores
+            - coherence_scores: Topic coherence metrics
+            - topic_dist_img: Topic distribution visualization (if enabled)
+            - topic_document_counts: Topic size distribution
+            - topic_relationships: Inter-topic relationship scores
+            
     Raises:
-        ValueError: If invalid language code or unsupported file format is provided
-        FileNotFoundError: If the input file path does not exist
-        KeyError: If required columns are missing from the input data
-        Exception: For various processing errors (database, NMF computation, etc.)
-
-    Note:
-        - Creates SQLite databases in the 'instance' directory for data storage
-        - Generates output files in the 'Output' directory
-        - Supports CSV files with automatic delimiter detection and Excel files
-        - Filters data for Turkish country code ('TR') when processing CSV files
-        - Automatically handles file preprocessing (duplicate removal, null value handling)
+        FileNotFoundError: If input file does not exist
+        ValueError: If required options are missing or invalid
+        KeyError: If desired column is not found in input data
     """
-    # Get base directory and create necessary directories
-    if output_base_dir is None:
-        # Use current working directory instead of package directory
-        base_dir = Path.cwd()
-    else:
-        base_dir = Path(output_base_dir).resolve()
-
-    program_output_dir = base_dir / "TopicAnalysis"
-    instance_path = program_output_dir / "instance"
-    output_dir = program_output_dir / "Output"
-
-    # Create necessary directories first
-    instance_path.mkdir(parents=True, exist_ok=True)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Database configurations using standard SQLAlchemy
-    topics_db_eng = create_engine(
-        f'sqlite:///{instance_path / "topics.db"}'
-    )
-    main_db_eng = create_engine(
-        f'sqlite:///{instance_path / "scopus.db"}'
-    )  # Main data DB
-
+    # Create console manager if not provided
+    if console is None:
+        console = ConsoleManager()
+        
     try:
-        print(f"Starting topic modeling for {table_name}")
-
-        # Clean up the desired_columns
+        _validate_inputs(filepath, desired_columns, options)
+        
+        # Setup stage
+        setup_start = time.time()
+        console.print_status(f"Setting up analysis for {table_name}", "processing")
+        db_config = DatabaseManager.initialize_database_config(output_base_dir)
+        output_dir = db_config.output_dir
         desired_columns = desired_columns.strip() if desired_columns else None
+        console.record_stage_time("Setup", setup_start)
 
-        # Read the input file
-        print("Reading input file...")
-        # if file is csv, read it with read_csv
-        if str(filepath).endswith(".csv"):
-            preprocess_csv = False
-            if preprocess_csv:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    data = f.read()
-                    # replace "|" with ";"
-                    data = data.replace("|", ";")
-                    # remove tab and null characters
-                    data = data.replace("\t", "")
-                    data = data.replace("\x00", "")
-                    # save the modified data back to the new file
-                new_filepath = filepath.replace(".csv", "_new.csv")
-                with open(new_filepath, "w", encoding="utf-8") as f_out:
-                    f_out.write(data)
-                filepath = new_filepath
-            # Read the CSV file with the specified separator
+        # Use progress context for the main analysis pipeline
+        with console.progress_context("Topic Analysis Pipeline") as progress_console:
+            # Data loading stage
+            data_start = time.time()
+            data_task = progress_console.add_task("Loading and preprocessing data", total=3)
+            
+            df = _load_data_file(filepath, options, progress_console)
+            progress_console.update_task(data_task)
+            
+            df = _preprocess_dataframe(df, desired_columns, options, db_config.main_db_engine, table_name, progress_console)
+            progress_console.update_task(data_task)
+            
+            tdm, vocab, counterized_data, text_array, options = _perform_text_processing(df, desired_columns, options, progress_console)
+            progress_console.complete_task(data_task, "Data loading and preprocessing completed")
+            console.record_stage_time("Data Loading & Preprocessing", data_start)
 
-            df = pd.read_csv(
-                filepath,
-                encoding="utf-8",
-                sep=options["separator"],
-                engine="python",
-                on_bad_lines="skip",
+            # Topic modeling stage
+            modeling_start = time.time()
+            modeling_task = progress_console.add_task("Performing topic modeling", total=2)
+            
+            table_output_dir = output_dir / table_name
+            table_output_dir.mkdir(parents=True, exist_ok=True)
+
+            topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result = _perform_topic_modeling(
+                tdm, options, vocab, text_array, df, desired_columns, db_config, table_name, table_output_dir, progress_console
             )
-            # get rows where it is country is TR
-            try:
-                if options["filter_app"]:
-                    if options["data_filter_options"]["filter_app_country"] != "":
-                        df = df[df[options["data_filter_options"]["filter_app_country_column"]].str.upper()
-                                == options["data_filter_options"]["filter_app_country"]]
-                    if options["data_filter_options"]["filter_app_name"] != "":
-                        df = df[df[options["data_filter_options"]["filter_app_column"]] == options["data_filter_options"][
-                            "filter_app_name"]]
-            except:
-                print("Either no filter is applied or the filter columns are not present in the data.")
+            progress_console.update_task(modeling_task)
+            console.record_stage_time("NMF Topic Modeling", modeling_start)
 
-
-        else:
-            df = pd.read_excel(filepath)
-
-        # Add to main database
-
-        # INSTEAD OF SAVING WHOLE TABLE TO DATABASE, SAVE ONLY THE DESIRED COLUMNS
-        # app_col = "PACKAGE_NAME"
-        # get only bip
-        # df = df[df[app_col] == "com.turkcell.bip"]
-        # drop duplicates based on ID column
-
-        # df = df.drop_duplicates(subset=['ID'])
-        df = df[desired_columns]
-        # Use double brackets to select columns
-        df = df.drop_duplicates()
-        df = df.dropna()
-
-        """
-        # remove duplicates
-        count_of_duplicates = df.duplicated().sum()
-        total_rows = len(df)
-        if total_rows*0.9 < count_of_duplicates:
-            print(f"Warning: {count_of_duplicates} duplicates found in the data, which is more than 90% of the total rows ({total_rows}).")
-            df = df.drop_duplicates()
-        """
-        # df = df.drop_duplicates()
-        print(f"File has {len(df)} rows.")
-
-        options["save_to_db"] = False
-        if options["save_to_db"]:
-            print("Adding data to main database...")
-            # Check if table exists using a SQL query instead of direct table read
-            tables_query = "SELECT name FROM sqlite_master WHERE type='table'"
-            existing_tables = pd.read_sql_query(tables_query, main_db_eng)
-            if table_name in existing_tables["name"].tolist():
-                # Use the main_db_eng directly
-                df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
-            elif table_name not in existing_tables["name"].tolist():
-                df.to_sql(table_name, main_db_eng, if_exists="replace", index=False)
-            # Get data from database
-            # Read directly using the main_db_eng
-            del df
-            df = pd.read_sql_table(table_name, main_db_eng)
-
-        else:
-            df = pd.DataFrame(df)
-            print("Not saving data to main database...")
-
-        # Start topic modeling process
-        print("Starting preprocessing...")
-
-        if options["LANGUAGE"] == "TR":
-            tdm, sozluk, sayisal_veri, options["tokenizer"], metin_array, emoji_map = (
-                process_turkish_file(
-                    df,
-                    desired_columns,
-                    options["tokenizer"],
-                    tokenizer_type=options["tokenizer_type"],
-                    emoji_map=options["emoji_map"],
-                )
+            # Output generation stage
+            output_start = time.time()
+            visual_returns = _generate_outputs(
+                nmf_output, vocab, table_output_dir, table_name, options, 
+                word_result, topic_word_scores, text_array, db_config.topics_db_engine, 
+                db_config.program_output_dir, output_dir, topic_doc_scores, progress_console
             )
+            progress_console.complete_task(modeling_task, "Topic modeling and output generation completed")
+            console.record_stage_time("Output Generation", output_start)
 
-        elif options["LANGUAGE"] == "EN":
-            tdm, sozluk, sayisal_veri, metin_array = process_english_file(
-                df,
-                desired_columns,
-                options["LEMMATIZE"],
-                emoji_map=options["emoji_map"],
-            )
-
-        else:
-            raise ValueError(f"Invalid language: {options['LANGUAGE']}")
-
-        # Create table-specific output directory to save everything under one folder
-        table_output_dir = output_dir / table_name
-        table_output_dir.mkdir(parents=True, exist_ok=True)
-
-        # nmf
-        W, H = run_nmf(
-            num_of_topics=int(options["DESIRED_TOPIC_COUNT"]),
-            sparse_matrix=tdm,
-            norm_thresh=0.005,
-            nmf_method=options["nmf_type"],
-        )
-
-        # Find dominant words for each topic and dominant documents for each topic
-        print("Generating topic groups...")
-        if options["LANGUAGE"] == "TR":
-            word_result, document_result = konu_analizi(
-                H=H,
-                W=W,
-                konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
-                sozluk=sozluk,
-                tokenizer=options["tokenizer"],
-                documents=metin_array,
-                topics_db_eng=topics_db_eng,
-                data_frame_name=table_name,
-                word_per_topic=options["N_TOPICS"],
-                include_documents=True,
-                emoji_map=options["emoji_map"],
-                output_dir=table_output_dir,
-            )
-        elif options["LANGUAGE"] == "EN":
-            word_result, document_result = konu_analizi(
-                H=H,
-                W=W,
-                konu_sayisi=int(options["DESIRED_TOPIC_COUNT"]),
-                sozluk=sozluk,
-                documents=[str(doc).strip() for doc in df[desired_columns]],
-                topics_db_eng=topics_db_eng,
-                data_frame_name=table_name,
-                word_per_topic=options["N_TOPICS"],
-                include_documents=True,
-                emoji_map=options["emoji_map"],
-                output_dir=table_output_dir,
-            )
-        else:
-            raise ValueError(f"Invalid language: {options['LANGUAGE']}")
-
-        # save result to json
-        # Convert the topics_data format to the desired format
-        topic_word_scores = save_word_score_pair(
-            base_dir=None,
-            output_dir=table_output_dir,
-            table_name=table_name,
-            topics_data=word_result,
-            result=None,
-            data_frame_name=table_name,
-            topics_db_eng=topics_db_eng,
-        )
-        # save document result to json
-        topic_doc_scores = save_doc_score_pair(
-            document_result,
-            base_dir=None,
-            output_dir=table_output_dir,
-            table_name=table_name,
-            data_frame_name=table_name,
-        )
-
-        # Calculate and save coherence scores
-        coherence_scores = calculate_coherence_scores(
-            topic_word_scores,
-            output_dir=table_output_dir,
-            column_name=desired_columns,
-            cleaned_data=metin_array,
-            table_name=table_name,
-        )
-
-        visual_returns = create_visualization(
-            W,
-            H,
-            sozluk,
-            table_output_dir,
-            table_name,
-            options,
-            word_result,
-            topic_word_scores,
-            metin_array,
-            topics_db_eng,
-            options["emoji_map"],
-            program_output_dir,
-            output_dir,
-        )
-
-        save_to_excel = True
-        if save_to_excel:
-            # save jsons to excel format
-            convert_json_to_excel(
-                word_json_data=topic_word_scores,
-                doc_json_data=topic_doc_scores,
-                output_dir=table_output_dir,
-                data_frame_name=table_name,
-                total_docs_count=len(metin_array),
-            )
-
-
-        print("Topic modeling completed successfully!")
+        console.print_status("Analysis completed successfully!", "success")
 
         return {
             "state": "SUCCESS",
@@ -330,65 +486,53 @@ def process_file(
             "topic_doc_scores": topic_doc_scores,
             "coherence_scores": coherence_scores,
             "topic_dist_img": visual_returns[0] if options["gen_topic_distribution"] else None,
-            "topic_document_counts": visual_returns[1] if options["gen_topic_distribution"] else None
+            "topic_document_counts": visual_returns[1] if options["gen_topic_distribution"] else None,
+            "topic_relationships": nmf_output.get("S", None),
         }
 
     except Exception as e:
-        print(f"Error occurred: {str(e)}")
-        # Update queue status on error
-        return {"state": "FAILURE", "message": str(e), "tablo_adi": table_name}
+        console.print_status(f"Analysis failed: {str(e)}", "error")
+        return {"state": "FAILURE", "message": str(e), "data_name": table_name}
 
 
-def run_standalone_nmf(
-    filepath, table_name, desired_columns, options, output_base_dir=None
-):
-    """
-    Execute the complete standalone NMF topic modeling pipeline.
-
-    This is the main entry point for running topic modeling analysis without
-    external dependencies like Celery or Redis. It initializes the tokenizer,
-    measures execution time, and orchestrates the entire processing workflow.
-
-    Args:
-        filepath (str): Absolute path to the input data file (CSV or Excel)
-        table_name (str): Unique identifier for the dataset used in database
-                         storage and output file naming
-        desired_columns (str): Name of the column containing text data to analyze
-        options (dict): Comprehensive configuration dictionary with all processing
-                       parameters. See process_file() documentation for detailed
-                       options specification.
-
-    Returns:
-        dict: Complete processing result from process_file() containing:
-            - state (str): Processing status ("SUCCESS" or "FAILURE")
-            - message (str): Detailed status message
-            - data_name (str): Processed dataset identifier
-            - topic_word_scores (dict): Topic modeling results with word scores
-
-    Side Effects:
-        - Prints execution time and progress messages to console
-        - Initializes tokenizer and adds it to the options dictionary
-        - Creates output directories and database files as needed
+def run_manta_process(
+    filepath,
+    table_name: str, 
+    desired_columns: str, 
+    options: Dict[str, Any], 
+    output_base_dir: Optional[str] = None
+) -> Dict[str, Any]:
 
     """
-    start_time = time.time()
-    print("Starting standalone NMF process...")
-    # Initialize tokenizer once before processing
-    tokenizer = init_tokenizer(tokenizer_type=options["tokenizer_type"])
-    options["tokenizer"] = tokenizer
+    Main entry point for standalone NMF topic modeling.
     
-    # Convert boolean emoji_map to EmojiMap object if needed
-    if options.get("emoji_map") is True:
-        options["emoji_map"] = EmojiMap()
-    elif options.get("emoji_map") is False:
-        options["emoji_map"] = None
-
-    result = process_file(
-        filepath, table_name, desired_columns, options, output_base_dir
+    Initializes tokenizer and emoji processing, then calls process_file().
+    """
+    # Initialize console manager and timing
+    console = ConsoleManager()
+    console.start_timing()
+    
+    # Display header and configuration
+    console.print_header(
+        "MANTA Topic Analysis",
+        "Multi-lingual Advanced NMF-based Topic Analysis"
     )
+    console.display_config(options, filepath, desired_columns, table_name)
+    
+    console.print_status("Initializing analysis components...", "processing")
+    
+    init_start = time.time()
+    if not options.get("tokenizer"):
+        options["tokenizer"] = init_tokenizer(tokenizer_type=options["tokenizer_type"])
+    
+    options["emoji_map"] = EmojiMap() if options.get("emoji_map") else None
+    console.record_stage_time("Initialization", init_start)
 
-    end_time = time.time()
-    print(f"NMF process completed in {end_time - start_time:.2f} seconds")
+    result = process_file(filepath, table_name, desired_columns, options, output_base_dir, console)
+
+    total_time = console.get_total_time()
+    console.print_analysis_summary(result, console.stage_times, total_time)
+    
     return result
 
 
@@ -408,7 +552,6 @@ if __name__ == "__main__":
     )
     desired_columns = "REVIEW"
 
-    emj_map = EmojiMap()
     options = {
         "LEMMATIZE": LEMMATIZE,
         "N_TOPICS": N_WORDS,
@@ -429,18 +572,7 @@ if __name__ == "__main__":
             "filter_app_column": "PACKAGE_NAME",
             "filter_app_country": "TR",
             "filter_app_country_column": "COUNTRY",
-        }
+        },
+        "save_to_db": False
     }
-    '''  
-        # Co-occurrence analysis options
-        "cooccurrence_method": "sliding_window",  # "nmf" or "sliding_window"
-        "cooccurrence_window_size": 10,           # Sliding window size for co-occurrence
-        "cooccurrence_min_count": 2,             # Minimum word frequency threshold
-        "cooccurrence_max_vocab": None,          # Maximum vocabulary size (None = no limit)
-        "cooccurrence_heatmap_size": 20,         # Number of words in heatmap
-        "cooccurrence_top_n": 100,               # Number of top pairs to save
-        "cooccurrence_batch_size": 1000,         # Batch size for memory efficiency
-        "cooccurrence_min_score": 1,             # Minimum score for NMF method
-    }
-    '''
-    run_standalone_nmf(filepath, table_name, desired_columns, options)
+    run_manta_process(filepath, table_name, desired_columns, options)

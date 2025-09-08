@@ -2,9 +2,7 @@ import os
 import json
 from pathlib import Path
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+
 from tokenizers import Tokenizer
 
 #TODO : Will be optimized for faster execution.
@@ -39,6 +37,8 @@ def calc_word_cooccurrence(H, sozluk, base_dir, table_name, top_n=100, min_score
         - Saves JSON file: {table_name}_cooccurrence.json in the created directory
         - Optionally saves heatmap: {table_name}_cooccurrence_heatmap.png
     """
+    import matplotlib.pyplot as plt
+    import seaborn as sns
     print("Calculating word co-occurrence matrix...")
     #TODO: too memory consuming, optimize later.
 
