@@ -24,3 +24,5 @@ tests/TopicAnalysis
 manta/utils/other
 local_dev
 references
+TopicAnalysis
+tests/benchmark_outputs
