@@ -158,13 +158,13 @@ def process_file(
     desired_columns: str,
     desired_topic_count: int,
     LEMMATIZE: bool,
-    N_TOPICS: int,
+    words_per_topic: int,
     tokenizer=None,
     LANGUAGE="TR",
     tokenizer_type="bpe",
     gen_topic_distribution=True,
     separator=",",
-    nmf_type="nmf"
+    nmf_method="nmf"
 ) -> dict:
     """
     Complete topic modeling pipeline from file input to results.
@@ -175,13 +175,13 @@ def process_file(
         desired_columns (str): Column name containing text data
         desired_topic_count (int): Number of topics to extract
         LEMMATIZE (bool): Enable lemmatization (mainly for English)
-        N_TOPICS (int): Number of top words per topic to display
+        words_per_topic (int): Number of top words per topic to display
         tokenizer (optional): Pre-initialized tokenizer
         LANGUAGE (str): "TR" for Turkish, "EN" for English
         tokenizer_type (str): "bpe" or "wordpiece" for Turkish
         gen_topic_distribution (bool): Generate topic distribution plots
         separator (str): CSV separator character
-        nmf_type (str): "nmf" or "pnmf" algorithm choice
+        nmf_method (str): "nmf", "pnmf", or "nmtf" algorithm choice
     
     Returns:
         dict: Results containing:
@@ -229,7 +229,7 @@ def process_file(
        num_of_topics=int(desired_topic_count),
        sparse_matrix=tdm,
        norm_thresh=0.005,
-       nmf_method=nmf_type
+       nmf_method=nmf_method
    )
    ```
 
@@ -244,26 +244,59 @@ def process_file(
 The main entry point function that provides a simplified interface.
 
 ```python
-def run_topic_analysis(filepath, table_name, desired_columns, options):
+def run_topic_analysis(
+    filepath: str,
+    column: str,
+    separator: str = ",",
+    language: str = "EN",
+    topic_count: int = 5,
+    nmf_method: str = "nmf",
+    lemmatize: bool = False,
+    tokenizer_type: str = "bpe",
+    words_per_topic: int = 15,
+    word_pairs_out: bool = True,
+    generate_wordclouds: bool = True,
+    export_excel: bool = True,
+    topic_distribution: bool = True,
+    filter_app: bool = False,
+    data_filter_options: dict = None,
+    emoji_map: bool = False,
+    output_name: str = None,
+    save_to_db: bool = False,
+    output_dir: str = None
+) -> dict:
     """
-    Simplified entry point for NMF/NMTF topic modeling.
+    Comprehensive topic modeling analysis using Non-negative Matrix Factorization (NMF).
     
     Args:
-        filepath (str): Path to input file
-        table_name (str): Analysis identifier
-        desired_columns (str): Text column name
-        options (dict): Configuration dictionary containing:
-            - LEMMATIZE: bool
-            - N_TOPICS: int (words per topic)
-            - DESIRED_TOPIC_COUNT: int
-            - tokenizer_type: str
-            - nmf_type: str ("nmf", "pnmf", or "nmtf")
-            - LANGUAGE: str
-            - separator: str
-            - gen_topic_distribution: bool
+        filepath (str): Path to input CSV or Excel file
+        column (str): Name of column containing text data
+        separator (str): CSV file separator (default: ",")
+        language (str): "TR" for Turkish, "EN" for English (default: "EN")
+        topic_count (int): Number of topics to extract (default: 5)
+        nmf_method (str): "nmf", "pnmf", or "nmtf" algorithm variant (default: "nmf")
+        lemmatize (bool): Apply lemmatization for English (default: False)
+        tokenizer_type (str): "bpe" or "wordpiece" for Turkish (default: "bpe")
+        words_per_topic (int): Top words to show per topic (default: 15)
+        word_pairs_out (bool): Create word pairs output (default: True)
+        generate_wordclouds (bool): Create word cloud visualizations (default: True)
+        export_excel (bool): Export results to Excel (default: True)
+        topic_distribution (bool): Generate distribution plots (default: True)
+        filter_app (bool): Enable app filtering (default: False)
+        data_filter_options (dict): Advanced filtering options
+        emoji_map (bool): Enable emoji processing (default: False)
+        output_name (str): Custom output directory name (default: auto-generated)
+        save_to_db (bool): Whether to persist data to database (default: False)
+        output_dir (str): Base directory for outputs (default: current working directory)
     
     Returns:
-        dict: Process results with timing information and:
+        dict: Results containing:
+            - state: "SUCCESS" or "FAILURE"
+            - message: Status message
+            - data_name: Analysis identifier
+            - topic_word_scores: Topic-word associations
+            - topic_doc_scores: Topic-document associations
+            - coherence_scores: Coherence metrics
             - topic_relationships: S matrix (only for NMTF)
     """
 ```
@@ -276,7 +309,7 @@ def run_topic_analysis(filepath, table_name, desired_columns, options):
 
 #### Phase 1: Data Preparation
 ```
-Input File → Data Loading → Cleaning → Deduplication → Database Storage
+Input File → Data Loading → Cleaning → Deduplication → Optional Database Storage
 ```
 
 #### Phase 2: Text Processing (Language-Dependent)
@@ -295,8 +328,8 @@ TF-IDF Calculation → Matrix Preparation
 
 #### Phase 3: Topic Modeling
 ```
-TF-IDF Matrix → NMF Decomposition → W Matrix (Document-Topic) + 
-H Matrix (Topic-Word) → Topic Analysis
+TF-IDF Matrix → NMF/NMTF Decomposition → W Matrix (Document-Topic) + 
+H Matrix (Topic-Word) [+ S Matrix (Topic-Topic) for NMTF] → Topic Analysis
 ```
 
 #### Phase 4: Results & Visualization
@@ -405,24 +438,34 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 
 | Parameter | Type | Description                         | Default | Options |
 |-----------|------|-------------------------------------|---------|---------|
-| `LANGUAGE` | str | Text language                       | "TR" | "TR", "EN" |
-| `desired_topic_count` | int | Number of topics to extract         | 5 | 2-50+ |
-| `N_TOPICS` | int | Words per topic to display          | 15 | 5-30 |
-| `LEMMATIZE` | bool | Enable lemmatization (English)      | True | True, False |
+| `language` | str | Text language                       | "EN" | "TR", "EN" |
+| `topic_count` | int | Number of topics to extract         | 5 | 2-50+ |
+| `words_per_topic` | int | Words per topic to display          | 15 | 5-30 |
+| `lemmatize` | bool | Enable lemmatization (English)      | False | True, False |
 | `tokenizer_type` | str | Tokenizer type (Turkish)            | "bpe" | "bpe", "wordpiece" |
-| `nmf_type` | str | NMF Factorization algorithm         | "nmf" | "nmf", "pnmf", "nmtf" |
-| `emoji_map` | bool | Enable emoji processing and mapping | True | True, False |
+| `nmf_method` | str | NMF Factorization algorithm         | "nmf" | "nmf", "pnmf", "nmtf" |
+| `emoji_map` | bool | Enable emoji processing and mapping | False | True, False |
 | `separator` | str | CSV file separator                  | "," | ",", ";", "\\t" |
 | `filter_app` | bool | Enable data filtering               | False | True, False |
+| `word_pairs_out` | bool | Create word pairs output            | True | True, False |
+| `generate_wordclouds` | bool | Generate word clouds               | True | True, False |
+| `export_excel` | bool | Export to Excel                    | True | True, False |
+| `topic_distribution` | bool | Generate distribution plots        | True | True, False |
+| `save_to_db` | bool | Save to database                   | False | True, False |
+| `output_name` | str | Custom output name                  | None | Any string |
+| `output_dir` | str | Base output directory              | None | Any path |
 
 ### Advanced Options
 
 | Parameter | Type | Description | Default |
 |-----------|------|-------------|---------|
-| `gen_topic_distribution` | bool | Generate distribution plots | True |
-| `gen_cloud` | bool | Generate word clouds | True |
-| `save_excel` | bool | Export to Excel | True |
-| `word_pairs_out` | bool | Calculate word co-occurrence | False |
+| `topic_distribution` | bool | Generate distribution plots | True |
+| `generate_wordclouds` | bool | Generate word clouds | True |
+| `export_excel` | bool | Export to Excel | True |
+| `word_pairs_out` | bool | Calculate word co-occurrence | True |
+| `save_to_db` | bool | Save to database | False |
+| `output_name` | str | Custom output name | None |
+| `output_dir` | str | Base output directory | None |
 | `norm_thresh` | float | NMF normalization threshold | 0.005 |
 
 ### Data Filtering Options
@@ -450,27 +493,31 @@ When `filter_app` is enabled, you can configure advanced filtering using the `da
 ### Example Configuration
 
 ```python
-options = {
-    "LEMMATIZE": True,
-    "N_TOPICS": 15,
-    "DESIRED_TOPIC_COUNT": 8,
-    "tokenizer_type": "bpe",
-    "nmf_type": "pnmf",
-    "LANGUAGE": "TR",
-    "separator": ";",
-    "emoji_map": True,
-    "gen_cloud": True,
-    "save_excel": True,
-    "word_pairs_out": False,
-    "gen_topic_distribution": True,
-    "filter_app": True,
-    "data_filter_options": {
+# Example configuration using current API
+result = run_topic_analysis(
+    filepath="data/example.csv",
+    column="text_content",
+    language="TR",
+    topic_count=8,
+    words_per_topic=15,
+    tokenizer_type="bpe",
+    nmf_method="pnmf",
+    lemmatize=True,
+    separator=";",
+    emoji_map=True,
+    generate_wordclouds=True,
+    export_excel=True,
+    word_pairs_out=False,
+    topic_distribution=True,
+    filter_app=True,
+    data_filter_options={
         "filter_app_name": "MyApp",
         "filter_app_column": "APP_NAME",
         "filter_app_country": "TR",
         "filter_app_country_column": "COUNTRY_CODE"
-    }
-}
+    },
+    output_name="custom_analysis"
+)
 ```
 
 ---
@@ -480,12 +527,12 @@ options = {
 ### Directory Structure
 ```
 Output/
-└── {table_name}/
-    ├── {table_name}_topics.xlsx              # Topic-word matrix
-    ├── {table_name}_coherence_scores.json    # Coherence metrics
-    ├── {table_name}_document_dist.png        # Topic distribution plot
-    ├── {table_name}_wordcloud_scores.json    # Word cloud data
-    ├── {table_name}_top_docs.json            # Representative documents
+└── {output_name}/
+    ├── {output_name}_topics.xlsx              # Topic-word matrix
+    ├── {output_name}_coherence_scores.json    # Coherence metrics
+    ├── {output_name}_document_dist.png        # Topic distribution plot
+    ├── {output_name}_wordcloud_scores.json    # Word cloud data
+    ├── {output_name}_top_docs.json            # Representative documents
     └── wordclouds/
         ├── Konu 00.png                       # Word cloud for topic 0
         ├── Konu 01.png                       # Word cloud for topic 1
@@ -494,12 +541,12 @@ Output/
 
 ### File Descriptions
 
-#### Excel Report (`{table_name}_topics.xlsx`)
+#### Excel Report (`{output_name}_topics.xlsx`)
 - **Topic Sheets**: Each topic gets its own worksheet
 - **Word Scores**: Top words with their importance scores
 - **Document References**: Representative documents for each topic
 
-#### Coherence Scores (`{table_name}_coherence_scores.json`)
+#### Coherence Scores (`{output_name}_coherence_scores.json`)
 ```json
 {
     "gensim": {
@@ -513,7 +560,7 @@ Output/
 }
 ```
 
-#### Word Cloud Data (`{table_name}_wordcloud_scores.json`)
+#### Word Cloud Data (`{output_name}_wordcloud_scores.json`)
 ```json
 {
     "topic_0": {
@@ -524,7 +571,7 @@ Output/
 }
 ```
 
-#### Representative Documents (`top_docs_{table_name}.json`)
+#### Representative Documents (`{output_name}_top_docs.json`)
 ```json
 {
     "topic_0": [
@@ -543,26 +590,21 @@ Output/
 ### Example 1: Turkish App Store Reviews
 
 ```python
-# Configuration for Turkish app store reviews
-options = {
-    "LEMMATIZE": False,                    # Not needed for Turkish
-    "N_TOPICS": 20,                       # 20 words per topic
-    "DESIRED_TOPIC_COUNT": 6,             # Extract 6 topics
-    "tokenizer_type": "bpe",              # Use BPE tokenization
-    "nmf_type": "nmf",                    # Standard NMF
-    "LANGUAGE": "TR",                     # Turkish language
-    "separator": ",",                     # CSV separator
-    "gen_cloud": True,                    # Generate word clouds
-    "save_excel": True,                   # Export to Excel
-    "gen_topic_distribution": True        # Create distribution plots
-}
-
-# Run the analysis
+# Turkish app store reviews analysis
 result = run_topic_analysis(
     filepath="data/app_reviews.csv",
-    table_name="app_reviews_analysis",
-    desired_columns="review_text",
-    options=options
+    column="review_text",
+    language="TR",                         # Turkish language
+    topic_count=6,                        # Extract 6 topics
+    words_per_topic=20,                   # 20 words per topic
+    tokenizer_type="bpe",                 # Use BPE tokenization
+    nmf_method="nmf",                     # Standard NMF
+    lemmatize=False,                      # Not needed for Turkish
+    separator=",",                        # CSV separator
+    generate_wordclouds=True,             # Generate word clouds
+    export_excel=True,                    # Export to Excel
+    topic_distribution=True,              # Create distribution plots
+    output_name="app_reviews_analysis"    # Custom output name
 )
 
 print(f"Analysis completed: {result['state']}")
@@ -572,59 +614,48 @@ print(f"Topics extracted: {len(result['topic_word_scores'])}")
 ### Example 2: English Academic Papers
 
 ```python
-# Configuration for English research papers
-options = {
-    "LEMMATIZE": True,                     # Enable lemmatization
-    "N_TOPICS": 25,                       # 25 words per topic
-    "DESIRED_TOPIC_COUNT": 10,            # Extract 10 topics
-    "tokenizer_type": None,               # Not used for English
-    "nmf_type": "pnmf",                  # Orthogonal NMF
-    "LANGUAGE": "EN",                     # English language
-    "separator": ",",
-    "gen_cloud": True,
-    "save_excel": True,
-    "gen_topic_distribution": True
-}
-
-# Run the analysis
+# English research papers analysis
 result = run_topic_analysis(
     filepath="data/research_papers.csv",
-    table_name="research_analysis",
-    desired_columns="abstract",
-    options=options
+    column="abstract",
+    language="EN",                         # English language
+    topic_count=10,                       # Extract 10 topics
+    words_per_topic=25,                   # 25 words per topic
+    nmf_method="pnmf",                    # Orthogonal NMF
+    lemmatize=True,                       # Enable lemmatization
+    separator=",",
+    generate_wordclouds=True,
+    export_excel=True,
+    topic_distribution=True,
+    output_name="research_analysis"       # Custom output name
 )
 ```
 
 ### Example 3: Advanced Filtering Configuration
 
 ```python
-# Configuration for filtering app store reviews by specific app and country
-options = {
-    "LEMMATIZE": False,                    # Not needed for Turkish
-    "N_TOPICS": 15,                       # 15 words per topic
-    "DESIRED_TOPIC_COUNT": 5,             # Extract 5 topics
-    "tokenizer_type": "bpe",              # Use BPE tokenization
-    "nmf_type": "nmf",                    # Standard NMF
-    "LANGUAGE": "TR",                     # Turkish language
-    "separator": "|",                     # Pipe separator
-    "gen_cloud": True,                    # Generate word clouds
-    "save_excel": True,                   # Export to Excel
-    "gen_topic_distribution": True,       # Create distribution plots
-    "filter_app": True,                   # Enable filtering
-    "data_filter_options": {
+# Advanced filtering configuration for app store reviews
+result = run_topic_analysis(
+    filepath="app_reviews.csv",
+    column="review_text",
+    language="TR",                         # Turkish language
+    topic_count=5,                        # Extract 5 topics
+    words_per_topic=15,                   # 15 words per topic
+    tokenizer_type="bpe",                 # Use BPE tokenization
+    nmf_method="nmf",                     # Standard NMF
+    lemmatize=False,                      # Not needed for Turkish
+    separator="|",                        # Pipe separator
+    generate_wordclouds=True,             # Generate word clouds
+    export_excel=True,                    # Export to Excel
+    topic_distribution=True,              # Create distribution plots
+    filter_app=True,                      # Enable filtering
+    data_filter_options={
         "filter_app_name": "com.example.app",      # Filter by specific app
         "filter_app_column": "PACKAGE_NAME",       # Column containing app names
         "filter_app_country": "TR",                # Filter by country (case-insensitive)
         "filter_app_country_column": "COUNTRY"      # Column containing country codes
-    }
-}
-
-# Run analysis with filtering
-result = run_topic_analysis(
-    filepath="app_reviews.csv",
-    table_name="filtered_app_analysis",
-    desired_columns="review_text",
-    options=options
+    },
+    output_name="filtered_app_analysis"   # Custom output name
 )
 
 print(f"Filtered analysis result: {result['state']}")
@@ -636,38 +667,34 @@ print(f"Filtered analysis result: {result['state']}")
 files_to_process = [
     {
         "filepath": "data/dataset1.csv",
-        "table_name": "analysis_1",
+        "output_name": "analysis_1",
         "column": "text_content",
-        "topics": 8
+        "topic_count": 8
     },
     {
         "filepath": "data/dataset2.csv", 
-        "table_name": "analysis_2",
+        "output_name": "analysis_2",
         "column": "description",
-        "topics": 12
+        "topic_count": 12
     }
 ]
 
 results = []
 for file_config in files_to_process:
-    options = {
-        "LEMMATIZE": True,
-        "N_TOPICS": 15,
-        "DESIRED_TOPIC_COUNT": file_config["topics"],
-        "tokenizer_type": "bpe",
-        "nmf_type": "nmf",
-        "LANGUAGE": "TR",
-        "separator": ",",
-        "gen_cloud": True,
-        "save_excel": True,
-        "gen_topic_distribution": True
-    }
-    
     result = run_topic_analysis(
         filepath=file_config["filepath"],
-        table_name=file_config["table_name"],
-        desired_columns=file_config["column"],
-        options=options
+        column=file_config["column"],
+        language="TR",
+        topic_count=file_config["topic_count"],
+        words_per_topic=15,
+        tokenizer_type="bpe",
+        nmf_method="nmf",
+        lemmatize=True,
+        separator=",",
+        generate_wordclouds=True,
+        export_excel=True,
+        topic_distribution=True,
+        output_name=file_config["output_name"]
     )
     results.append(result)
 
@@ -697,9 +724,9 @@ print(f"Processed {len(results)} files successfully")
 **Problem**: `MemoryError` or system slowdown
 
 **Solution**:
-- Reduce the number of topics (`DESIRED_TOPIC_COUNT`)
+- Reduce the number of topics (`topic_count`)
 - Filter your dataset to smaller chunks
-- Use fewer words per topic (`N_TOPICS`)
+- Use fewer words per topic (`words_per_topic`)
 - Consider using a more powerful machine
 
 #### 3. No Topics Generated
@@ -730,7 +757,7 @@ print(f"Processed {len(results)} files successfully")
 - Improve text preprocessing
 - Add domain-specific stopwords
 - Adjust NMF parameters (`norm_thresh`)
-- Try different `nmf_type` ("nmf" vs "pnmf" vs "nmtf")
+- Try different `nmf_method` ("nmf" vs "pnmf" vs "nmtf")
 
 #### 6. Database Lock Errors
 
@@ -741,7 +768,7 @@ print(f"Processed {len(results)} files successfully")
 # Delete existing database files if safe to do so:
 # rm instance/topics.db
 # rm instance/scopus.db
-# Or use a different table_name for each run
+# Or use a different output_name for each run
 ```
 
 #### 7. Data Filtering Issues
@@ -781,19 +808,25 @@ pip install -r requirements.txt
 **Problem**: NMTF takes too long to converge or doesn't converge
 
 **Solutions**:
-- Reduce the number of topics (`DESIRED_TOPIC_COUNT`)
+- Reduce the number of topics (`topic_count`)
 - Adjust the normalization threshold (`norm_thresh`) to a higher value (e.g., 0.01)
 - Increase the convergence threshold (`epsilon`) for faster convergence
 - Check that your data has sufficient complexity for the requested number of topics
 
 ```python
 # Example configuration for faster NMTF convergence
-options = {
-    "nmf_type": "nmtf",
-    "DESIRED_TOPIC_COUNT": 5,  # Reduce topic count
-    "norm_thresh": 0.01,       # Higher threshold for faster convergence
-    # ... other options
-}
+result = run_topic_analysis(
+    filepath="data/example.csv",
+    column="text_content",
+    language="TR",
+    nmf_method="nmtf",
+    topic_count=5,              # Reduce topic count
+    words_per_topic=15,
+    generate_wordclouds=True,
+    export_excel=True,
+    output_name="nmtf_analysis"
+    # Note: norm_thresh is an internal parameter not exposed in the API
+)
 ```
 
 #### 10. NMTF Memory Issues
@@ -812,11 +845,11 @@ options = {
 1. **For Large Datasets**:
    - Use `gen_topic_distribution=False` to skip plotting
    - Set `gen_cloud=False` to skip word cloud generation
-   - Reduce `N_TOPICS` to 10-15
+   - Reduce `words_per_topic` to 10-15
 
 2. **For Better Topic Quality**:
    - Increase `desired_topic_count` for more granular topics
-   - Use `nmf_type="pnmf"` for better topic separation
+   - Use `nmf_method="pnmf"` for better topic separation
    - Enable `LEMMATIZE=True` for English text
 
 3. **For Faster Processing**:

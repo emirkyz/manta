@@ -45,7 +45,7 @@ results = run_topic_analysis(
     filepath="data.csv",
     column="review_text",
     language="EN",
-    topics=5,
+    topic_count=5,
     lemmatize=True
 )
 
@@ -54,7 +54,7 @@ results = run_topic_analysis(
     filepath="turkish_reviews.csv", 
     column="yorum_metni",
     language="TR",
-    topics=8,
+    topic_count=8,
     tokenizer_type="bpe",
     generate_wordclouds=True
 )
@@ -64,7 +64,7 @@ results = run_topic_analysis(
     filepath="data.csv",
     column="text_content",
     language="TR", 
-    topics=6,
+    topic_count=6,
     nmf_method="nmtf",
     generate_wordclouds=True
 )
@@ -299,7 +299,7 @@ results = run_topic_analysis(
     filepath="data.csv",
     column="review_text",
     language="EN",
-    topics=5,
+    topic_count=5,
     lemmatize=True,
     generate_wordclouds=True,
     export_excel=True
@@ -310,7 +310,7 @@ results = run_topic_analysis(
     filepath="turkish_reviews.csv",
     column="yorum_metni",
     language="TR",
-    topics=10,
+    topic_count=10,
     words_per_topic=15,
     tokenizer_type="bpe",
     nmf_method="nmf",
@@ -334,24 +334,27 @@ results = run_topic_analysis(
 - `column` (str): Name of column containing text data
 
 **Optional:**
+- `separator` (str): CSV separator character (default: ",")
 - `language` (str): "TR" for Turkish, "EN" for English (default: "EN")
-- `topics` (int): Number of topics to extract (default: 5)
-- `words_per_topic` (int): Top words to show per topic (default: 15)
+- `topic_count` (int): Number of topics to extract (default: 5)
 - `nmf_method` (str): "nmf", "pnmf", or "nmtf" algorithm variant (default: "nmf")
+- `lemmatize` (bool): Apply lemmatization for English (default: False)
 - `tokenizer_type` (str): "bpe" or "wordpiece" for Turkish (default: "bpe")
-- `lemmatize` (bool): Apply lemmatization for English (default: True)
+- `words_per_topic` (int): Top words to show per topic (default: 15)
+- `word_pairs_out` (bool): Create word pairs output (default: True)
 - `generate_wordclouds` (bool): Create word cloud visualizations (default: True)
 - `export_excel` (bool): Export results to Excel (default: True)
 - `topic_distribution` (bool): Generate distribution plots (default: True)
-- `emoji_map` (bool): Enable emoji processing and mapping (default: True)
-- `output_name` (str): Custom output directory name (default: auto-generated)
-- `separator` (str): CSV separator character (default: ",")
 - `filter_app` (bool): Enable app filtering (default: False)
 - `data_filter_options` (dict): Advanced filtering options with keys (all default to empty string):
   - `filter_app_name` (str): App name for filtering
   - `filter_app_column` (str): Column name for app filtering (default: "PACKAGE_NAME")
   - `filter_app_country` (str): Country code for filtering (case-insensitive)
   - `filter_app_country_column` (str): Column name for country filtering (default: "COUNTRY")
+- `emoji_map` (bool): Enable emoji processing and mapping (default: False)
+- `output_name` (str): Custom output directory name (default: auto-generated)
+- `save_to_db` (bool): Whether to persist data to database (default: False)
+- `output_dir` (str): Base directory for outputs (default: current working directory)
 
 ## Outputs
 

@@ -241,28 +241,60 @@ def process_file(
 Basitleştirilmiş arayüz sağlayan ana giriş noktası fonksiyonu.
 
 ```python
-def run_topic_analysis(filepath, column, language, topics, options):
+def run_topic_analysis(
+    filepath: str,
+    column: str,
+    separator: str = ",",
+    language: str = "EN",
+    topic_count: int = 5,
+    nmf_method: str = "nmf",
+    lemmatize: bool = False,
+    tokenizer_type: str = "bpe",
+    words_per_topic: int = 15,
+    word_pairs_out: bool = True,
+    generate_wordclouds: bool = True,
+    export_excel: bool = True,
+    topic_distribution: bool = True,
+    filter_app: bool = False,
+    data_filter_options: dict = None,
+    emoji_map: bool = False,
+    output_name: str = None,
+    save_to_db: bool = False,
+    output_dir: str = None
+) -> dict:
     """
-    NMF konu modellemesi için basitleştirilmiş giriş noktası.
+    Negatif Olmayan Matris Faktörizasyonu (NMF) kullanarak kapsamlı konu modelleme analizi.
     
     Args:
-        filepath (str): Giriş dosyasının yolu
-        column (str): Metin sütunu adı
-        language (str): Dil kodu ("TR" veya "EN")
-        topics (int): Çıkarılacak konu sayısı
-        options (dict): Şunları içeren konfigürasyon sözlüğü:
-            - lemmatize: bool
-            - words_per_topic: int (konu başına kelime)
-            - tokenizer_type: str
-            - nmf_method: str
-            - generate_wordclouds: bool
-            - export_excel: bool
-            - topic_distribution: bool
-            - emoji_map: bool
-            - separator: str
+        filepath (str): Giriş CSV veya Excel dosyasının yolu
+        column (str): Metin verilerini içeren sütun adı
+        separator (str): CSV dosya ayırıcısı (varsayılan: ",")
+        language (str): Türkçe için "TR", İngilizce için "EN" (varsayılan: "EN")
+        topic_count (int): Çıkarılacak konu sayısı (varsayılan: 5)
+        nmf_method (str): "nmf", "pnmf", veya "nmtf" algoritma çeşidi (varsayılan: "nmf")
+        lemmatize (bool): İngilizce için lemmatizasyon uygula (varsayılan: False)
+        tokenizer_type (str): Türkçe için "bpe" veya "wordpiece" (varsayılan: "bpe")
+        words_per_topic (int): Konu başına gösterilecek üst kelime sayısı (varsayılan: 15)
+        word_pairs_out (bool): Kelime çiftleri çıktısı oluştur (varsayılan: True)
+        generate_wordclouds (bool): Kelime bulutu görselleştirmeleri oluştur (varsayılan: True)
+        export_excel (bool): Sonuçları Excel formatına dışa aktar (varsayılan: True)
+        topic_distribution (bool): Konu dağılım grafikleri oluştur (varsayılan: True)
+        filter_app (bool): Uygulama filtrelemesini etkinleştir (varsayılan: False)
+        data_filter_options (dict): Gelişmiş filtreleme seçenekleri
+        emoji_map (bool): Emoji işlemeyi etkinleştir (varsayılan: False)
+        output_name (str): Özel çıktı dizini adı (varsayılan: otomatik oluşturulan)
+        save_to_db (bool): Veritabanına kalıcı olarak kaydet (varsayılan: False)
+        output_dir (str): Çıktılar için temel dizin (varsayılan: mevcut çalışma dizini)
     
     Returns:
-        dict: Zamanlama bilgisiyle birlikte işlem sonuçları
+        dict: Şunları içeren sonuçlar:
+            - state: "SUCCESS" veya "FAILURE"
+            - message: Durum mesajı
+            - data_name: Analiz tanımlayıcısı
+            - topic_word_scores: Konu-kelime ilişkilendirmeleri
+            - topic_doc_scores: Konu-doküman ilişkilendirmeleri
+            - coherence_scores: Tutarlılık metrikleri
+            - topic_relationships: S matrisi (sadece NMTF için)
     """
 ```
 
@@ -369,14 +401,21 @@ Kelime Bulutları → Dağılım Grafikleri → Excel Dışa Aktarma → JSON De
 
 | Parametre | Tür | Açıklama | Varsayılan | Seçenekler |
 |-----------|-----|----------|------------|------------|
-| `language` | str | Metin dili | "TR" | "TR", "EN" |
-| `topics` | int | Çıkarılacak konu sayısı | 5 | 2-50+ |
+| `language` | str | Metin dili | "EN" | "TR", "EN" |
+| `topic_count` | int | Çıkarılacak konu sayısı | 5 | 2-50+ |
 | `words_per_topic` | int | Konu başına gösterilecek kelime | 15 | 5-30 |
-| `lemmatize` | bool | Lemmatizasyonu etkinleştir (İngilizce) | True | True, False |
+| `lemmatize` | bool | Lemmatizasyonu etkinleştir (İngilizce) | False | True, False |
 | `tokenizer_type` | str | Tokenizer türü (Türkçe) | "bpe" | "bpe", "wordpiece" |
-| `nmf_method` | str | NMF algoritması | "nmf" | "nmf", "opnmf" |
-| `emoji_map` | bool | Emoji işleme ve eşlemeyi etkinleştir | True | True, False |
+| `nmf_method` | str | NMF algoritması | "nmf" | "nmf", "pnmf", "nmtf" |
+| `emoji_map` | bool | Emoji işleme ve eşlemeyi etkinleştir | False | True, False |
 | `separator` | str | CSV dosya ayırıcısı | "," | ",", ";", "\\t" |
+| `word_pairs_out` | bool | Kelime çiftleri çıktısı oluştur | True | True, False |
+| `generate_wordclouds` | bool | Kelime bulutları oluştur | True | True, False |
+| `export_excel` | bool | Excel'e dışa aktar | True | True, False |
+| `topic_distribution` | bool | Dağılım grafikleri oluştur | True | True, False |
+| `save_to_db` | bool | Veritabanına kaydet | False | True, False |
+| `output_name` | str | Özel çıktı adı | None | Herhangi bir string |
+| `output_dir` | str | Temel çıktı dizini | None | Herhangi bir yol |
 
 ### Gelişmiş Seçenekler
 
@@ -385,7 +424,10 @@ Kelime Bulutları → Dağılım Grafikleri → Excel Dışa Aktarma → JSON De
 | `topic_distribution` | bool | Dağılım grafikleri oluştur | True |
 | `generate_wordclouds` | bool | Kelime bulutları oluştur | True |
 | `export_excel` | bool | Excel'e dışa aktar | True |
-| `word_pairs_out` | bool | Kelime birlikte bulunma hesapla | False |
+| `word_pairs_out` | bool | Kelime birlikte bulunma hesapla | True |
+| `save_to_db` | bool | Veritabanına kaydet | False |
+| `output_name` | str | Özel çıktı adı | None |
+| `output_dir` | str | Temel çıktı dizini | None |
 | `norm_thresh` | float | NMF normalleştirme eşiği | 0.005 |
 
 ### Veri Filtreleme Seçenekleri
@@ -443,12 +485,12 @@ seçenekler = {
 ### Dizin Yapısı
 ```
 Output/
-└── {table_name}/
-    ├── {table_name}_topics.xlsx              # Konu-kelime matrisi
-    ├── {table_name}_coherence_scores.json    # Tutarlılık metrikleri
-    ├── {table_name}_document_dist.png        # Konu dağılım grafiği
-    ├── {table_name}_wordcloud_scores.json    # Kelime bulutu verisi
-    ├── {table_name}_top_docs.json            # Temsili dokümanlar
+└── {output_name}/
+    ├── {output_name}_topics.xlsx              # Konu-kelime matrisi
+    ├── {output_name}_coherence_scores.json    # Tutarlılık metrikleri
+    ├── {output_name}_document_dist.png        # Konu dağılım grafiği
+    ├── {output_name}_wordcloud_scores.json    # Kelime bulutu verisi
+    ├── {output_name}_top_docs.json            # Temsili dokümanlar
     └── wordclouds/
         ├── Konu 00.png                       # 0. konu için kelime bulutu
         ├── Konu 01.png                       # 1. konu için kelime bulutu
@@ -457,12 +499,12 @@ Output/
 
 ### Dosya Açıklamaları
 
-#### Excel Raporu (`{table_name}_topics.xlsx`)
+#### Excel Raporu (`{output_name}_topics.xlsx`)
 - **Konu Sayfaları**: Her konu kendi çalışma sayfasını alır
 - **Kelime Skorları**: Önem skorlarıyla birlikte üst kelimeler
 - **Doküman Referansları**: Her konu için temsili dokümanlar
 
-#### Tutarlılık Skorları (`{table_name}_coherence_scores.json`)
+#### Tutarlılık Skorları (`{output_name}_coherence_scores.json`)
 ```json
 {
     "gensim": {
@@ -476,7 +518,7 @@ Output/
 }
 ```
 
-#### Kelime Bulutu Verisi (`{table_name}_wordcloud_scores.json`)
+#### Kelime Bulutu Verisi (`{output_name}_wordcloud_scores.json`)
 ```json
 {
     "topic_0": {
@@ -487,7 +529,7 @@ Output/
 }
 ```
 
-#### Temsili Dokümanlar (`top_docs_{table_name}.json`)
+#### Temsili Dokümanlar (`{output_name}_top_docs.json`)
 ```json
 {
     "topic_0": [
@@ -523,8 +565,16 @@ sonuç = run_topic_analysis(
     filepath="veri/uygulama_yorumlari.csv",
     column="yorum_metni",
     language="TR",
-    topics=6,
-    **seçenekler
+    topic_count=6,
+    lemmatize=False,
+    words_per_topic=20,
+    tokenizer_type="bpe",
+    nmf_method="nmf",
+    separator=",",
+    generate_wordclouds=True,
+    export_excel=True,
+    topic_distribution=True,
+    output_name="uygulama_yorumlari_analizi"
 )
 
 print(f"Analiz tamamlandı: {sonuç['state']}")
@@ -551,8 +601,16 @@ sonuç = run_topic_analysis(
     filepath="veri/akademik_makaleler.csv",
     column="özet",
     language="TR",
-    topics=10,
-    **seçenekler
+    topic_count=10,
+    lemmatize=False,
+    words_per_topic=25,
+    tokenizer_type="bpe",
+    nmf_method="pnmf",
+    separator=",",
+    generate_wordclouds=True,
+    export_excel=True,
+    topic_distribution=True,
+    output_name="akademik_makaleler_analizi"
 )
 ```
 
@@ -562,15 +620,15 @@ sonuç = run_topic_analysis(
 işlenecek_dosyalar = [
     {
         "filepath": "veri/veriset1.csv",
-        "table_name": "analiz_1", 
+        "output_name": "analiz_1", 
         "column": "metin_içeriği",
-        "konular": 8
+        "topic_count": 8
     },
     {
         "filepath": "veri/veriset2.csv",
-        "table_name": "analiz_2",
+        "output_name": "analiz_2",
         "column": "açıklama",
-        "konular": 12
+        "topic_count": 12
     }
 ]
 
@@ -591,8 +649,16 @@ for dosya_config in işlenecek_dosyalar:
         filepath=dosya_config["filepath"],
         column=dosya_config["column"],
         language="TR",
-        topics=dosya_config["konular"],
-        **seçenekler
+        topic_count=dosya_config["topic_count"],
+        lemmatize=False,
+        words_per_topic=15,
+        tokenizer_type="bpe",
+        nmf_method="nmf",
+        separator=",",
+        generate_wordclouds=True,
+        export_excel=True,
+        topic_distribution=True,
+        output_name=dosya_config["output_name"]
     )
     sonuçlar.append(sonuç)
 
@@ -618,8 +684,16 @@ sonuç = run_topic_analysis(
     filepath="veri/sosyal_medya_gönderileri.csv",
     column="gönderi_metni",
     language="TR",
-    topics=15,                            # Çeşitlilik için daha fazla konu
-    **seçenekler
+    topic_count=15,                       # Çeşitlilik için daha fazla konu
+    lemmatize=False,
+    words_per_topic=12,                   # Kısa metinler için daha az kelime
+    tokenizer_type="wordpiece",           # Sosyal medya için WordPiece
+    nmf_method="pnmf",                    # Daha iyi ayrım için PNMF
+    separator=",",
+    generate_wordclouds=True,
+    export_excel=True,
+    topic_distribution=True,
+    output_name="sosyal_medya_analizi"
 )
 ```
 
@@ -650,8 +724,23 @@ sonuç = run_topic_analysis(
     filepath="app_yorumlari.csv",
     column="yorum_metni",
     language="TR",
-    topics=5,
-    **seçenekler
+    topic_count=5,
+    lemmatize=False,
+    words_per_topic=15,
+    tokenizer_type="bpe",
+    nmf_method="nmf",
+    separator="|",
+    generate_wordclouds=True,
+    export_excel=True,
+    topic_distribution=True,
+    filter_app=True,
+    data_filter_options={
+        "filter_app_name": "com.example.app",
+        "filter_app_column": "PACKAGE_NAME",
+        "filter_app_country": "TR",
+        "filter_app_country_column": "COUNTRY"
+    },
+    output_name="filtrelenmis_uygulama_analizi"
 )
 
 print(f"Filtrelenmiş analiz sonucu: {sonuç['state']}")
@@ -724,7 +813,7 @@ print(f"Filtrelenmiş analiz sonucu: {sonuç['state']}")
 # Güvenliyse mevcut veritabanı dosyalarını silin:
 # rm instance/topics.db
 # rm instance/scopus.db
-# Veya her çalıştırma için farklı table_name kullanın
+# Veya her çalıştırma için farklı output_name kullanın
 ```
 
 #### 7. Veri Filtreleme Sorunları
