@@ -322,7 +322,24 @@ def _perform_topic_modeling(tdm, options: Dict[str, Any], vocab, text_array, df:
         doc_topic_matrix=nmf_output["W"],
         vocabulary=vocab,
     )
-    
+
+    from manta.utils.visualization.tsne_graph_output import tsne_graph_output
+    # tsne_graph_output(w=nmf_output["W"], h=nmf_output["H"], tdm=tdm, vocab=vocab,
+    #                   output_dir=table_output_dir, table_name=table_name)
+
+    # Generate LDAvis-style interactive visualization
+
+    # from manta.utils.visualization.manta_ldavis_output import create_manta_ldavis
+    # create_manta_ldavis(
+    #     w_matrix=nmf_output["W"],
+    #     h_matrix=nmf_output["H"],
+    #     vocab=vocab,
+    #     output_dir=table_output_dir,
+    #     table_name=table_name,
+    #     #tokenizer=options["tokenizer"],
+    #     #emoji_map=options["emoji_map"]
+    # )
+
     return topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result
 
 
@@ -476,18 +493,37 @@ def process_file(
             progress_console.complete_task(modeling_task, "Topic modeling and output generation completed")
             console.record_stage_time("Output Generation", output_start)
 
+        console.print_status("Saving model components...", "processing")
+        model_file = table_output_dir / f"{table_name}_model_components.npz"
+        try:
+            import numpy as np
+            np.savez_compressed(
+                model_file, 
+                W=nmf_output["W"], 
+                H=nmf_output["H"], 
+                vocab=vocab
+            )
+            console.print_status(f"Model components saved to {model_file.name}", "success")
+        except Exception as e:
+            console.print_status(f"Warning: Failed to save model components: {e}", "warning")
+
+
+
         console.print_status("Analysis completed successfully!", "success")
 
         return {
             "state": "SUCCESS",
             "message": "Topic modeling completed successfully",
             "data_name": table_name,
+            "nmf_output": nmf_output,
+            "vocabulary": vocab,
             "topic_word_scores": topic_word_scores,
             "topic_doc_scores": topic_doc_scores,
             "coherence_scores": coherence_scores,
             "topic_dist_img": visual_returns[0] if options["gen_topic_distribution"] else None,
             "topic_document_counts": visual_returns[1] if options["gen_topic_distribution"] else None,
             "topic_relationships": nmf_output.get("S", None),
+            "model_file": str(model_file),
         }
 
     except Exception as e:
