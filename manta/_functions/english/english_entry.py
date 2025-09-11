@@ -35,7 +35,7 @@ def process_english_file(df, desired_columns: str, lemmatize: bool,emoji_map=Non
     text_array = clean_english_text(metin=df[desired_columns], lemmatize=lemmatize, emoji_map=emoji_map)
     print(f"Preprocess completed in {time.time() - START_TIME:.2f} seconds")
     vocab, N = create_english_vocab(text_array, desired_columns, lemmatize=lemmatize)
-    counterized_data = counterize_english(N, vocab=vocab, data=text_array, field_name=desired_columns, lemmatize=lemmatize)
+    counterized_data = counterize_english(vocab=vocab, data=text_array,lemmatize=lemmatize)
     # tfidf
     tdm = tf_idf_english(N, vocab=vocab, data=counterized_data, fieldname=desired_columns, output_dir=None,
                          lemmatize=lemmatize)

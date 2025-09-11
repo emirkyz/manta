@@ -5,7 +5,7 @@ from itertools import combinations
 from collections import defaultdict
 import numpy as np
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from gensim.models.coherencemodel import CoherenceModel
 from gensim.corpora.dictionary import Dictionary
 import multiprocessing as mp

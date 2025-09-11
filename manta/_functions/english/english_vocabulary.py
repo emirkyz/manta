@@ -1,6 +1,5 @@
 from typing import List
 
-import pandas as pd
 
 
 def create_english_vocab(cleaned_data: List[str], alanadi: str, lemmatize=False, emoji_map=None) -> tuple:
