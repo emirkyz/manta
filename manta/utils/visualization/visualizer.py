@@ -24,7 +24,9 @@ def create_visualization(W, H, sozluk, table_output_dir, table_name, options, re
 
     # generate topic-space fuzzy classification plot
     from .topic_space_graph_output_old import topic_space_graph_output
-    topic_space_plot_path = topic_space_graph_output(
+
+    if False:
+        topic_space_plot_path = topic_space_graph_output(
         w=W,
         h=H,
         output_dir=table_output_dir,
