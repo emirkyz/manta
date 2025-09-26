@@ -10,6 +10,9 @@ from gensim.models.coherencemodel import CoherenceModel
 from gensim.corpora.dictionary import Dictionary
 import multiprocessing as mp
 
+from manta.utils.analysis.relevance_scorer import get_topic_top_terms
+
+
 def fix_multiprocessing_fork():
       try:
           mp.set_start_method('fork', force=True)
@@ -539,7 +542,8 @@ def c_uci(topics_json, table_name=None, column_name=None, documents=None, epsilo
         "average_coherence": average_coherence
     }
 
-def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None, topic_word_matrix=None, doc_topic_matrix=None, vocabulary=None):
+
+def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None, topic_word_matrix=None, doc_topic_matrix=None, vocabulary=None, tokenizer=None, emoji_map=None):
     print("Calculating coherence scores...")
     fix_multiprocessing_fork()
 
@@ -562,6 +566,21 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
         results = {}
 
 
+    # Calculate LDAvis-style relevance scores if matrices are available
+    print("Calculating LDAvis-style relevance scores...")
+    relevance_scores = calculate_relevance_scores_from_matrix(
+        topic_word_matrix=topic_word_matrix,
+        doc_topic_matrix=doc_topic_matrix,
+        vocabulary=vocabulary,
+        tokenizer=tokenizer,
+        emoji_map=emoji_map
+    )
+    
+    if relevance_scores is not None:
+        results["relevance"] = relevance_scores
+        print(f"LDAvis-style relevance scores calculated for {len(relevance_scores)} topics")
+    else:
+        print("Warning: Could not calculate relevance scores.")
     # Calculate Diversity scores directly from H matrix
     print("Calculating topic diversity scores...")
     diversity_scores = calculate_diversity_scores_from_matrix(
@@ -623,8 +642,8 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
         output_path = Path(output_dir)
         coherence_file = output_path / f"{table_name}_coherence_scores.json"
         output_path.mkdir(parents=True, exist_ok=True)
-        with open(coherence_file, "w") as f:
-            json.dump(results, f, indent=4)
+        with open(coherence_file, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=4, ensure_ascii=False)
         print(f"Coherence scores saved to: {coherence_file}")
 
     return results
@@ -872,6 +891,51 @@ def calculate_topic_diversity(H_matrix, vocabulary, top_words=50):
         >>> print(f"Overall diversity: {diversity_results['diversity_summary']['overall_diversity_score']:.4f}")
     """
     return calculate_diversity_scores_from_matrix(H_matrix, vocabulary, top_words)
+
+
+def calculate_relevance_scores_from_matrix(topic_word_matrix, doc_topic_matrix, vocabulary, tokenizer=None, emoji_map=None):
+    """
+    Calculate LDAvis-style relevance scores directly from NMF matrices
+    
+    Args:
+        topic_word_matrix (numpy.ndarray): H matrix - shape: (n_topics, n_words)
+        doc_topic_matrix (numpy.ndarray): W matrix - shape: (n_docs, n_topics)
+        vocabulary (list): Vocabulary list corresponding to matrix columns
+        tokenizer: Optional tokenizer for vocabulary creation
+        emoji_map: Optional emoji map for decoding
+        
+    Returns:
+        dict: Dictionary containing all relevance scores and metadata
+    """
+    if topic_word_matrix is None or doc_topic_matrix is None:
+        print("Error: Both topic_word_matrix and doc_topic_matrix are required for relevance calculation.")
+        return None
+    
+    if vocabulary is None and tokenizer is None:
+        print("Error: Either vocabulary or tokenizer must be provided for relevance calculation.")
+        return None
+    
+    print(f"Calculating LDAvis relevance directly from matrices using vocabulary size: {len(vocabulary) if vocabulary else 'from tokenizer'}")
+    
+    try:
+        # Calculate relevance scores using the new scorer
+        relevance_results = get_topic_top_terms(
+            h_matrix=topic_word_matrix,
+            w_matrix=doc_topic_matrix,
+            vocab=vocabulary,
+            tokenizer=tokenizer,
+            emoji_map=emoji_map,
+            lambda_val=0.6,  # Standard lambda range
+            top_n=30  # Standard top N terms
+        )
+        
+        return relevance_results
+        
+    except Exception as e:
+        print(f"Error calculating relevance scores: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def prepare_gensim_data(topics_json, documents):

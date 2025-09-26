@@ -65,6 +65,8 @@ def process_text(text: str, emoji_map=None) -> str:
     metin = remove_space_between_terms(metin, r"\d+", "tl", "next")
     metin = remove_space_between_terms(metin, r"\d+", "saniye", "next")
     metin = remove_space_between_terms(metin, r"\d+", "sn", "next")
+    metin = remove_space_between_terms(metin, r"\d+", "yıldız", "next")
+
     return metin
 
 

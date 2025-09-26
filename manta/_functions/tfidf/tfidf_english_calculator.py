@@ -95,7 +95,9 @@ def tf_idf_english(N=None,
             idf = idf_t(df, N)
             tf_idf = tf_l(input_matrix).multiply(idf).tocsr()
             tf_idf.eliminate_zeros()
-            
+
+            #TODO: Cosinus normalization might be better.
+
             # Apply pivoted normalization if enabled
             if use_pivoted_norm:
                 # Calculate document lengths (number of terms in each document)
