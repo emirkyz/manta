@@ -37,14 +37,15 @@ def create_visualization(W, H, sozluk, table_output_dir, table_name, options, re
     )
 
     # generate interactive LDAvis-style visualization
-    if False:
+    if True:
         from .manta_ldavis_output import create_manta_ldavis
         ldavis_plot_path = create_manta_ldavis(
             w_matrix=W,
             h_matrix=H,
-            vocab=sozluk,
+            vocab=sozluk if options["LANGUAGE"] == "EN" else None,
             output_dir=table_output_dir,
-            table_name=table_name
+            table_name=table_name,
+            tokenizer=options["tokenizer"] if options["LANGUAGE"] == "TR" else None,
         )
 
     if options["gen_cloud"]:
