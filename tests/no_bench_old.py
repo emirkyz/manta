@@ -108,14 +108,73 @@ def predict_topics(text, model_file="topic_model_components.npz", top_n=3, norma
 
 
 if __name__ == '__main__':
-    file_path = "../veri_setleri/bbc_news.csv"
-    column = "text"
 
+    # Get data from PostgreSQL database and convert to CSV
+    import psycopg2
+    import pandas as pd
+    import os
+    
+    # Database connection parameters
+    db_config = {
+        'host': 'localhost',
+        'database': 'turkcell',
+        'user': 'emir_dxhub',
+        'password': '123',
+        'port': 5432
+    }
+    
+    # SQL query to fetch data
+    sql_query = """select distinct rev_submit_millis_since_epoch, device,review_text
+            from dxhub.playstore_app_reviews
+            where package_name = 'com.turkcell.ott'
+            and reviewer_language = 'tr'
+            order by rev_submit_millis_since_epoch desc"""
+
+
+
+    try:
+        # Connect to PostgreSQL database
+        print("Connecting to PostgreSQL database...")
+        conn = psycopg2.connect(**db_config)
+        
+        # Execute query and load into DataFrame
+        print("Executing SQL query...")
+        df = pd.read_sql_query(sql_query, conn)
+        
+        # Close database connection
+        conn.close()
+        print(f"Successfully fetched {len(df)} records from database")
+        
+        # Create output directory if it doesn't exist
+        output_dir = "../veri_setleri"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Save to CSV
+        csv_file_path = os.path.join(output_dir, "database_export.csv")
+        df.to_csv(csv_file_path, index=False, sep="|", encoding='utf-8')
+        print(f"Data exported to: {csv_file_path}")
+        
+        # Update file_path to use the exported CSV
+        file_path = csv_file_path
+        
+    except psycopg2.Error as e:
+        print(f"Database error: {e}")
+        print("Falling back to original CSV file...")
+        file_path = "../veri_setleri/playstore.csv"
+    except Exception as e:
+        print(f"Error: {e}")
+        print("Falling back to original CSV file...")
+        file_path = "../veri_setleri/playstore.csv"
+
+
+
+    file_path = "../veri_setleri/playstore.csv"
+    column = "review_text"
     result = manta.run_topic_analysis(
         filepath=file_path,
         column=column,
-        separator=",",
-        language="EN",
+        separator="|",
+        language="TR",
         lemmatize=True,
         topic_count=10,
         words_per_topic=15,
@@ -124,7 +183,9 @@ if __name__ == '__main__':
         filter_app=True,
         data_filter_options = {
             "filter_app_country": "TR",
-            "filter_app_country_column": "REVIEWER_LANGUAGE",
+            "filter_app_country_column": "reviewer_language",
+            "filter_app_name":"com.turkcell.ott",
+            "filter_app_column": "package_name",
         },
         emoji_map=True,
         generate_wordclouds=True,
