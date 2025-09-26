@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, MetaData, Table, Column, String, insert, text
+from sqlalchemy import MetaData, Table, Column, String, insert, text
 
 def save_topics_to_db(topics_data, data_frame_name, topics_db_eng):
     """Save topics to database using SQLAlchemy engine.

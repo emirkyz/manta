@@ -11,6 +11,42 @@ def create_visualization(W, H, sozluk, table_output_dir, table_name, options, re
         from .topic_dist import gen_topic_dist
         topic_dist_img_count = gen_topic_dist(W, table_output_dir, table_name)
 
+    
+    # generate t-SNE visualization plot
+    if False:
+        from .tsne_graph_output import tsne_graph_output
+        tsne_plot_path = tsne_graph_output(
+            w=W,
+            h=H,
+            output_dir=table_output_dir,
+            table_name=table_name
+        )
+
+    # generate topic-space fuzzy classification plot
+    from .topic_space_graph_output_old import topic_space_graph_output
+
+    if False:
+        topic_space_plot_path = topic_space_graph_output(
+        w=W,
+        h=H,
+        output_dir=table_output_dir,
+        table_name=table_name,
+        top_k=3,
+        min_probability=0,
+        positioning="radial"
+    )
+
+    # generate interactive LDAvis-style visualization
+    if False:
+        from .manta_ldavis_output import create_manta_ldavis
+        ldavis_plot_path = create_manta_ldavis(
+            w_matrix=W,
+            h_matrix=H,
+            vocab=sozluk,
+            output_dir=table_output_dir,
+            table_name=table_name
+        )
+
     if options["gen_cloud"]:
         from .gen_cloud import generate_wordclouds
         generate_wordclouds(result, table_output_dir, table_name)

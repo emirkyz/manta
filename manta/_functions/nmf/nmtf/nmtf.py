@@ -7,7 +7,6 @@ import scipy.sparse as sp
 
 
 from .nmtf_init import nmtf_initialization_random
-from .nmtf_util import sort_matrices
 
 def _calculate_rank_range(m: int, n: int) -> tuple[int, int]:
     delta = (m + n) ** 2 + 4 * m * n

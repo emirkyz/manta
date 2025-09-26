@@ -1,6 +1,5 @@
 from collections import Counter
 
-import numpy as np
 from scipy.sparse import lil_matrix, csr_matrix
 from tokenizers import Tokenizer
 

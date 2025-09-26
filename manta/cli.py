@@ -9,12 +9,10 @@ and extract topics using Non-negative Matrix Factorization.
 
 import argparse
 import sys
-import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 from .manta_entry import run_manta_process
-from ._functions.common_language.emoji_processor import EmojiMap
 from .utils.console.console_manager import ConsoleManager
 
 
@@ -28,8 +26,8 @@ Examples:
   # Analyze Turkish app reviews with 5 topics
   manta analyze reviews.csv --column REVIEW --language TR --topics 5
   
-  # Analyze English documents with lemmatization and word clouds
-  manta analyze docs.xlsx --column text --language EN --topics 10 --lemmatize --wordclouds
+  # Analyze English documents with lemmatization, word clouds, and t-SNE visualization
+  manta analyze docs.xlsx --column text --language EN --topics 10 --lemmatize --wordclouds --tsne-plot
   
   # Use BPE tokenizer for Turkish text
   manta analyze data.csv --column content --language TR --tokenizer bpe --topics 7
@@ -42,6 +40,12 @@ Examples:
   
   # Disable emoji processing for faster processing
   manta analyze data.csv --column text --language EN --topics 5 --emoji-map False
+  
+  # Generate time-series t-SNE visualization
+  manta analyze reviews.csv --column REVIEW --language TR --topics 5 --tsne-plot --tsne-time-column year --tsne-time-ranges "2020,2021,2022,2023" --tsne-cumulative
+  
+  # Generate interactive LDAvis-style topic exploration
+  manta analyze docs.xlsx --column text --language EN --topics 8 --ldavis-plot
         """
     )
     
@@ -143,6 +147,34 @@ Examples:
     )
     
     analyze_parser.add_argument(
+        '--tsne-plot',
+        action='store_true',
+        help='Generate t-SNE 2D visualization of document-topic relationships'
+    )
+    
+    analyze_parser.add_argument(
+        '--tsne-time-column',
+        help='Column name containing time/date information for time-series t-SNE visualization'
+    )
+    
+    analyze_parser.add_argument(
+        '--tsne-time-ranges',
+        help='Comma-separated time ranges for time-series visualization (e.g., "2020,2021,2022,2023")'
+    )
+    
+    analyze_parser.add_argument(
+        '--tsne-cumulative',
+        action='store_true',
+        help='Use cumulative time periods (show data "up to year X" instead of "only in year X")'
+    )
+    
+    analyze_parser.add_argument(
+        '--ldavis-plot',
+        action='store_true',
+        help='Generate interactive LDAvis-style topic exploration visualization'
+    )
+    
+    analyze_parser.add_argument(
         '--separator',
         default=',',
         help='CSV separator character (default: |)'
@@ -226,6 +258,11 @@ def build_options(args: argparse.Namespace) -> tuple[dict[str | Any, Any | None]
         "gen_cloud": args.wordclouds,
         "save_excel": args.excel,
         "gen_topic_distribution": args.topic_distribution,
+        "gen_tsne_plot": args.tsne_plot,
+        "tsne_time_column": args.tsne_time_column,
+        "tsne_time_ranges": args.tsne_time_ranges.split(',') if args.tsne_time_ranges else None,
+        "tsne_cumulative": args.tsne_cumulative,
+        "gen_ldavis_plot": args.ldavis_plot,
         "filter_app": bool(args.filter_app or args.filter_country),
         "data_filter_options": {
             "filter_app_name": args.filter_app or "",

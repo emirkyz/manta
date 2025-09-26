@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from typing import List, Any
+from typing import List
 
 import emoji.core as emoji
 import nltk

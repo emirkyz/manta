@@ -1,6 +1,6 @@
 
  
-def counterize_english(N, vocab, data, field_name, lemmatize):
+def counterize_english(vocab, data,lemmatize):
     """
     Convert text documents to numerical representation using vocabulary indices.
     

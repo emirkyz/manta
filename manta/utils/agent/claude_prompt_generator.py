@@ -4,7 +4,7 @@ Converts the HTML-based prompt generator to a Python function.
 """
 
 import json
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional
 
 
 def generate_claude_prompt(

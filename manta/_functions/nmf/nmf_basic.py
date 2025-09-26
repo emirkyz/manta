@@ -1,9 +1,7 @@
 import numpy as np
-from datetime import datetime, timedelta
 from typing import Callable
 
 import scipy as sp
-from sklearn.preprocessing import normalize
 from tqdm import tqdm
 def _basic_nmf(in_mat:sp.sparse.csc_matrix, w, h, start, log: bool = True, norm_thresh=0.005, zero_threshold=0.0001,
              norm_func: Callable = np.linalg.norm) -> tuple:
