@@ -1,11 +1,8 @@
-import bisect
 from collections import Counter
 
-import numpy as np
 import scipy
-from scipy.sparse import lil_matrix, csr_matrix
+from scipy.sparse import lil_matrix
 
-from ..english.english_preprocessor import preprocess
 from .tfidf_tf_functions import *
 from .tfidf_idf_functions import *
 from .tfidf_bm25_turkish import bm25_generator
@@ -67,16 +64,16 @@ def tf_idf_english(N=None,
         print("Lemmatization is enabled")
     else: 
         print("Lemmatization is disabled")
-    veri = data
+
     #update_progress_emit(50, "TF-IDF Hesaplanıyor", "PROCESSING", "tfidf", "tid")
     try:
         # Create initial term frequency matrix
-        document_count = len(veri)
+        document_count = len(data)
         vocabulary_count = len(vocab)
 
         matris = lil_matrix((document_count, vocabulary_count), dtype=int)
 
-        for i, document in enumerate(veri):
+        for i, document in enumerate(data):
             histogram = Counter(document)
             temporary = [(k, v) for k, v in histogram.items()]
             columns = [a[0] for a in temporary]
@@ -96,9 +93,11 @@ def tf_idf_english(N=None,
         else:
             # Use traditional TF-IDF scoring with modular functions
             idf = idf_t(df, N)
-            tf_idf = tf_L(input_matrix).multiply(idf).tocsr()
+            tf_idf = tf_l(input_matrix).multiply(idf).tocsr()
             tf_idf.eliminate_zeros()
-            
+
+            #TODO: Cosinus normalization might be better.
+
             # Apply pivoted normalization if enabled
             if use_pivoted_norm:
                 # Calculate document lengths (number of terms in each document)

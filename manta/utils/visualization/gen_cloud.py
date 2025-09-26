@@ -1,5 +1,4 @@
 from wordcloud import WordCloud
-import os
 from pathlib import Path
 
 

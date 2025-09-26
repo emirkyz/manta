@@ -2,7 +2,7 @@ from gensim.models.coherencemodel import CoherenceModel
 from gensim.corpora.dictionary import Dictionary
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import NMF # Using sklearn's NMF
-import numpy as np
+
 
 # For WordPiece (requires 'tokenizers' library)
 from tokenizers import Tokenizer
@@ -10,7 +10,6 @@ from tokenizers.models import WordPiece
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
 from tokenizers.trainers import WordPieceTrainer
-from collections import Counter # Not strictly needed for this example, but useful for general text processing
 
 # --- 1. Example Data ---
 documents = [

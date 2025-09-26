@@ -1,9 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 from scipy import sparse as sp
-from scipy.sparse import coo_matrix
 from .nmf_initialization import nmf_initialization_nndsvd
 
 
