@@ -46,6 +46,9 @@ class TextPipeline:
                     options["tokenizer"],
                     tokenizer_type=options["tokenizer_type"],
                     emoji_map=options["emoji_map"],
+                    enable_ngram_bpe=options.get("enable_ngram_bpe", False),
+                    ngram_vocab_limit=options.get("ngram_vocab_limit", 10000),
+                    min_pair_frequency=options.get("min_pair_frequency", 2)
                 )
             )
         elif options["LANGUAGE"] == "EN":
@@ -54,6 +57,9 @@ class TextPipeline:
                 desired_columns,
                 options["LEMMATIZE"],
                 emoji_map=options["emoji_map"],
+                enable_ngram_bpe=options.get("enable_ngram_bpe", False),
+                ngram_vocab_limit=options.get("ngram_vocab_limit", 10000),
+                min_pair_frequency=options.get("min_pair_frequency", 2)
             )
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")

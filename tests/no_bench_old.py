@@ -168,19 +168,19 @@ if __name__ == '__main__':
 
 
 
-    file_path = "../veri_setleri/playstore.csv"
-    column = "review_text"
+    file_path = "../veri_setleri/cord19_dataset.csv"
+    column = "abstract"
     result = manta.run_topic_analysis(
         filepath=file_path,
         column=column,
-        separator="|",
-        language="TR",
+        separator=",",
+        language="EN",
         lemmatize=True,
         topic_count=10,
         words_per_topic=15,
         nmf_method="nmf", # "nmf" or "nmtf" or "pnmf"
         tokenizer_type="bpe",
-        filter_app=True,
+        filter_app=False,
         data_filter_options = {
             "filter_app_country": "TR",
             "filter_app_country_column": "reviewer_language",

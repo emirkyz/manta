@@ -13,7 +13,7 @@ def create_visualization(W, H, sozluk, table_output_dir, table_name, options, re
 
     
     # generate t-SNE visualization plot
-    if False:
+    if True:
         from .tsne_graph_output import tsne_graph_output
         tsne_plot_path = tsne_graph_output(
             w=W,

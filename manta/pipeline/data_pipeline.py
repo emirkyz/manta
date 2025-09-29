@@ -68,6 +68,7 @@ class DataPipeline:
                 sep=options["separator"],
                 engine="python",
                 on_bad_lines="skip",
+                nrows=100_000, #TODO: will be removed when we have a better way to handle large files
             )
 
         elif str(filepath).endswith(".xlsx") or str(filepath).endswith(".xls"):
