@@ -1,23 +1,22 @@
-
-
+from . import visualize_s_matrix_graph
 from ..analysis.word_cooccurrence import calc_word_cooccurrence
 from ..analysis.word_cooccurrence_analyzer import analyze_word_cooccurrence
 
 
-def create_visualization(W, H, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir):
+def create_visualization(nmf_output, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir):
     # generate topic distribution plot
     topic_dist_img_count = 0
     if options["gen_topic_distribution"]:
         from .topic_dist import gen_topic_dist
-        topic_dist_img_count = gen_topic_dist(W, table_output_dir, table_name)
+        topic_dist_img_count = gen_topic_dist(nmf_output["W"], table_output_dir, table_name)
 
     
     # generate t-SNE visualization plot
-    if True:
+    if False:
         from .tsne_graph_output import tsne_graph_output
         tsne_plot_path = tsne_graph_output(
-            w=W,
-            h=H,
+            w=nmf_output["W"],
+            h=nmf_output["H"],
             output_dir=table_output_dir,
             table_name=table_name
         )
@@ -27,8 +26,8 @@ def create_visualization(W, H, sozluk, table_output_dir, table_name, options, re
 
     if False:
         topic_space_plot_path = topic_space_graph_output(
-        w=W,
-        h=H,
+        w=nmf_output["W"],
+        h=nmf_output["H"],
         output_dir=table_output_dir,
         table_name=table_name,
         top_k=3,
@@ -36,12 +35,21 @@ def create_visualization(W, H, sozluk, table_output_dir, table_name, options, re
         positioning="radial"
     )
 
+    if True and "S" in nmf_output:
+        paths = visualize_s_matrix_graph(
+            s_matrix=nmf_output["S"],
+            output_dir="/path/to/output",
+            table_name="my_analysis",
+            threshold=0.1,  # Filter edges below this value
+            layout="circular"  # or "spring", "kamada_kawai"
+        )
+
     # generate interactive LDAvis-style visualization
-    if True:
+    if False:
         from .manta_ldavis_output import create_manta_ldavis
         ldavis_plot_path = create_manta_ldavis(
-            w_matrix=W,
-            h_matrix=H,
+            w_matrix=nmf_output["W"],
+            h_matrix=nmf_output["H"],
             vocab=sozluk if options["LANGUAGE"] == "EN" else None,
             output_dir=table_output_dir,
             table_name=table_name,
@@ -81,7 +89,7 @@ def create_visualization(W, H, sozluk, table_output_dir, table_name, options, re
         else:
             # Use original NMF-based co-occurrence (default behavior)
             top_pairs = calc_word_cooccurrence(
-                H, sozluk, table_output_dir, table_name, 
+                nmf_output["H"], sozluk, table_output_dir, table_name,
                 top_n=options.get("cooccurrence_top_n", 100), 
                 min_score=options.get("cooccurrence_min_score", 1),
                 language=options["LANGUAGE"], 

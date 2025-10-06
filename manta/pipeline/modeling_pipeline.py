@@ -11,6 +11,7 @@ from .._functions.nmf import run_nmf
 from ..utils.analysis.coherence_score import calculate_coherence_scores
 from ..utils.export.save_doc_score_pair import save_doc_score_pair
 from ..utils.export.save_word_score_pair import save_word_score_pair
+from ..utils.export.save_s_matrix import save_s_matrix
 from ..utils.console.console_manager import ConsoleManager
 
 
@@ -114,6 +115,34 @@ class ModelingPipeline:
             table_name=table_name,
             data_frame_name=table_name,
         )
+
+        # Save S matrix if present (for NMTF)
+        if "S" in nmf_output:
+            if console:
+                console.print_status("Saving S matrix...", "processing")
+            save_s_matrix(
+                s_matrix=nmf_output["S"],
+                output_dir=table_output_dir,
+                table_name=table_name,
+                data_frame_name=table_name,
+            )
+
+            # Generate S matrix graph visualizations
+            if console:
+                console.print_status("Generating S matrix graph visualizations...", "processing")
+            else:
+                print("Generating S matrix graph visualizations...")
+
+            from ..utils.visualization.s_matrix_graph import visualize_s_matrix_graph
+            visualize_s_matrix_graph(
+                s_matrix=nmf_output["S"],
+                output_dir=table_output_dir,
+                table_name=table_name,
+                threshold=0.01,
+                layout="circular",
+                create_interactive=False,
+                create_heatmap=True
+            )
 
         if console:
             console.print_status("Calculating coherence scores...", "processing")

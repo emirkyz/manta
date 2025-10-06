@@ -6,6 +6,7 @@ import matplotlib.patches as mpatches
 import numpy as np
 from pathlib import Path
 from typing import Optional, Union, List
+from ...utils.analysis import get_dominant_topics
 
 
 def tsne_graph_output(w: np.ndarray, h: np.ndarray,
@@ -92,7 +93,19 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     )
     tsne_embedding = tsne.fit_transform(w_dense)
     tsne_embedding = pd.DataFrame(tsne_embedding, columns=['x', 'y'])
-    tsne_embedding['hue'] = w_dense.argmax(axis=1)
+
+    # Get dominant topics, filtering out zero-score documents
+    dominant_topics = get_dominant_topics(w_dense, min_score=0.0)
+    tsne_embedding['hue'] = dominant_topics
+
+    # Filter out documents with no dominant topic (marked as -1)
+    valid_mask = tsne_embedding['hue'] != -1
+    excluded_count = (~valid_mask).sum()
+
+    if excluded_count > 0:
+        print(f"Excluded {excluded_count} documents with all zero topic scores from t-SNE visualization")
+
+    tsne_embedding = tsne_embedding[valid_mask].reset_index(drop=True)
 
     # Apply density-based point reduction if points are too clustered
     tsne_embedding = _apply_density_based_reduction(tsne_embedding)

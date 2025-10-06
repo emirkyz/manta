@@ -42,8 +42,7 @@ class OutputPipeline:
             print("Generating visual outputs.")
             
         visual_returns = create_visualization(
-            nmf_output["W"],
-            nmf_output["H"],
+            nmf_output,
             vocab,
             table_output_dir,
             table_name,
