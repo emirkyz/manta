@@ -40,19 +40,20 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
         KeyError: If desired_columns is not found in the DataFrame
         ValueError: If the DataFrame is empty or contains no valid text data
     """
-    text_array = clean_english_text(metin=df[desired_columns], lemmatize=lemmatize, emoji_map=emoji_map)
+    text_array = clean_english_text(metin=df[desired_columns].values, lemmatize=lemmatize, emoji_map=emoji_map)
     print(f"Preprocess completed in {time.time() - START_TIME:.2f} seconds")
     vocab, N = create_english_vocab(text_array, desired_columns, lemmatize=lemmatize)
     counterized_data = counterize_english(vocab=vocab, data=text_array,lemmatize=lemmatize)
 
     # Apply n-gram BPE if enabled
-    if True:
+    if True : # enable_ngram_bpe
         print(f"Applying n-gram BPE with vocab limit: {ngram_vocab_limit}")
         bpe_start_time = time.time()
         target_vocab_size = len(vocab) + min(200, len(vocab) // 5)
+        target_vocab_size = len(vocab) + 300
         # Initialize and train BPE encoder
         ngram_bpe = WordPairBPE(vocab_limit=target_vocab_size, min_pair_frequency=min_pair_frequency)
-        counterized_data = ngram_bpe.fit(counterized_data, len(vocab), vocab)
+        counterized_data = ngram_bpe.fit_optimized(counterized_data, len(vocab), vocab)
 
         # Update vocabulary with n-gram information
         ngram_info = ngram_bpe.get_ngram_vocab_info()
@@ -72,12 +73,12 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
         vocab = extended_vocab
 
         # Save n-grams to JSON file
-        try:
-            output_dir = "Output"
-            ngram_file = ngram_bpe.save_ngrams_to_json("english_ngrams.json", vocab, output_dir)
-            print(f"English n-grams analysis saved to: {ngram_file}")
-        except Exception as e:
-            print(f"Warning: Could not save n-grams file: {e}")
+        #try:
+        #    output_dir = "Output"
+        #    ngram_file = ngram_bpe.save_ngrams_to_json("english_ngrams.json", vocab, output_dir)
+        #    print(f"English n-grams analysis saved to: {ngram_file}")
+        #except Exception as e:
+        #    print(f"Warning: Could not save n-grams file: {e}")
 
     # tfidf
     tdm = tf_idf_english(N, vocab=vocab, data=counterized_data, fieldname=desired_columns, output_dir=None,

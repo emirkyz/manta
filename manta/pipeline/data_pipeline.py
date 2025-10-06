@@ -68,7 +68,7 @@ class DataPipeline:
                 sep=options["separator"],
                 engine="python",
                 on_bad_lines="skip",
-                nrows=100_000, #TODO: will be removed when we have a better way to handle large files
+                #nrows=10_000, #TODO: will be removed when we have a better way to handle large files
             )
 
         elif str(filepath).endswith(".xlsx") or str(filepath).endswith(".xls"):
@@ -154,8 +154,8 @@ class DataPipeline:
         if desired_columns not in df.columns:
             available_columns = ", ".join(df.columns.tolist())
             raise KeyError(f"Column '{desired_columns}' not found in data. Available columns: {available_columns}")
-        
-        df = df[desired_columns]
+
+        df = df[[desired_columns]]
         
         # Remove duplicates and null values
         initial_count = len(df)
