@@ -16,6 +16,7 @@ from collections import Counter, defaultdict
 from typing import List, Dict, Tuple, Optional
 import json
 import os
+import time
 from tqdm import tqdm
 
 # Try to import numba for JIT compilation (optional dependency)
@@ -119,6 +120,10 @@ class WordPairBPE:
         self.id_to_pair = {}  # Reverse mapping for reconstruction
         self.pair_frequencies = {}  # Store frequencies for each merged pair
         self.inverted_index = {}  # Mapping of word_id -> set of doc indices containing that word
+        
+        # Optimization: Track max frequency pair for O(1) lookup
+        self.max_frequency = 0
+        self.max_pair = None
 
     def _get_optimal_dtype(self):
         """
@@ -152,30 +157,33 @@ class WordPairBPE:
 
         return dict(inverted_index)
 
-    def build_pair_frequency_table_optimized(self, counterized_data: List[List[int]]) -> Counter:
+    def build_pair_frequency_table_optimized(self, counterized_data: List[List[int]]) -> dict:
         """
         Optimized version using numpy vectorized operations and Numba JIT.
+        Returns plain dict instead of Counter for better performance.
 
         Args:
             counterized_data: List of documents, each containing word IDs or numpy arrays
 
         Returns:
-            Counter object with (word1_id, word2_id) -> frequency mappings
+            Dict object with (word1_id, word2_id) -> frequency mappings
         """
         if NUMBA_AVAILABLE:
             # Use Numba-optimized batch pair extraction
             all_pairs = count_pairs_from_docs_numba(counterized_data)
 
             # Convert pairs array to tuples and count frequencies
-            pair_frequencies = Counter()
+            pair_frequencies = {}
             for i in range(len(all_pairs)):
                 pair = (all_pairs[i, 0], all_pairs[i, 1])
-                pair_frequencies[pair] += 1
+                pair_frequencies[pair] = pair_frequencies.get(pair, 0) + 1
 
+            # Initialize max tracking
+            self._update_max_frequency(pair_frequencies)
             return pair_frequencies
         else:
             # Fallback to vectorized numpy (still faster than list comprehension)
-            pair_frequencies = defaultdict(int)
+            pair_frequencies = {}
 
             for doc_array in counterized_data:
                 if len(doc_array) < 2:
@@ -185,9 +193,11 @@ class WordPairBPE:
                 pairs = np.column_stack([doc_array[:-1], doc_array[1:]])
                 for i in range(len(pairs)):
                     pair = (pairs[i, 0], pairs[i, 1])
-                    pair_frequencies[pair] += 1
+                    pair_frequencies[pair] = pair_frequencies.get(pair, 0) + 1
 
-            return Counter(pair_frequencies)
+            # Initialize max tracking
+            self._update_max_frequency(pair_frequencies)
+            return pair_frequencies
 
     def update_inverted_index_after_merge(self, counterized_data: List[List[int]],
                                           modified_indices: List[int],
@@ -269,32 +279,46 @@ class WordPairBPE:
             # Track that this document was modified
             modified_indices.append(doc_idx)
 
-            # Optimized vectorized merge - avoid array copy by building result directly
+            # Optimized vectorized merge - safer approach without skip mask
             match_positions = np.where(matches)[0]
-
-            # Create skip mask for second element of matched pairs
-            skip_mask = np.zeros(len(doc_array), dtype=bool)
-            skip_mask[match_positions + 1] = True
-
-            # Build result array efficiently: copy non-skipped elements and replace matched positions
-            new_doc = doc_array[~skip_mask].copy()  # Only copy what we need
-
-            # Replace the matched positions (adjust indices for skipped elements)
-            # Calculate new indices after removing skipped elements
-            matched_indices_in_result = match_positions - np.arange(len(match_positions))
-            new_doc[matched_indices_in_result] = new_id
+            
+            # Build result array by collecting segments
+            result_segments = []
+            last_end = 0
+            
+            for match_pos in match_positions:
+                # Add elements before this match
+                if match_pos > last_end:
+                    result_segments.append(doc_array[last_end:match_pos])
+                
+                # Add merged token
+                result_segments.append(np.array([new_id], dtype=doc_array.dtype))
+                
+                # Skip the pair (next segment starts after both elements)
+                last_end = match_pos + 2
+            
+            # Add remaining elements after last match
+            if last_end < len(doc_array):
+                result_segments.append(doc_array[last_end:])
+            
+            # Concatenate all segments efficiently
+            if result_segments:
+                new_doc = np.concatenate(result_segments)
+            else:
+                new_doc = np.array([], dtype=doc_array.dtype)
 
             # In-place modification: replace document in original list
             counterized_data[doc_idx] = new_doc
 
         return counterized_data, modified_indices
 
-    def update_pair_frequencies_incremental(self, pair_frequencies: Counter,
+    def update_pair_frequencies_incremental(self, pair_frequencies: dict,
                                            counterized_data: List[List[int]],
                                            modified_indices: List[int],
-                                           old_documents: Dict[int, np.ndarray]) -> Counter:
+                                           old_documents: Dict[int, np.ndarray]) -> dict:
         """
         Incrementally update pair frequencies for modified documents only.
+        Optimized to use plain dict and update max tracking efficiently.
 
         Args:
             pair_frequencies: Current pair frequency table
@@ -303,10 +327,11 @@ class WordPairBPE:
             old_documents: Dict mapping doc_idx -> original document before merge
 
         Returns:
-            Updated Counter with incremental frequency changes
+            Updated dict with incremental frequency changes
         """
-        # Create a copy to avoid modifying the original
-        updated_frequencies = pair_frequencies.copy()
+        # Work directly on the original dict for better performance
+        updated_frequencies = pair_frequencies
+        max_pair_removed = False
 
         for doc_idx in modified_indices:
             # Remove old pairs from this document using optimized extraction
@@ -316,17 +341,23 @@ class WordPairBPE:
                     old_pairs_array = count_pairs_numba(old_doc_array)
                     for i in range(len(old_pairs_array)):
                         pair = (old_pairs_array[i, 0], old_pairs_array[i, 1])
-                        updated_frequencies[pair] -= 1
-                        if updated_frequencies[pair] <= 0:
-                            del updated_frequencies[pair]
+                        if pair in updated_frequencies:
+                            updated_frequencies[pair] -= 1
+                            if updated_frequencies[pair] <= 0:
+                                if pair == self.max_pair:
+                                    max_pair_removed = True
+                                del updated_frequencies[pair]
                 else:
                     # Fallback: vectorized numpy without list conversion
                     old_pairs = np.column_stack([old_doc_array[:-1], old_doc_array[1:]])
                     for i in range(len(old_pairs)):
                         pair = (old_pairs[i, 0], old_pairs[i, 1])
-                        updated_frequencies[pair] -= 1
-                        if updated_frequencies[pair] <= 0:
-                            del updated_frequencies[pair]
+                        if pair in updated_frequencies:
+                            updated_frequencies[pair] -= 1
+                            if updated_frequencies[pair] <= 0:
+                                if pair == self.max_pair:
+                                    max_pair_removed = True
+                                del updated_frequencies[pair]
 
             # Add new pairs from this document using optimized extraction
             new_doc_array = counterized_data[doc_idx]
@@ -335,13 +366,21 @@ class WordPairBPE:
                     new_pairs_array = count_pairs_numba(new_doc_array)
                     for i in range(len(new_pairs_array)):
                         pair = (new_pairs_array[i, 0], new_pairs_array[i, 1])
-                        updated_frequencies[pair] += 1
+                        updated_frequencies[pair] = updated_frequencies.get(pair, 0) + 1
+                        # Check if this is a new max
+                        self._update_max_frequency(updated_frequencies, pair)
                 else:
                     # Fallback: vectorized numpy without list conversion
                     new_pairs = np.column_stack([new_doc_array[:-1], new_doc_array[1:]])
                     for i in range(len(new_pairs)):
                         pair = (new_pairs[i, 0], new_pairs[i, 1])
-                        updated_frequencies[pair] += 1
+                        updated_frequencies[pair] = updated_frequencies.get(pair, 0) + 1
+                        # Check if this is a new max
+                        self._update_max_frequency(updated_frequencies, pair)
+
+        # If max pair was removed, need to find new max
+        if max_pair_removed:
+            self._update_max_frequency(updated_frequencies)
 
         return updated_frequencies
 
@@ -369,23 +408,45 @@ class WordPairBPE:
 
         return pair_frequencies
 
-    def find_most_frequent_pair(self, pair_frequencies: Counter) -> Optional[Tuple[int, int]]:
+    def _update_max_frequency(self, pair_frequencies: dict, updated_pair: Tuple[int, int] = None):
+        """
+        Update max frequency tracking efficiently.
+        
+        Args:
+            pair_frequencies: Current frequency dictionary
+            updated_pair: Specific pair that was updated (for targeted check)
+        """
+        if updated_pair and updated_pair in pair_frequencies:
+            freq = pair_frequencies[updated_pair]
+            if freq > self.max_frequency:
+                self.max_frequency = freq
+                self.max_pair = updated_pair
+        else:
+            # Full scan only when necessary (initialization or max pair removed)
+            if pair_frequencies:
+                max_item = max(pair_frequencies.items(), key=lambda x: x[1])
+                self.max_pair = max_item[0]  # pair
+                self.max_frequency = max_item[1]  # frequency
+            else:
+                self.max_frequency = 0
+                self.max_pair = None
+
+    def find_most_frequent_pair(self, pair_frequencies: dict) -> Optional[Tuple[int, int]]:
         """
         Find the most frequent word pair that meets minimum frequency threshold.
+        Optimized to use O(1) max tracking instead of scanning entire dictionary.
 
         Args:
-            pair_frequencies: Counter with pair frequencies
+            pair_frequencies: Dict with pair frequencies
 
         Returns:
             Most frequent pair as (word1_id, word2_id) tuple, or None if no valid pairs
         """
-        if not pair_frequencies:
+        if not pair_frequencies or self.max_pair is None:
             return None
 
-        most_frequent_pair, frequency = pair_frequencies.most_common(1)[0]
-
-        if frequency >= self.min_pair_frequency:
-            return most_frequent_pair
+        if self.max_frequency >= self.min_pair_frequency:
+            return self.max_pair
         else:
             return None
 
@@ -451,6 +512,16 @@ class WordPairBPE:
         # Work with numpy arrays for faster operations (no conversion overhead)
         working_data = [np.array(doc, dtype=dtype) for doc in counterized_data]
 
+        # Performance tracking
+        start_time = time.time()
+        timing_stats = {
+            'inverted_index_time': 0,
+            'initial_freq_time': 0,
+            'merge_time': 0,
+            'freq_update_time': 0,
+            'total_iterations': 0
+        }
+        
         print(f"Starting optimized n-gram BPE with vocab size: {self.current_vocab_size}")
         print(f"Target vocab limit: {self.vocab_limit}")
         print(f"Using dtype: {dtype.__name__} for memory efficiency")
@@ -458,11 +529,15 @@ class WordPairBPE:
 
         # Build inverted index once at start
         print("Building inverted index...")
+        idx_start = time.time()
         self.inverted_index = self.build_inverted_index(working_data)
+        timing_stats['inverted_index_time'] = time.time() - idx_start
         print(f"Inverted index built with {len(self.inverted_index)} unique tokens")
 
         # Build initial frequency table once
+        freq_start = time.time()
         pair_frequencies = self.build_pair_frequency_table_optimized(working_data)
+        timing_stats['initial_freq_time'] = time.time() - freq_start
 
         # Create progress bar with rate display
         max_iterations = self.vocab_limit - self.current_vocab_size
@@ -485,9 +560,21 @@ class WordPairBPE:
             word1, word2 = most_frequent_pair
 
             # Find candidate documents using inverted index (intersection of docs containing word1 and word2)
+            # Optimization: Check sizes before expensive set intersection
             candidate_docs = None
             if word1 in self.inverted_index and word2 in self.inverted_index:
-                candidate_docs = self.inverted_index[word1] & self.inverted_index[word2]
+                set1 = self.inverted_index[word1]
+                set2 = self.inverted_index[word2]
+                
+                # Early exit if either set is empty
+                if not set1 or not set2:
+                    candidate_docs = set()
+                else:
+                    # Use smaller set for intersection to minimize operations
+                    if len(set1) <= len(set2):
+                        candidate_docs = set1 & set2
+                    else:
+                        candidate_docs = set2 & set1
 
             # Decode pair for human-readable output (only if verbose)
             if self.verbose and original_vocab:
@@ -510,8 +597,9 @@ class WordPairBPE:
                 tqdm.write(f"Iteration {iteration + 1}: Merging '{token1_text}'+'{token2_text}' "
                           f"(freq: {frequency}) -> ID {new_id}")
 
-            # Update progress bar with current vocab size
-            pbar.set_postfix({'vocab_size': self.current_vocab_size, 'freq': frequency})
+            # Optimization: Batch progress bar updates to reduce I/O overhead
+            if iteration % 25 == 0 or iteration < 10:  # Update frequently at start, then batch
+                pbar.set_postfix({'vocab_size': self.current_vocab_size, 'freq': frequency})
 
             # Store merge operation with frequency
             self.merge_operations.append((most_frequent_pair, new_id, frequency))
@@ -519,29 +607,44 @@ class WordPairBPE:
             self.id_to_pair[new_id] = most_frequent_pair
             self.pair_frequencies[most_frequent_pair] = frequency
 
-            # Only copy documents that could potentially be modified (from candidate_docs)
+            # Optimization: Only backup documents that actually contain the pair to merge
             old_docs_backup = {}
             if candidate_docs:
+                word1, word2 = most_frequent_pair
                 for doc_idx in candidate_docs:
-                    old_docs_backup[doc_idx] = working_data[doc_idx].copy()
+                    doc_array = working_data[doc_idx]
+                    # Quick check: does this document actually contain the consecutive pair?
+                    if len(doc_array) >= 2:
+                        matches = (doc_array[:-1] == word1) & (doc_array[1:] == word2)
+                        if matches.any():
+                            old_docs_backup[doc_idx] = working_data[doc_idx].copy()
 
             # Apply merge using vectorized operations with candidate docs from inverted index
+            merge_start = time.time()
             working_data, modified_indices = self.merge_word_pairs_vectorized(
                 working_data, most_frequent_pair, new_id, candidate_doc_indices=candidate_docs
             )
 
             # Update inverted index after merge
             self.update_inverted_index_after_merge(working_data, modified_indices, most_frequent_pair, new_id)
+            timing_stats['merge_time'] += time.time() - merge_start
 
             # Incrementally update frequency table (only for modified documents)
+            freq_update_start = time.time()
             pair_frequencies = self.update_pair_frequencies_incremental(
                 pair_frequencies, working_data, modified_indices, old_docs_backup
             )
+            timing_stats['freq_update_time'] += time.time() - freq_update_start
 
             # Update vocabulary size
             self.current_vocab_size += 1
             iteration += 1
-            pbar.update(1)
+            
+            # Optimization: Batch progress bar updates
+            if iteration % 25 == 0 or iteration < 10:
+                pbar.update(25 if iteration >= 25 else 1)
+            elif self.current_vocab_size >= self.vocab_limit:  # Always update at the end
+                pbar.update(iteration % 25)
 
             # Safety check to prevent infinite loops
             if iteration > 50000:
@@ -550,8 +653,22 @@ class WordPairBPE:
                 break
 
         pbar.close()
+        
+        # Performance report
+        total_time = time.time() - start_time
+        timing_stats['total_iterations'] = iteration
+        
         print(f"\nOptimized n-gram BPE completed. Final vocab size: {self.current_vocab_size}")
         print(f"Created {len(self.merge_operations)} n-gram combinations")
+        print(f"\nPerformance Report:")
+        print(f"  Total time: {total_time:.2f}s")
+        print(f"  Inverted index build: {timing_stats['inverted_index_time']:.2f}s")
+        print(f"  Initial frequency table: {timing_stats['initial_freq_time']:.2f}s")
+        print(f"  Merge operations: {timing_stats['merge_time']:.2f}s ({timing_stats['merge_time']/total_time*100:.1f}%)")
+        print(f"  Frequency updates: {timing_stats['freq_update_time']:.2f}s ({timing_stats['freq_update_time']/total_time*100:.1f}%)")
+        if iteration > 0:
+            print(f"  Average per iteration: {total_time/iteration*1000:.1f}ms")
+            print(f"  Iterations per second: {iteration/total_time:.1f}")
 
         return working_data
 
