@@ -43,7 +43,7 @@ def _nmtf(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
         print(f"Performing NMTF using {method} method...")
 
     if method == "multiplicative":
-        w, s, h = _core_nmtf(in_mat, w, s, h, start, log=log, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
+        w, s, h = _core_nmtf_test(in_mat, w, s, h, start, log=log, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
                              norm_func=np.linalg.norm)
     else:
         raise ValueError(f"Unknown method: {method}. Choose 'multiplicative', 'coordinate_descent', or 'projected_gradient'.")

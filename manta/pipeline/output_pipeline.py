@@ -13,26 +13,28 @@ class OutputPipeline:
     
     @staticmethod
     def generate_outputs(
-        nmf_output, 
-        vocab, 
-        table_output_dir, 
-        table_name: str, 
-        options: Dict[str, Any], 
-        word_result, 
-        topic_word_scores, 
-        text_array, 
-        topics_db_eng, 
-        program_output_dir, 
-        output_dir, 
-        topic_doc_scores, 
-        console: Optional[ConsoleManager] = None
+        nmf_output,
+        vocab,
+        table_output_dir,
+        table_name: str,
+        options: Dict[str, Any],
+        word_result,
+        topic_word_scores,
+        text_array,
+        topics_db_eng,
+        program_output_dir,
+        output_dir,
+        topic_doc_scores,
+        console: Optional[ConsoleManager] = None,
+        datetime_series=None
     ):
         """
         Generate visualizations and output files.
-        
+
         Args:
             console: Console manager for status messages
-        
+            datetime_series: Optional pandas Series with datetime values for temporal analysis
+
         Returns:
             Visual returns from visualization generation
         """
@@ -40,7 +42,7 @@ class OutputPipeline:
             console.print_status("Generating visualizations and exports...", "processing")
         else:
             print("Generating visual outputs.")
-            
+
         visual_returns = create_visualization(
             nmf_output,
             vocab,
@@ -54,6 +56,7 @@ class OutputPipeline:
             options["emoji_map"],
             program_output_dir,
             output_dir,
+            datetime_series=datetime_series
         )
 
         save_to_excel = True
