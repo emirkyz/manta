@@ -160,6 +160,7 @@ class ModelingPipeline:
             topic_word_matrix=nmf_output["H"],
             doc_topic_matrix=nmf_output["W"],
             vocabulary=vocab,
+            s_matrix = nmf_output.get("S", None),
         )
 
         return topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result
