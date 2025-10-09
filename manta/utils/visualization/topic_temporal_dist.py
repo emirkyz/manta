@@ -144,6 +144,19 @@ def gen_temporal_topic_dist(
     else:
         raise ValueError(f"Invalid plot_type: {plot_type}. Use 'stacked_area', 'line', 'stacked_bar', or 'heatmap'")
 
+    # Set x-axis limits to prevent padding beyond actual data range
+    if plot_type != 'heatmap':
+        if time_grouping == 'year':
+            # For year grouping, use actual min/max years as integers
+            year_min = int(df["datetime"].min().strftime('%Y'))
+            year_max = int(df["datetime"].max().strftime('%Y'))
+            ax.set_xlim(year_min, year_max)
+
+
+        else:
+            # For other groupings, set limits based on positions
+            ax.set_xlim(-0.5, len(temporal_dist.index) - 0.5)
+
     ax.set_title(title, fontsize=14, fontweight='bold')
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=10)
     ax.grid(alpha=0.3, linestyle='--')

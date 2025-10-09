@@ -3,7 +3,7 @@ from ..analysis.word_cooccurrence import calc_word_cooccurrence
 from ..analysis.word_cooccurrence_analyzer import analyze_word_cooccurrence
 
 
-def create_visualization(nmf_output, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir):
+def create_visualization(nmf_output, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir, datetime_series=None):
     # generate topic distribution plot
     topic_dist_img_count = 0
     if options["gen_topic_distribution"]:
@@ -12,7 +12,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
 
     
     # generate t-SNE visualization plot
-    if False:
+    if True:
         from .tsne_graph_output import tsne_graph_output
         tsne_plot_path = tsne_graph_output(
             w=nmf_output["W"],
@@ -38,11 +38,106 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
     if True and "S" in nmf_output:
         paths = visualize_s_matrix_graph(
             s_matrix=nmf_output["S"],
-            output_dir="/path/to/output",
+            output_dir=table_output_dir,
             table_name="my_analysis",
             threshold=0.1,  # Filter edges below this value
             layout="circular"  # or "spring", "kamada_kawai"
         )
+
+    # generate temporal topic distribution plot
+    if datetime_series is not None and len(datetime_series) > 0:
+        from .topic_temporal_dist import gen_temporal_topic_dist
+        import pandas as pd
+
+        # Convert to datetime if not already
+        if not pd.api.types.is_datetime64_any_dtype(datetime_series):
+            # Detect format based on column name
+            datetime_col_name = options.get('datetime_column', '').lower()
+            if 'millis' in datetime_col_name or 'epoch' in datetime_col_name:
+                datetime_series = pd.to_datetime(datetime_series, unit='ms')
+            elif 'year' in datetime_col_name:
+                datetime_series = pd.to_datetime(datetime_series, format='%Y')
+            else:
+                datetime_series = pd.to_datetime(datetime_series)
+
+        try:
+            fig, temporal_df = gen_temporal_topic_dist(
+                W=nmf_output["W"],
+                datetime_series=datetime_series,
+                output_dir=table_output_dir,
+                table_name=table_name,
+                time_grouping='year',  # Options: 'year', 'month', 'quarter', 'week'
+                plot_type='stacked_area',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
+                normalize=True,  # False for count-based, True for percentage-based
+                min_score=0.0
+            )
+            print(f"Generated temporal topic distribution visualization")
+        except Exception as e:
+            print(f"Warning: Failed to generate temporal visualization: {e}")
+
+        # Generate violin plot showing topic distribution by year
+        try:
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+            import numpy as np
+            from ..analysis import get_dominant_topics
+
+            # Get dominant topics for each document
+            W_matrix = nmf_output["W"]
+            n_topics = W_matrix.shape[1]
+            dominant_topics = get_dominant_topics(W_matrix, min_score=0.0)
+
+            # Extract year from datetime series
+            years = datetime_series.dt.year
+
+            # Prepare data: create weighted year distribution for each topic based on document counts
+            violin_data = []
+            for doc_idx in range(len(W_matrix)):
+                year = int(years.iloc[doc_idx])
+                dominant_topic_idx = dominant_topics[doc_idx]
+
+                if dominant_topic_idx != -1:  # Only include valid topics
+                    topic_id = dominant_topic_idx + 1
+                    violin_data.append({
+                        'Topic': f'Topic {topic_id}',
+                        'Year': year
+                    })
+
+            violin_df = pd.DataFrame(violin_data)
+
+            # Get unique topics for plot sizing
+            n_topics_found = violin_df['Topic'].nunique()
+
+            # Create horizontal violin plot: one violin per topic showing year distribution
+            fig_violin, ax = plt.subplots(figsize=(12, max(8, n_topics_found * 0.8)))
+
+            sns.violinplot(
+                data=violin_df,
+                y='Topic',
+                x='Year',
+                orient='h',
+                inner='box',
+                palette='Set2',
+                ax=ax
+            )
+
+            ax.set_xlabel('Year', fontsize=12, fontweight='bold')
+            ax.set_ylabel('Topic ID', fontsize=12, fontweight='bold')
+            ax.set_title('Topic Distribution Across Years',
+                        fontsize=14, fontweight='bold', pad=20)
+            ax.grid(axis='x', alpha=0.3, linestyle='--')
+
+            plt.tight_layout()
+
+            # Save the plot
+            violin_path = table_output_dir / f"{table_name}_topic_distribution_by_year.png"
+            fig_violin.savefig(violin_path, dpi=300, bbox_inches='tight')
+            plt.close(fig_violin)
+
+            print(f"Generated topic distribution violin plot by year: {violin_path.name}")
+
+        except Exception as e:
+            print(f"Warning: Failed to generate violin plot: {e}")
 
     # generate interactive LDAvis-style visualization
     if False:

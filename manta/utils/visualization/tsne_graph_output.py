@@ -166,6 +166,15 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     scatter = ax.scatter(data['x'], data['y'], s=point_size,c = data["hue"],
                          cmap=colormap,alpha=alpha, edgecolors="black", linewidths=0.05)
 
+    # Add legend for topic IDs
+    legend_handles = []
+    for idx, topic_id in enumerate(unique_topics):
+        color = distinct_colors[idx] if idx < len(distinct_colors) else (0.5, 0.5, 0.5, 1.0)
+        legend_handles.append(mpatches.Patch(color=color, label=f'Topic {topic_id + 1}'))
+
+    ax.legend(handles=legend_handles, loc='best', fontsize=10, framealpha=0.9,
+              title='Topics', title_fontsize=11)
+
     # Set modern title and labels with better typography
     title_text = f'📊 Topic Distribution Visualization\n{table_name.replace("_", " ").title()}'
     ax.set_title(title_text, fontsize=18, fontweight='bold', pad=25,
@@ -337,6 +346,18 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
                 filtered_data['x'], filtered_data['y'], s=subplot_point_size, c=filtered_data['hue'],
                 cmap=cmap, alpha=subplot_alpha
             )
+
+            # Add legend for time-series subplots
+            legend_handles = []
+            for idx, topic_id in enumerate(sorted(filtered_data['hue'].unique())):
+                if idx < len(distinct_colors):
+                    color = distinct_colors[idx]
+                else:
+                    color = (0.5, 0.5, 0.5, 1.0)
+                legend_handles.append(mpatches.Patch(color=color, label=f'T{int(topic_id) + 1}'))
+
+            if legend_handles:
+                ax.legend(handles=legend_handles, loc='best', fontsize=8, framealpha=0.9)
 
             ax.set_title(f'{title_prefix}\\n({len(filtered_data):,} documents)',
                          fontsize=11, fontweight='bold', color='#2E3440', pad=10)
