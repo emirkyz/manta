@@ -68,8 +68,9 @@ class DataPipeline:
                 sep=options["separator"],
                 engine="python",
                 on_bad_lines="skip",
-                #nrows=10_000, #TODO: will be removed when we have a better way to handle large files
+                #nrows=1_000, #TODO: will be removed when we have a better way to handle large files
             )
+            #df = df.sample(n = 1_000)
 
         elif str(filepath).endswith(".xlsx") or str(filepath).endswith(".xls"):
             df = pd.read_excel(filepath)
@@ -126,16 +127,16 @@ class DataPipeline:
 
     @staticmethod
     def preprocess_dataframe(
-        df: pd.DataFrame, 
-        desired_columns: str, 
-        options: Dict[str, Any], 
-        main_db_eng, 
-        table_name: str, 
+        df: pd.DataFrame,
+        desired_columns: str,
+        options: Dict[str, Any],
+        main_db_eng,
+        table_name: str,
         console: Optional[ConsoleManager] = None
     ) -> pd.DataFrame:
         """
         Preprocess the loaded DataFrame.
-        
+
         Args:
             df: Raw DataFrame
             desired_columns: Column containing text data
@@ -143,19 +144,36 @@ class DataPipeline:
             main_db_eng: Database engine for main data
             table_name: Name for database table
             console: Console manager for status messages
-            
+
         Returns:
             Preprocessed DataFrame
         """
         if console:
             console.print_status("Preprocessing data...", "processing")
-        
+
         # Select only desired columns and validate they exist
         if desired_columns not in df.columns:
             available_columns = ", ".join(df.columns.tolist())
             raise KeyError(f"Column '{desired_columns}' not found in data. Available columns: {available_columns}")
 
-        df = df[[desired_columns]]
+        # Check for datetime columns to preserve for temporal analysis
+        common_datetime_cols = ['year', 'date', 'datetime', 'timestamp', 'time',
+                                'rev_submit_millis_since_epoch', 'created_at', 'updated_at']
+        datetime_col_found = None
+        for col in common_datetime_cols:
+            if col in df.columns:
+                datetime_col_found = col
+                break
+
+        # Select text column and datetime column if available
+        if datetime_col_found:
+            df = df[[desired_columns, datetime_col_found]]
+            options['datetime_column'] = datetime_col_found  # Store for later use in pipeline
+            if console:
+                console.print_status(f"Preserved datetime column: {datetime_col_found}", "info")
+        else:
+            df = df[[desired_columns]]
+            options['datetime_column'] = None
         
         # Remove duplicates and null values
         initial_count = len(df)
