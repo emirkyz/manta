@@ -18,6 +18,9 @@ def load_model_components(model_file="topic_model_components.npz"):
         H = data['H']
         vocab = data['vocab']
 
+        # Load S matrix if present (NMTF models)
+        S = data['S'] if 'S' in data else None
+
         # Handle different vocab formats - convert to list if needed
         if isinstance(vocab, np.ndarray):
             if vocab.ndim == 0:  # scalar array (single item)
@@ -27,13 +30,13 @@ def load_model_components(model_file="topic_model_components.npz"):
 
         print(f"Model components loaded from {model_file}")
         print(f"Vocabulary type: {type(vocab)}, length: {len(vocab) if hasattr(vocab, '__len__') else 'N/A'}")
-        return W, H, vocab
+        return W, H, vocab, S
     except FileNotFoundError:
         print(f"Model file {model_file} not found. Run training first.")
-        return None, None, None
+        return None, None, None, None
     except Exception as e:
         print(f"Error loading model: {e}")
-        return None, None, None
+        return None, None, None, None
 
 
 def predict_topics(text, model_file="topic_model_components.npz", top_n=3, normalization='l1'):
@@ -50,7 +53,7 @@ def predict_topics(text, model_file="topic_model_components.npz", top_n=3, norma
         dict: Dictionary with raw scores and normalized scores using specified method
     """
     # Load model components
-    W, H, vocab = load_model_components(model_file)
+    W, H, vocab, S = load_model_components(model_file)
     if H is None or vocab is None:
         return None
 
@@ -271,7 +274,7 @@ def predict_topics_for_dataset(dataset_path, column_name, model_file="topic_mode
             - failed_predictions: list of indices where prediction failed
     """
     # Load model components once at the beginning
-    W, H, vocab = load_model_components(model_file)
+    W, H, vocab, S = load_model_components(model_file)
     if H is None:
         print("Failed to load model components")
         return None
@@ -425,7 +428,7 @@ if __name__ == '__main__':
     processed_data = result.get("processed_data", None)
     if processed_data and dataset_predictions:
         # Load model components for processed data prediction
-        W, H, vocab = load_model_components(model_file)
+        W, H, vocab, S = load_model_components(model_file)
         if H is not None:
             processed_predictions = predict_topics_for_processed_data(processed_data, W, H, vocab)
         else:

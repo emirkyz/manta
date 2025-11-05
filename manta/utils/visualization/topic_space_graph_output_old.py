@@ -8,6 +8,7 @@ import math
 
 
 def topic_space_graph_output(w: np.ndarray, h: np.ndarray,
+                            s_matrix: Optional[np.ndarray] = None,
                             output_dir: Optional[Union[str, Path]] = None,
                             table_name: str = "topic_space_plot",
                             top_k: int = 3,
@@ -51,6 +52,12 @@ def topic_space_graph_output(w: np.ndarray, h: np.ndarray,
     if w is None or h is None:
         print("⚠️  Error: Invalid input matrices for topic-space visualization")
         return None
+
+    # Note: This visualization assumes standard NMF with direct document-topic probabilities
+    # NMTF models may not visualize correctly in this fuzzy classification view
+    if s_matrix is not None:
+        print("⚠️  Warning: NMTF detected. This fuzzy classification view is designed for standard NMF.")
+        print("   NMTF topics may not display accurately in this visualization.")
 
     if w.shape[0] < 1:
         print("⚠️  Error: Need at least 1 document for visualization")

@@ -316,7 +316,9 @@ def _create_network_graph(
         plt.Line2D([0], [0], color='#5E81AC', linewidth=2.5, alpha=0.6, label='Medium Connection'),
         plt.Line2D([0], [0], color='#5E81AC', linewidth=1, alpha=0.3, label='Weak Connection')
     ]
-    ax.legend(handles=legend_elements, loc='upper left', fontsize=10, framealpha=0.9)
+    # Move legend below graph to prevent overlap
+    ax.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, -0.05),
+              ncol=3, fontsize=10, framealpha=0.9)
 
     # Add statistics text
     stats_text = (

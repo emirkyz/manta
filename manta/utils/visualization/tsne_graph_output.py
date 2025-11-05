@@ -10,12 +10,14 @@ from ...utils.analysis import get_dominant_topics
 
 
 def tsne_graph_output(w: np.ndarray, h: np.ndarray,
+                      s_matrix: Optional[np.ndarray] = None,
                       output_dir: Optional[Union[str, Path]] = None,
                       table_name: str = "tsne_plot",
                       time_data: Optional[pd.Series] = None,
                       time_ranges: Optional[List] = None,
                       cumulative: bool = True,
-                      time_column_name: str = "time") -> Optional[str]:
+                      time_column_name: str = "time",
+                      outlier_percentile: float = 0.95) -> Optional[str]:
     """
     Create beautiful t-SNE visualizations for document-topic analysis.
 
@@ -32,6 +34,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
         time_ranges: List of time points for time-series subplots (optional)
         cumulative: If True, show cumulative data up to each time point
         time_column_name: Name of time column for display purposes
+        outlier_percentile: Fraction of points to keep based on distance from center (default 0.95)
 
     Returns:
         Path to saved plot file, or None if saving failed
@@ -95,7 +98,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     tsne_embedding = pd.DataFrame(tsne_embedding, columns=['x', 'y'])
 
     # Get dominant topics, filtering out zero-score documents
-    dominant_topics = get_dominant_topics(w_dense, min_score=0.0)
+    dominant_topics = get_dominant_topics(w_dense, min_score=0.0, s_matrix=s_matrix)
     tsne_embedding['hue'] = dominant_topics
 
     # Filter out documents with no dominant topic (marked as -1)
@@ -106,6 +109,9 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
         print(f"Excluded {excluded_count} documents with all zero topic scores from t-SNE visualization")
 
     tsne_embedding = tsne_embedding[valid_mask].reset_index(drop=True)
+
+    # Remove outliers to improve visualization scaling
+    tsne_embedding = _remove_outliers_percentile(tsne_embedding, percentile=outlier_percentile)
 
     # Apply density-based point reduction if points are too clustered
     tsne_embedding = _apply_density_based_reduction(tsne_embedding)
@@ -172,7 +178,9 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
         color = distinct_colors[idx] if idx < len(distinct_colors) else (0.5, 0.5, 0.5, 1.0)
         legend_handles.append(mpatches.Patch(color=color, label=f'Topic {topic_id + 1}'))
 
-    ax.legend(handles=legend_handles, loc='best', fontsize=10, framealpha=0.9,
+    # Move legend below graph to prevent overlap with many topics
+    ax.legend(handles=legend_handles, loc='upper center', bbox_to_anchor=(0.5, -0.08),
+              ncol=min(6, len(unique_topics)), fontsize=10, framealpha=0.9,
               title='Topics', title_fontsize=11)
 
     # Set modern title and labels with better typography
@@ -509,6 +517,48 @@ def _auto_detect_time_ranges(time_data: pd.Series, n_periods: int = 6) -> Option
     except Exception as e:
         print(f"⚠️  Could not auto-detect time ranges: {e}")
         return None
+
+
+def _remove_outliers_percentile(tsne_data: pd.DataFrame, percentile: float = 0.95) -> pd.DataFrame:
+    """
+    Remove outlier points that are far from the main cluster using percentile-based filtering.
+
+    This helps create better-scaled visualizations by removing extreme outliers that would
+    otherwise force the axes to scale widely and compress the main cluster.
+
+    Args:
+        tsne_data: DataFrame with x, y, hue columns
+        percentile: Fraction of points to keep (default 0.95 = keep 95% closest to center)
+
+    Returns:
+        Filtered DataFrame with outliers removed
+    """
+    import numpy as np
+
+    if len(tsne_data) <= 10:  # Don't filter very small datasets
+        return tsne_data
+
+    # Calculate center point (using median for robustness)
+    center_x = tsne_data['x'].median()
+    center_y = tsne_data['y'].median()
+
+    # Calculate Euclidean distance from center for each point
+    distances = np.sqrt((tsne_data['x'] - center_x)**2 + (tsne_data['y'] - center_y)**2)
+
+    # Find the distance threshold (keep points within percentile)
+    threshold = np.quantile(distances, percentile)
+
+    # Filter points
+    mask = distances <= threshold
+    filtered_data = tsne_data[mask].reset_index(drop=True)
+
+    # Log the filtering results
+    n_removed = len(tsne_data) - len(filtered_data)
+    if n_removed > 0:
+        print(f"🎯 Removed {n_removed} outlier points (keeping {percentile*100:.1f}% closest to center)")
+        print(f"   Distance threshold: {threshold:.2f}")
+
+    return filtered_data
 
 
 def _apply_representative_sampling(tsne_data: pd.DataFrame, target_size: int = 1500) -> pd.DataFrame:

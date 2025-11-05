@@ -8,18 +8,46 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
     topic_dist_img_count = 0
     if options["gen_topic_distribution"]:
         from .topic_dist import gen_topic_dist
-        topic_dist_img_count = gen_topic_dist(nmf_output["W"], table_output_dir, table_name)
+        topic_dist_img_count = gen_topic_dist(nmf_output["W"], table_output_dir, table_name, s_matrix=nmf_output.get("S", None))
 
     
     # generate t-SNE visualization plot
     if True:
-        from .tsne_graph_output import tsne_graph_output
-        tsne_plot_path = tsne_graph_output(
-            w=nmf_output["W"],
-            h=nmf_output["H"],
-            output_dir=table_output_dir,
-            table_name=table_name
-        )
+        # Use optimized t-SNE for large datasets (>5K documents)
+        n_docs = nmf_output["W"].shape[0]
+        use_optimized = False
+        
+        if use_optimized:
+            try:
+                from .tsne_optimized import tsne_graph_output_optimized
+                print(f"🚀 Using optimized t-SNE for {n_docs:,} documents")
+                tsne_plot_path = tsne_graph_output_optimized(
+                    w=nmf_output["W"],
+                    h=nmf_output["H"],
+                    s_matrix=nmf_output.get("S", None),
+                    output_dir=table_output_dir,
+                    table_name=table_name,
+                    performance_mode="auto"
+                )
+            except ImportError as e:
+                print(f"⚠️  Optimized t-SNE not available, falling back to standard: {e}")
+                from .tsne_graph_output import tsne_graph_output
+                tsne_plot_path = tsne_graph_output(
+                    w=nmf_output["W"],
+                    h=nmf_output["H"],
+                    s_matrix=nmf_output.get("S", None),
+                    output_dir=table_output_dir,
+                    table_name=table_name
+                )
+        else:
+            from .tsne_graph_output import tsne_graph_output
+            tsne_plot_path = tsne_graph_output(
+                w=nmf_output["W"],
+                h=nmf_output["H"],
+                s_matrix=nmf_output.get("S", None),
+                output_dir=table_output_dir,
+                table_name=table_name,
+            )
 
     # generate topic-space fuzzy classification plot
     from .topic_space_graph_output_old import topic_space_graph_output
@@ -28,6 +56,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         topic_space_plot_path = topic_space_graph_output(
         w=nmf_output["W"],
         h=nmf_output["H"],
+        s_matrix=nmf_output.get("S", None),
         output_dir=table_output_dir,
         table_name=table_name,
         top_k=3,
@@ -63,12 +92,24 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         try:
             fig, temporal_df = gen_temporal_topic_dist(
                 W=nmf_output["W"],
+                s_matrix=nmf_output.get("S", None),
                 datetime_series=datetime_series,
                 output_dir=table_output_dir,
                 table_name=table_name,
                 time_grouping='year',  # Options: 'year', 'month', 'quarter', 'week'
                 plot_type='stacked_area',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
                 normalize=True,  # False for count-based, True for percentage-based
+                min_score=0.0
+            )
+            fig, temporal_df = gen_temporal_topic_dist(
+                W=nmf_output["W"],
+                s_matrix=nmf_output.get("S", None),
+                datetime_series=datetime_series,
+                output_dir=table_output_dir,
+                table_name=table_name,
+                time_grouping='year',  # Options: 'year', 'month', 'quarter', 'week'
+                plot_type='line',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
+                normalize=False,  # False for count-based, True for percentage-based
                 min_score=0.0
             )
             print(f"Generated temporal topic distribution visualization")
@@ -84,8 +125,9 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
 
             # Get dominant topics for each document
             W_matrix = nmf_output["W"]
+            S_matrix = nmf_output.get("S", None)  # Get S matrix if NMTF
             n_topics = W_matrix.shape[1]
-            dominant_topics = get_dominant_topics(W_matrix, min_score=0.0)
+            dominant_topics = get_dominant_topics(W_matrix, min_score=0.0, s_matrix=S_matrix)
 
             # Extract year from datetime series
             years = datetime_series.dt.year
@@ -140,11 +182,12 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
             print(f"Warning: Failed to generate violin plot: {e}")
 
     # generate interactive LDAvis-style visualization
-    if False:
+    if True:
         from .manta_ldavis_output import create_manta_ldavis
         ldavis_plot_path = create_manta_ldavis(
             w_matrix=nmf_output["W"],
             h_matrix=nmf_output["H"],
+            s_matrix=nmf_output.get("S", None),
             vocab=sozluk if options["LANGUAGE"] == "EN" else None,
             output_dir=table_output_dir,
             table_name=table_name,
