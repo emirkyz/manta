@@ -19,8 +19,9 @@ from scipy.stats import entropy
 from sklearn.manifold import MDS
 
 
-def create_manta_ldavis(w_matrix: np.ndarray, 
-                        h_matrix: np.ndarray, 
+def create_manta_ldavis(w_matrix: np.ndarray,
+                        h_matrix: np.ndarray,
+                        s_matrix: Optional[np.ndarray] = None,
                         vocab: List[str] = None,
                         doc_lengths: Optional[List[int]] = None,
                         term_frequency: Optional[List[int]] = None,
@@ -179,9 +180,20 @@ def prepare_manta_data(w_matrix: np.ndarray,
     # Normalize matrices
     w_matrix_norm = w_matrix / (w_matrix.sum(axis=1, keepdims=True) + 1e-10)
     h_matrix_norm = h_matrix / (h_matrix.sum(axis=1, keepdims=True) + 1e-10)
-    
+
     # Calculate topic sizes (total probability mass)
-    topic_sizes = w_matrix.sum(axis=0)
+    if s_matrix is not None:
+        # NMTF mode: Calculate topic sizes using dominant topic assignments
+        from ...utils.analysis import get_dominant_topics
+        dominant_topics = get_dominant_topics(w_matrix, min_score=0.0, s_matrix=s_matrix)
+        valid_mask = dominant_topics != -1
+        n_topics_effective = len(np.unique(dominant_topics[valid_mask]))
+        topic_sizes = np.zeros(n_topics_effective)
+        for topic_idx in range(n_topics_effective):
+            topic_sizes[topic_idx] = np.sum(dominant_topics == topic_idx)
+    else:
+        # Standard NMF mode: Sum of document-topic weights
+        topic_sizes = w_matrix.sum(axis=0)
     
     # Calculate term frequencies if not provided
     # Use both H matrix and W matrix to get proper corpus-wide term frequencies

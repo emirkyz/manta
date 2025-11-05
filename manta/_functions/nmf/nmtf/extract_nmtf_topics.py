@@ -2,7 +2,7 @@ import numpy as np
 from scipy import sparse as sp
 
 
-def extract_topics(doc_by_topics: sp.csr_matrix, word_by_topics: sp.csc_matrix, top_n: int = 10,
+def extract_topics(doc_by_topics: sp.csr_matrix, word_by_topics: sp.csr_matrix, top_n: int = 10,
                    doc_word_pairs: list[tuple[int, int]] = None, weights: list[float] = None) -> tuple:
     if doc_word_pairs is None:
         doc_word_pairs = []

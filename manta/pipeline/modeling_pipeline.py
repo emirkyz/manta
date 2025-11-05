@@ -23,13 +23,12 @@ class ModelingPipeline:
         tdm, 
         options: Dict[str, Any], 
         vocab, 
-        text_array, 
-        df: pd.DataFrame, 
-        desired_columns: str, 
+        text_array,
         db_config, 
         table_name: str, 
         table_output_dir, 
-        console: Optional[ConsoleManager] = None
+        console: Optional[ConsoleManager] = None,
+        desired_columns: str = "text"
     ) -> Tuple[Dict, Dict, Dict, Dict, Any]:
         """
         Perform NMF topic modeling and analysis.
@@ -81,7 +80,7 @@ class ModelingPipeline:
                 doc_word_pairs=nmf_output.get("S", None),
                 topic_count=int(options["DESIRED_TOPIC_COUNT"]),
                 vocab=vocab,
-                documents=[str(doc).strip() for doc in df[desired_columns]],
+                documents=text_array,
                 db_config=db_config,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
