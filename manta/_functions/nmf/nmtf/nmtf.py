@@ -7,8 +7,7 @@ import scipy.sparse as sp
 
 
 from .nmtf_init import nmtf_initialization_random, nmtf_initialization_nndsvd, nmtf_initialization_nndsvd_direct, \
-    nmtf_initialization_nndsvd_symmetric, nmtf_initialization_nndsvd_adaptive
-
+    nmtf_initialization_nndsvd_symmetric, nmtf_initialization_nndsvd_adaptive, nmtf_initialization_nndsvd_legacy
 
 
 def _calculate_rank_range(m: int, n: int) -> tuple[int, int]:
@@ -27,10 +26,10 @@ def _calculate_rank_range_sparse(m: int, n: int, nnz: int) -> tuple[int, int]:
     return max(x1, 0), max(x2, 2)
 
 
-def _nmtf(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
+def _nmtf(in_mat: sp.csr_matrix, log: bool = True, rank_factor: float = 1.0,
           norm_thresh: float = 1.0, zero_threshold: float = 0.0001,
           init_func: Callable = nmtf_initialization_random, konu_sayisi=10,
-          method: str = "multiplicative") -> tuple[sp.csr_matrix, sp.csr_matrix, sp.csc_matrix]:
+          method: str = "multiplicative") -> tuple[sp.csr_matrix, sp.csr_matrix, sp.csr_matrix]:
     m, n = in_mat.shape
     # k_range = _calculate_rank_range_sparse(m, n, in_mat.nnz)
     # therotical_max_value = k_range[1]
@@ -50,7 +49,7 @@ def _nmtf(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
 
     w = sp.csr_matrix(w)
     s = sp.csr_matrix(s)
-    h = sp.csc_matrix(h)
+    h = sp.csr_matrix(h)
 
     #ind, max_vals = sort_matrices(s.toarray())
 
@@ -161,18 +160,18 @@ def _core_nmtf_test(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0,
         denominator_h = s1.T @ (w1.T @ w1) @ s1 @ h + epsilon
         h1 = h * (numerator_h / denominator_h)
 
-        # Normalize W columns
-        #w_col_norms = norm_func(w1, axis=0, keepdims=True)
-        #w_col_norms[w_col_norms == 0] = 1  # Avoid division by zero
-        #w1 = w1 / w_col_norms
-        ## Normalize H rows
-        #h_row_norms = norm_func(h1, axis=1, keepdims=True)
-        #h_row_norms[h_row_norms == 0] = 1  # Avoid division by zero
-        #h1 = h1 / h_row_norms
-
-        # Transfer scales to S using matrix multiplication with diagonal matrices
-        # S_new = diag(w_col_norms) @ S @ diag(h_row_norms)
-        #s1 = np.diag(w_col_norms.flatten()) @ s1 @ np.diag(h_row_norms.flatten())
+        # # Normalize W columns
+        # w_col_norms = norm_func(w1, axis=0, keepdims=True)
+        # w_col_norms[w_col_norms == 0] = 1  # Avoid division by zero
+        # w1 = w1 / w_col_norms
+        # # Normalize H rows
+        # h_row_norms = norm_func(h1, axis=1, keepdims=True)
+        # h_row_norms[h_row_norms == 0] = 1  # Avoid division by zero
+        # h1 = h1 / h_row_norms
+        #
+        # # Transfer scales to S using matrix multiplication with diagonal matrices
+        # # S_new = diag(w_col_norms) @ S @ diag(h_row_norms)
+        # s1 = np.diag(w_col_norms.flatten()) @ s1 @ np.diag(h_row_norms.flatten())
 
         ## Calculate convergence metrics
         w_norm = norm_func(np.abs(w1 - w), "fro")
@@ -216,12 +215,12 @@ def _core_nmtf_test(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0,
     return w, s, h
 
 
-def nmtf(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
+def nmtf(in_mat: sp.csr_matrix, log: bool = True, rank_factor: float = 1.0,
          norm_thresh: float = 1.0, zero_threshold: float = 0.0001,
          init_func: Callable = nmtf_initialization_random,
-         topic_count:int = 10, method: str = "multiplicative") -> tuple[sp.csr_matrix, sp.csr_matrix, sp.csc_matrix]:
+         topic_count:int = 10, method: str = "multiplicative") -> tuple[sp.csr_matrix, sp.csr_matrix, sp.csr_matrix]:
 
-    w, s, h = _nmtf(in_mat, log, rank_factor, norm_thresh, zero_threshold, nmtf_initialization_random, topic_count, method)
+    w, s, h = _nmtf(in_mat, log, rank_factor, norm_thresh, zero_threshold, nmtf_initialization_nndsvd_legacy, topic_count, method)
     
     nmf_output = {}
     nmf_output["W"] = w.toarray()

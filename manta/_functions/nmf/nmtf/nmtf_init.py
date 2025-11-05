@@ -5,11 +5,9 @@ import scipy.sparse as sp
 from scipy.sparse import linalg as sla
 
 
-def nmtf_initialization_random(in_mat: sp.csc_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def nmtf_initialization_random(in_mat: sp.csr_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     min_v = in_mat.min()
     max_v = in_mat.max()
-    min_v = 0
-    max_v = 1
 
     m, n = in_mat.shape
 
@@ -18,7 +16,7 @@ def nmtf_initialization_random(in_mat: sp.csc_matrix, rank: int) -> tuple[np.nda
             np.random.uniform(min_v, max_v, (rank, n)))
 
 
-def nmtf_initialization_nndsvd_legacy(in_mat: sp.csc_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def nmtf_initialization_nndsvd_legacy(in_mat: sp.csr_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Legacy hierarchical NNDSVD initialization for NMTF.
     Uses double NNDSVD factorization approach.
@@ -33,8 +31,8 @@ def nmtf_initialization_nndsvd_legacy(in_mat: sp.csc_matrix, rank: int) -> tuple
     from manta._functions.nmf.nmf_initialization import nmf_initialization_nndsvd
 
     wt, ht = nmf_initialization_nndsvd(in_mat, rank + 1)
-    wt_sp = sp.csc_matrix(wt)
-    ht_sp = sp.csc_matrix(ht)
+    wt_sp = sp.csr_matrix(wt)
+    ht_sp = sp.csr_matrix(ht)
     w, s_w = nmf_initialization_nndsvd(wt_sp, rank)
     s_h, h = nmf_initialization_nndsvd(ht_sp, rank)
 
@@ -43,7 +41,7 @@ def nmtf_initialization_nndsvd_legacy(in_mat: sp.csc_matrix, rank: int) -> tuple
     return w, s, h
 
 
-def nmtf_initialization_nndsvd_direct(in_mat: sp.csc_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def nmtf_initialization_nndsvd_direct(in_mat: sp.csr_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Direct NNDSVD initialization for NMTF using single SVD decomposition.
 
@@ -114,7 +112,7 @@ def nmtf_initialization_nndsvd_direct(in_mat: sp.csc_matrix, rank: int) -> tuple
 
 
 
-def nmtf_initialization_nndsvd_symmetric(in_mat: sp.csc_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def nmtf_initialization_nndsvd_symmetric(in_mat: sp.csr_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Symmetric orthogonal NNDSVD initialization for NMTF.
 
@@ -185,7 +183,7 @@ def nmtf_initialization_nndsvd_symmetric(in_mat: sp.csc_matrix, rank: int) -> tu
     return w, s_matrix, h
 
 
-def nmtf_initialization_nndsvd_adaptive(in_mat: sp.csc_matrix, rank: int,
+def nmtf_initialization_nndsvd_adaptive(in_mat: sp.csr_matrix, rank: int,
                                         variance_threshold: float = 0.9) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Adaptive rank NNDSVD initialization for NMTF with asymmetric topic structures.
@@ -194,7 +192,7 @@ def nmtf_initialization_nndsvd_adaptive(in_mat: sp.csc_matrix, rank: int,
     explained variance, allowing S to be rectangular for asymmetric patterns.
 
     Args:
-        in_mat (sp.csc_matrix): Input sparse matrix to factorize
+        in_mat (sp.csr_matrix): Input sparse matrix to factorize
         rank (int): Maximum rank for factorization
         variance_threshold (float): Cumulative variance threshold (0-1) for adaptive rank selection
 
@@ -273,12 +271,12 @@ def nmtf_initialization_nndsvd_adaptive(in_mat: sp.csc_matrix, rank: int,
     return w, s_matrix, h
 
 
-def nmtf_initialization_nndsvd(in_mat: sp.csc_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def nmtf_initialization_nndsvd(in_mat: sp.csr_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Default NNDSVD initialization for NMTF (uses direct method).
 
     Args:
-        in_mat (sp.csc_matrix): Input sparse matrix to factorize
+        in_mat (sp.csr_matrix): Input sparse matrix to factorize
         rank (int): Target rank for factorization
 
     Returns:
