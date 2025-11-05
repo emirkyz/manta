@@ -534,6 +534,7 @@ dependencies = [
     { name = "numba" },
     { name = "numpy" },
     { name = "openpyxl" },
+    { name = "opentsne" },
     { name = "pandas" },
     { name = "pillow" },
     { name = "pip" },
@@ -574,6 +575,7 @@ requires-dist = [
     { name = "numba", specifier = ">=0.61.2" },
     { name = "numpy", specifier = "==1.26.4" },
     { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "opentsne", specifier = ">=1.0.2" },
     { name = "pandas", specifier = "==2.2.1" },
     { name = "pillow", specifier = "==11.1.0" },
     { name = "pip", specifier = ">=25.1.1" },
@@ -834,6 +836,28 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3d/f9/88d94a75de065ea32619465d2f77b29a0469500e99012523b91cc4141cd1/openpyxl-3.1.5.tar.gz", hash = "sha256:cf0e3cf56142039133628b5acffe8ef0c12bc902d2aadd3e0fe5878dc08d1050", size = 186464, upload-time = "2024-06-28T14:03:44.161Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl", hash = "sha256:5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2", size = 250910, upload-time = "2024-06-28T14:03:41.161Z" },
+]
+
+[[package]]
+name = "opentsne"
+version = "1.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/71/09/357810160298701c979a75c9d4db27e6e8996add0d7879d60cc648341171/opentsne-1.0.2.tar.gz", hash = "sha256:e2aecaa7a487100246f2d3fef9855d1bd6cc02a1c6da8fb2a54583f307aa4229", size = 251206, upload-time = "2024-08-13T11:02:26.161Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/55/8e/2b5b0fb28c721d3023baa36859e209dbbdd45786e1d622ec1e484220d4f3/openTSNE-1.0.2-cp310-cp310-macosx_10_12_universal2.whl", hash = "sha256:c82a2c263e570c75256d58590f7c99273c8f8152fada2e3f36a3de92d165a483", size = 1011876, upload-time = "2024-08-13T11:02:01.899Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/75/e032529880ccd24de86e6c7988a50e0fc8ad001a829aa3a398a947168f15/openTSNE-1.0.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7a7270156cbabc249301cd30f6010387f618295ca68c50913c98b9dad8d9c682", size = 3011808, upload-time = "2024-08-13T11:02:04.65Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/b6/01c699b76282f63b2fea438ba0d22bec15dbcc2e4c30234b729594049e4d/openTSNE-1.0.2-cp310-cp310-win_amd64.whl", hash = "sha256:99c90695c95f09a100216532d1cb7ec24a6269dd005f1e835c1ca0d603d43542", size = 470551, upload-time = "2024-08-13T11:02:06.02Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/fa/0807e7a219889dc69f25a05fdd20872513b179483630b6b52bbfccdfab47/openTSNE-1.0.2-cp311-cp311-macosx_10_12_universal2.whl", hash = "sha256:7882df123f210946d2806fb73feec3666e76eee2d6b6744893e14203e0641a38", size = 1010149, upload-time = "2024-08-13T11:02:07.691Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/68/243fb74f0b0c0e245f67048ad8658e444c7d92d9623812bd5f1123eaf326/openTSNE-1.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:949f694893fd4f803acb513bc2e3d80ef04b707166c28a469ca43033f52b8e1b", size = 3214122, upload-time = "2024-08-13T11:02:09.591Z" },
+    { url = "https://files.pythonhosted.org/packages/04/6d/1fb263a8b48d6350ea919ff30956caeff65b9c030dae0aada2093acd0d7c/openTSNE-1.0.2-cp311-cp311-win_amd64.whl", hash = "sha256:6799cb38e560e50f5ea932be587ad3efd4cf62d5a55d28c3061ca3e2aee210ce", size = 470737, upload-time = "2024-08-13T11:02:11.527Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/c2/2032c772b0bce9c09fdb3cd45bdb6cfe1e7b177ce1f5e21952cc49af264b/openTSNE-1.0.2-cp312-cp312-macosx_10_12_universal2.whl", hash = "sha256:0de8826568aa4f03658274edb393a5be031f771ea86f3493e91aecad27100c56", size = 1006929, upload-time = "2024-08-13T11:02:13.019Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/9e/bc5edb00d363dcaf3c3708036c60930d18797621dfa1651bbf68245ab30f/openTSNE-1.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:37f24d7d139bd466f00ae765120c3a8049ceddc1282e63d75e3406c3ac3b3783", size = 3163997, upload-time = "2024-08-13T11:02:15.983Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/d1/4cf81122288257765600faa093121530503d2893d56f9e5f68702dbd5da0/openTSNE-1.0.2-cp312-cp312-win_amd64.whl", hash = "sha256:7f342ec51fe365cd1a23ad25e6a7b5417f8bd1bf4d71a5d526f42ad4c4b64114", size = 469294, upload-time = "2024-08-13T11:02:17.98Z" },
 ]
 
 [[package]]
