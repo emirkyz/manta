@@ -5,12 +5,14 @@ from .english_text_encoder import counterize_english
 from .english_vocabulary import create_english_vocab
 from ..._functions.tfidf import tf_idf_english
 from ..common_language.ngram_bpe import WordPairBPE
+from ..common_language.ngram_wordpiece import WordPieceNGram
 
 START_TIME = time.time()
 
 
 def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=None,
-                        enable_ngram_bpe=False, ngram_vocab_limit=10000, min_pair_frequency=2):
+                        enable_ngram_bpe=False, ngram_vocab_limit=10000, min_pair_frequency=2,
+                        ngram_algorithm="wordpiece", min_likelihood_score=0.0):
     """
     Process English text data for topic modeling using NMF.
 
@@ -24,9 +26,11 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
         lemmatize (bool): Whether to apply lemmatization during preprocessing.
                          If True, words are reduced to their base forms
         emoji_map: Emoji mapping instance for preprocessing
-        enable_ngram_bpe (bool): Whether to apply n-gram BPE after counterization
-        ngram_vocab_limit (int): Maximum vocabulary size for n-gram BPE
-        min_pair_frequency (int): Minimum frequency threshold for pair merging
+        enable_ngram_bpe (bool): Whether to apply n-gram algorithm after counterization
+        ngram_vocab_limit (int): Maximum vocabulary size for n-gram algorithm
+        min_pair_frequency (int): Minimum frequency threshold for pair merging (BPE only)
+        ngram_algorithm (str): Choice of n-gram algorithm: "bpe" or "wordpiece" (default: "wordpiece")
+        min_likelihood_score (float): Minimum likelihood threshold for pair merging (WordPiece only, default: 0.0)
 
     Returns:
         tuple: A tuple containing:
@@ -45,37 +49,77 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
     vocab, N = create_english_vocab(text_array, desired_columns, lemmatize=lemmatize)
     counterized_data = counterize_english(vocab=vocab, data=text_array,lemmatize=lemmatize)
 
-    # Apply n-gram BPE if enabled
+    # Apply n-gram algorithm if enabled
     if True : # enable_ngram_bpe
-        print(f"Applying n-gram BPE with vocab limit: {ngram_vocab_limit}")
-        bpe_start_time = time.time()
         target_vocab_size = len(vocab) + min(200, len(vocab) // 5)
         target_vocab_size = len(vocab) + 300
-        # Initialize and train BPE encoder
-        ngram_bpe = WordPairBPE(vocab_limit=target_vocab_size, min_pair_frequency=min_pair_frequency)
-        counterized_data = ngram_bpe.fit_optimized(counterized_data, len(vocab), vocab)
+        ngram_algorithm = "bpe"
+        if ngram_algorithm.lower() == "wordpiece":
+            print(f"Applying n-gram WordPiece with vocab limit: {target_vocab_size}")
+            ngram_start_time = time.time()
 
-        # Update vocabulary with n-gram information
-        ngram_info = ngram_bpe.get_ngram_vocab_info()
-        print(f"N-gram BPE completed in {time.time() - bpe_start_time:.2f} seconds")
-        print(f"Created {ngram_info['ngrams_created']} n-gram combinations")
-        print(f"Vocabulary expanded from {ngram_info['original_vocab_size']} to {ngram_info['final_vocab_size']}")
+            # Initialize and train WordPiece encoder
+            ngram_encoder = WordPieceNGram(
+                vocab_limit=target_vocab_size,
+                min_likelihood_score=min_likelihood_score,
+                smoothing=1e-10,
+                verbose=False
+            )
+            counterized_data = ngram_encoder.fit_optimized(counterized_data, len(vocab), vocab)
 
-        # Extend vocabulary with n-gram entries (for compatibility)
-        extended_vocab = vocab[:]  # Copy original vocab
-        for i in range(len(vocab), ngram_bpe.current_vocab_size):
-            if i in ngram_bpe.id_to_pair:
-                ngram_meaning = ngram_bpe.reconstruct_ngram_meaning(i, vocab)
-                extended_vocab.append(ngram_meaning)
-            else:
-                extended_vocab.append(f"NGRAM_{i}")
+            # Update vocabulary with n-gram information
+            ngram_info = ngram_encoder.get_ngram_vocab_info()
+            print(f"N-gram WordPiece completed in {time.time() - ngram_start_time:.2f} seconds")
+            print(f"Created {ngram_info['ngrams_created']} n-gram combinations")
+            print(f"Vocabulary expanded from {ngram_info['original_vocab_size']} to {ngram_info['final_vocab_size']}")
 
-        vocab = extended_vocab
+            # Extend vocabulary with n-gram entries (for compatibility)
+            extended_vocab = vocab[:]  # Copy original vocab
+            for i in range(len(vocab), ngram_encoder.current_vocab_size):
+                if i in ngram_encoder.id_to_pair:
+                    ngram_meaning = ngram_encoder.reconstruct_ngram_meaning(i, vocab)
+                    extended_vocab.append(ngram_meaning)
+                else:
+                    extended_vocab.append(f"NGRAM_{i}")
 
-        # Save n-grams to JSON file
+            vocab = extended_vocab
+
+        elif ngram_algorithm.lower() == "bpe":
+            print(f"Applying n-gram BPE with vocab limit: {target_vocab_size}")
+            ngram_start_time = time.time()
+
+            # Initialize and train BPE encoder
+            ngram_encoder = WordPairBPE(
+                vocab_limit=target_vocab_size,
+                min_pair_frequency=min_pair_frequency,
+                verbose=False
+            )
+            counterized_data = ngram_encoder.fit_optimized(counterized_data, len(vocab), vocab)
+
+            # Update vocabulary with n-gram information
+            ngram_info = ngram_encoder.get_ngram_vocab_info()
+            print(f"N-gram BPE completed in {time.time() - ngram_start_time:.2f} seconds")
+            print(f"Created {ngram_info['ngrams_created']} n-gram combinations")
+            print(f"Vocabulary expanded from {ngram_info['original_vocab_size']} to {ngram_info['final_vocab_size']}")
+
+            # Extend vocabulary with n-gram entries (for compatibility)
+            extended_vocab = vocab[:]  # Copy original vocab
+            for i in range(len(vocab), ngram_encoder.current_vocab_size):
+                if i in ngram_encoder.id_to_pair:
+                    ngram_meaning = ngram_encoder.reconstruct_ngram_meaning(i, vocab)
+                    extended_vocab.append(ngram_meaning)
+                else:
+                    extended_vocab.append(f"NGRAM_{i}")
+
+            vocab = extended_vocab
+        else:
+            raise ValueError(f"Unknown n-gram algorithm: {ngram_algorithm}. Must be 'bpe' or 'wordpiece'.")
+
+        # Save n-grams to JSON file (optional)
         #try:
         #    output_dir = "Output"
-        #    ngram_file = ngram_bpe.save_ngrams_to_json("english_ngrams.json", vocab, output_dir)
+        #    algorithm_name = ngram_algorithm.lower()
+        #    ngram_file = ngram_encoder.save_ngrams_to_json(f"english_ngrams_{algorithm_name}.json", vocab, output_dir)
         #    print(f"English n-grams analysis saved to: {ngram_file}")
         #except Exception as e:
         #    print(f"Warning: Could not save n-grams file: {e}")
@@ -84,4 +128,5 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
     tdm = tf_idf_english(N, vocab=vocab, data=counterized_data, fieldname=desired_columns, output_dir=None,
                          lemmatize=lemmatize)
 
+    print(f"TF-IDF shape = {tdm.shape}, the amount of words = {tdm.shape[1]}, and the amount of documents = {tdm.shape[0]} ")
     return tdm, vocab, counterized_data, text_array, emoji_map

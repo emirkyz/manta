@@ -263,6 +263,7 @@ class TopicDiversityScorer:
                     
                     # Validate similarity score - only check for truly invalid values
                     if not isinstance(similarity, (int, float)) or math.isnan(similarity) or math.isinf(similarity):
+                        continue
                         print(f"Warning: Invalid similarity score for {topic1_id} vs {topic2_id}: {similarity}")
                         similarity = 0.0
                     else:
@@ -765,18 +766,16 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
         print(f"LDAvis-style relevance scores calculated for {len(relevance_scores)} topics")
     else:
         print("Warning: Could not calculate relevance scores.")
-    # Calculate Diversity scores
+    # Calculate Diversity scores (saved to separate file: {table_name}_diversity_scores.json)
     diversity_scores = calculate_diversity_scores(
-        topic_word_matrix=topic_word_matrix, 
+        topic_word_matrix=topic_word_matrix,
         vocabulary=vocabulary,
         top_words=50,
         output_dir=output_dir,
         table_name=table_name
     )
 
-    if diversity_scores is not None:
-        results["diversity"] = diversity_scores
-    else:
+    if diversity_scores is None:
         print("Warning: Could not calculate diversity scores.")
     
 
@@ -888,15 +887,16 @@ def u_mass(topics_json, table_name=None, column_name=None, documents=None, epsil
 
 
 
-def calculate_reconstruction_error(original_matrix, W_matrix, H_matrix):
+def calculate_reconstruction_error(original_matrix, W_matrix, H_matrix, S_matrix=None):
     """
-    Calculate reconstruction error metrics for NMF decomposition
-    
+    Calculate reconstruction error metrics for NMF/NMTF decomposition
+
     Args:
         original_matrix: Original TF-IDF sparse matrix (X)
-        W_matrix: Document-topic matrix (W) from NMF - shape: (n_docs, n_topics) 
+        W_matrix: Document-topic matrix (W) from NMF - shape: (n_docs, n_topics)
         H_matrix: Topic-word matrix (H) from NMF - shape: (n_topics, n_words)
-        
+        S_matrix: Optional S matrix for NMTF - shape: (n_topics, n_topics)
+
     Returns:
         dict: Dictionary containing various reconstruction error metrics
     """
@@ -919,9 +919,15 @@ def calculate_reconstruction_error(original_matrix, W_matrix, H_matrix):
             
         W = np.array(W_matrix)
         H = np.array(H_matrix)
-        
-        # Reconstruct the matrix: X_reconstructed = W @ H
-        X_reconstructed = W @ H
+
+        # Reconstruct the matrix
+        if S_matrix is not None:
+            # NMTF reconstruction: X_reconstructed = W @ S @ H
+            S = np.array(S_matrix)
+            X_reconstructed = W @ S @ H
+        else:
+            # Standard NMF reconstruction: X_reconstructed = W @ H
+            X_reconstructed = W @ H
         
         # Calculate reconstruction error (difference matrix)
         error_matrix = X - X_reconstructed
