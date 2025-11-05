@@ -73,6 +73,7 @@ def run_topic_analysis(
     output_name: str = None,
     save_to_db: bool = False,
     output_dir: str = None,
+    **kwargs
 ) -> dict:
     """
     Perform comprehensive topic modeling analysis on text data using Non-negative Matrix Factorization (NMF).
@@ -104,6 +105,7 @@ def run_topic_analysis(
         emoji_map: Enable emoji processing (default: False)
         output_name: Custom name for output directory (default: auto-generated)
         output_dir: Base directory for outputs. Defaults to current working directory.
+        **kwargs: Additional parameters to pass through to the analysis pipeline (e.g., visualization options)
     Returns:
         Dict containing:
             - state: "SUCCESS" if completed successfully, "FAILURE" if error occurred
@@ -160,7 +162,8 @@ def run_topic_analysis(
         data_filter_options=data_filter_options,
         emoji_map=emoji_map,
         save_to_db=save_to_db,
-        output_name=output_name
+        output_name=output_name,
+        **kwargs
     )
 
     # Set output name if not provided

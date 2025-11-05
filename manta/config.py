@@ -48,6 +48,7 @@ class TopicAnalysisConfig:
     enable_ngram_bpe: bool = False
     ngram_vocab_limit: int = 10000
     min_pair_frequency: int = 2
+    additional_params: Dict = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -103,7 +104,7 @@ class TopicAnalysisConfig:
 
     def to_run_options(self) -> Dict:
         """Convert config to format expected by run_standalone_nmf."""
-        return {
+        options = {
             "LANGUAGE": self.language.upper(),
             "DESIRED_TOPIC_COUNT": self.topic_count if self.topic_count is not None else self.topics,
             "N_TOPICS": self.words_per_topic,
@@ -125,6 +126,14 @@ class TopicAnalysisConfig:
             "ngram_vocab_limit": self.ngram_vocab_limit,
             "min_pair_frequency": self.min_pair_frequency
         }
+        
+        # Merge additional parameters from kwargs
+        # Additional params take precedence over defaults but not over explicitly set config values
+        for key, value in self.additional_params.items():
+            if key not in options:  # Only add if not already present
+                options[key] = value
+        
+        return options
 
 
 def create_config_from_params(
@@ -147,6 +156,7 @@ def create_config_from_params(
     enable_ngram_bpe: bool = False,
     ngram_vocab_limit: int = 10000,
     min_pair_frequency: int = 2,
+    **kwargs
 ) -> TopicAnalysisConfig:
     """Create a TopicAnalysisConfig from individual parameters."""
     if data_filter_options is not None:
@@ -173,5 +183,6 @@ def create_config_from_params(
         output_name=output_name,
         enable_ngram_bpe=enable_ngram_bpe,
         ngram_vocab_limit=ngram_vocab_limit,
-        min_pair_frequency=min_pair_frequency
+        min_pair_frequency=min_pair_frequency,
+        additional_params=kwargs
     )
