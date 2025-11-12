@@ -4,7 +4,7 @@ import scipy.sparse as sp
 from scipy.sparse.linalg import norm
 X = np.random.rand(400, 100)
 
-X = sp.csc_matrix(X)
+X = sp.csr_matrix(X)
 
 
 W, S, H = nmtf(X, rank_factor=1.0, norm_thresh=1.0, zero_threshold=0.0001)
