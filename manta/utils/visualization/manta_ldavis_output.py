@@ -79,14 +79,15 @@ def create_manta_ldavis(w_matrix: np.ndarray,
         # Prepare data for visualization
         vis_data = prepare_manta_data(
             w_matrix=w_matrix,
-            h_matrix=h_matrix, 
+            h_matrix=h_matrix,
             vocab=vocab,
             doc_lengths=doc_lengths,
             term_frequency=term_frequency,
             lambda_step=lambda_step,
             sort_topics=sort_topics,
             tokenizer=tokenizer,
-            emoji_map=emoji_map
+            emoji_map=emoji_map,
+            s_matrix=s_matrix
         )
         
         # Generate HTML visualization
@@ -126,19 +127,24 @@ def prepare_manta_data(w_matrix: np.ndarray,
                        lambda_step: float = 0.01,
                        sort_topics: bool = True,
                        tokenizer = None,
-                       emoji_map = None) -> Dict[str, Any]:
+                       emoji_map = None,
+                       s_matrix: Optional[np.ndarray] = None) -> Dict[str, Any]:
     """
     Prepare MANTA NMF data for LDAvis-style visualization.
-    
+
     Args:
         w_matrix: Document-topic matrix (n_docs x n_topics)
         h_matrix: Topic-word matrix (n_topics x n_vocab)
         vocab: List of vocabulary words
         doc_lengths: List of document lengths (optional)
-        term_frequency: List of term frequencies (optional)  
+        term_frequency: List of term frequencies (optional)
         lambda_step: Step size for lambda slider
         sort_topics: Whether to sort topics by size
-        
+        tokenizer: Tokenizer for vocabulary creation (optional)
+        emoji_map: Emoji mapping for vocabulary (optional)
+        s_matrix: S matrix for NMTF (n_topics x n_topics, optional).
+                 Expected to be L1 column-normalized for consistent interpretation.
+
     Returns:
         Dictionary containing all data needed for visualization
     """

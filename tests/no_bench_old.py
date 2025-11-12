@@ -1,4 +1,5 @@
 from collections import Counter
+from pathlib import Path
 
 import numpy as np
 from scipy.sparse import lil_matrix
@@ -172,7 +173,23 @@ if __name__ == '__main__':
 
 
 
+    def get_df_from_db(db_path:Path, table_name:str):
+        """Load df from SQLite database."""
+
+        connection_string = f"sqlite:///{db_path}"
+        engine = manta.create_engine(connection_string)
+        df = pd.read_sql_table(table_name, engine)
+        # convert to csv
+
+        return df
+
+
+
+    file_path = "../DNA/combined_dna_sequence.csv"
     file_path = "../veri_setleri/abstracts_pubmed_v2.csv"
+    file_path = "../veri_setleri/radiology_imaging.csv"
+
+
     column = "abstract"
     result = manta.run_topic_analysis(
         filepath=file_path,
@@ -197,7 +214,7 @@ if __name__ == '__main__':
         word_pairs_out=False,
         topic_distribution=True,
         export_excel=False,
-        output_dir="covid_pubmed_2",
+        output_dir="weighted_time_test",
     )
 
     if False:

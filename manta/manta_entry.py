@@ -102,10 +102,19 @@ def process_file(
                         text_array = list(file["text_array"])
 
                         # Handle case where datetime_series might not be in the file
-                        if "datetime_series" in file and file["datetime_series"] is not None:
-                            datetime_series = pd.Series(file["datetime_series"], dtype=int)
-                        else:
-                            datetime_series = None
+                        datetime_array = file["datetime_series"]
+
+                        # Check if values are years (between 1900-2100) or POSIX timestamps
+                        datetime_series = pd.Series(datetime_array)
+
+                        if datetime_series.min() > 1900 and datetime_series.max() < 2100:
+                            # These are year values - convert to datetime
+                            year_strings = datetime_series.astype(int).astype(str)
+                            datetime_series = pd.to_datetime(year_strings, format='%Y')
+                        elif datetime_series.min() > 1e9:
+                            # These are POSIX timestamps - convert with unit='s'
+                            datetime_series = pd.to_datetime(datetime_series, unit='s')
+
                     console.print_status("Loaded pre-processed data.", "success")
 
                 else:
