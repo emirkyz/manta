@@ -27,7 +27,9 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     Args:
         w: Document-topic matrix (W from NMF/LDA) - shape (n_docs, n_topics)
         h: Topic-word matrix (H from NMF/LDA) - shape (n_topics, n_words)
-        tdm: Term-document matrix (not used directly but kept for compatibility)
+        s_matrix: Optional S matrix from NMTF (k×k). When provided, uses topic relationships
+                 for enhanced clustering. Expected to be L1 column-normalized for consistent
+                 interpretation (each column sums to 1.0).
         output_dir: Directory to save the plot (optional)
         table_name: Base name for the output file and plot title
         time_data: Time/date information for time-series visualization (optional)
@@ -46,6 +48,12 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
         - Colored points by topic assignment (no legend)
         - Time-series support with multiple subplot layouts
         - High-resolution output suitable for publications
+        - NMTF-aware: Uses normalized S matrix for topic relationship weighting
+
+    Note:
+        When used with NMTF, the S matrix is expected to be column-normalized (L1 norm)
+        where each column sums to 1.0. This ensures consistent probability-like interpretation
+        of topic relationships across visualizations.
     """
     # Input validation with beautiful formatting
     print(f"\n🎨 Starting t-SNE Visualization")

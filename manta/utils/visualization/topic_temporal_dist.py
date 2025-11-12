@@ -14,6 +14,20 @@ import seaborn as sns
 from ...utils.analysis import get_dominant_topics
 
 
+def normalize_W_matrix(W:np.ndarray) -> np.ndarray:
+    """
+    Normalize W matrix so each document (row) sums to 1.
+
+    Args:
+        W: Document-topic matrix where rows are documents and columns are topics
+
+    Returns:
+        Normalized W matrix where each row sums to 1
+    """
+    W_normalized = W / W.sum(axis=1, keepdims=True)
+    return W_normalized
+
+
 def gen_temporal_topic_dist(
     W: np.ndarray,
     s_matrix: Optional[np.ndarray] = None,
@@ -25,22 +39,29 @@ def gen_temporal_topic_dist(
     min_score: float = 0.0,
     plot_type: str = 'stacked_area',
     figsize: tuple = (14, 8),
-    smooth: bool = False
+    smooth: bool = False,
+    use_weighted: bool = False
 ) -> tuple:
     """
     Generate temporal distribution plot showing how topics evolve over time.
 
     Args:
         W (numpy.ndarray): Document-topic matrix where rows are documents and columns are topics.
+        s_matrix (numpy.ndarray, optional): S matrix for NMTF. If provided, W @ s_matrix is used before normalization.
         datetime_series (pd.Series): Series containing datetime information for each document.
         output_dir (str|Path): Directory to save the plots.
         table_name (str): Name of the table/dataset.
         time_grouping (str): How to group time periods. Options: 'year', 'quarter', 'month', 'week'.
         normalize (bool): If True, normalize counts to show proportions instead of raw counts.
-        min_score (float): Minimum topic score threshold for dominant topic assignment.
+        min_score (float): Minimum topic score threshold for dominant topic assignment (only used when use_weighted=False).
         plot_type (str): Type of plot. Options: 'stacked_area', 'line', 'stacked_bar', 'heatmap'.
         figsize (tuple): Figure size for the plot.
         smooth (bool): If True, apply smoothing to the data (cubic interpolation for line plots).
+        use_weighted (bool): If True, use normalized topic weights instead of counting dominant topics.
+                           Only applies to 'line' and 'stacked_area' plot types. When True, each document
+                           contributes its normalized topic distribution to the temporal sum, providing a
+                           more nuanced view of topic evolution. When False, uses traditional dominant topic
+                           assignment (hard assignment).
 
     Returns:
         tuple: (matplotlib figure, temporal distribution dataframe)
@@ -75,58 +96,104 @@ def gen_temporal_topic_dist(
         datetime_series = datetime_series[valid_datetime_mask]
         W = W[valid_datetime_mask]
 
-    # Get dominant topics
-    dominant_topics = get_dominant_topics(W, min_score=min_score, s_matrix=s_matrix)
+    # Determine if we should use weighted approach
+    # Use weighted for line and stacked_area plots when use_weighted=True
+    use_weighted_approach = use_weighted and plot_type in ['line', 'stacked_area']
 
-    # Create DataFrame with topic assignments and datetime
-    df = pd.DataFrame({
-        'datetime': datetime_series.values,
-        'topic': dominant_topics
-    })
+    if use_weighted_approach:
+        # Weighted approach: sum normalized topic weights over time
+        print(f"Using weighted approach: summing normalized topic weights")
 
-    # Filter out invalid topics (-1)
-    valid_mask = df['topic'] != -1
-    df = df[valid_mask]
-    excluded_count = (~valid_mask).sum()
+        # Apply S matrix if provided (for NMTF)
+        if s_matrix is not None:
+            print(f"Applying S matrix transformation before normalization")
+            W_effective = W @ s_matrix
+        else:
+            W_effective = W.copy()
 
-    if excluded_count > 0:
-        print(f"Excluded {excluded_count} documents with insufficient topic scores")
+        # Normalize the W matrix so each document (row) sums to 1
+        W_normalized = normalize_W_matrix(W_effective)
 
-    if len(df) == 0:
-        raise ValueError("No valid documents after filtering. Check min_score parameter.")
+        # Create DataFrame with datetime and all topic weights
+        topic_columns = [f'Topic {i+1}' for i in range(W_normalized.shape[1])]
+        df_data = {'datetime': datetime_series.values}
+        for i, col_name in enumerate(topic_columns):
+            df_data[col_name] = W_normalized[:, i]
 
-    # Group by time period
-    if time_grouping == 'year':
-        df['period'] = df['datetime'].dt.year
-    elif time_grouping == 'quarter':
-        df['period'] = df['datetime'].dt.to_period('Q').astype(str)
-    elif time_grouping == 'month':
-        df['period'] = df['datetime'].dt.to_period('M').astype(str)
-    elif time_grouping == 'week':
-        df['period'] = df['datetime'].dt.to_period('W').astype(str)
+        df = pd.DataFrame(df_data)
+
+        # Group by time period
+        if time_grouping == 'year':
+            df['period'] = df['datetime'].dt.year
+        elif time_grouping == 'quarter':
+            df['period'] = df['datetime'].dt.to_period('Q').astype(str)
+        elif time_grouping == 'month':
+            df['period'] = df['datetime'].dt.to_period('M').astype(str)
+        elif time_grouping == 'week':
+            df['period'] = df['datetime'].dt.to_period('W').astype(str)
+        else:
+            raise ValueError(f"Invalid time_grouping: {time_grouping}. Use 'year', 'quarter', 'month', or 'week'")
+
+        # Sum topic weights by period
+        temporal_dist = df.groupby('period')[topic_columns].sum()
+
     else:
-        raise ValueError(f"Invalid time_grouping: {time_grouping}. Use 'year', 'quarter', 'month', or 'week'")
+        # Original approach: count documents by dominant topic
+        print(f"Using count approach: assigning documents to dominant topics")
 
-    # Count topics per period
-    temporal_dist = df.groupby(['period', 'topic']).size().unstack(fill_value=0)
+        # Get dominant topics
+        dominant_topics = get_dominant_topics(W, min_score=min_score, s_matrix=s_matrix)
+
+        # Create DataFrame with topic assignments and datetime
+        df = pd.DataFrame({
+            'datetime': datetime_series.values,
+            'topic': dominant_topics
+        })
+
+        # Filter out invalid topics (-1)
+        valid_mask = df['topic'] != -1
+        df = df[valid_mask]
+        excluded_count = (~valid_mask).sum()
+
+        if excluded_count > 0:
+            print(f"Excluded {excluded_count} documents with insufficient topic scores")
+
+        if len(df) == 0:
+            raise ValueError("No valid documents after filtering. Check min_score parameter.")
+
+        # Group by time period
+        if time_grouping == 'year':
+            df['period'] = df['datetime'].dt.year
+        elif time_grouping == 'quarter':
+            df['period'] = df['datetime'].dt.to_period('Q').astype(str)
+        elif time_grouping == 'month':
+            df['period'] = df['datetime'].dt.to_period('M').astype(str)
+        elif time_grouping == 'week':
+            df['period'] = df['datetime'].dt.to_period('W').astype(str)
+        else:
+            raise ValueError(f"Invalid time_grouping: {time_grouping}. Use 'year', 'quarter', 'month', or 'week'")
+
+        # Count topics per period
+        temporal_dist = df.groupby(['period', 'topic']).size().unstack(fill_value=0)
+
+        # Ensure all topics are represented
+        n_topics = W.shape[1]
+        for topic_idx in range(n_topics):
+            if topic_idx not in temporal_dist.columns:
+                temporal_dist[topic_idx] = 0
+
+        # Sort columns by topic index
+        temporal_dist = temporal_dist[sorted(temporal_dist.columns)]
+
+        # Rename columns to start from Topic 1
+        temporal_dist.columns = [f'Topic {i+1}' for i in temporal_dist.columns]
     
     # Validate temporal distribution
     if temporal_dist.empty:
         raise ValueError("No temporal distribution data generated. Check input data and min_score parameter.")
 
-    # Ensure all topics are represented
-    n_topics = W.shape[1]
-    for topic_idx in range(n_topics):
-        if topic_idx not in temporal_dist.columns:
-            temporal_dist[topic_idx] = 0
-
-    # Sort columns by topic index
-    temporal_dist = temporal_dist[sorted(temporal_dist.columns)]
-
-    # Rename columns to start from Topic 1
-    temporal_dist.columns = [f'Topic {i+1}' for i in temporal_dist.columns]
-
     # Generate distinct colors for topics (consistent with t-SNE visualization)
+    n_topics = W.shape[1]
     distinct_colors = _generate_distinct_colors(n_topics)
     print(f"Generated {len(distinct_colors)} maximally distinct colors for {n_topics} topics")
 
@@ -216,17 +283,20 @@ def gen_temporal_topic_dist(
     if plot_type == 'stacked_area':
         temporal_dist.plot(kind='area', stacked=True, ax=ax, alpha=0.7, color=distinct_colors)
 
-        # Set label based on normalization method
+        # Set label based on normalization method and weighted approach
         if normalize and normalization_method == 'z-score':
             ylabel = 'Topic Strength (Z-Score)'
         elif normalize and normalization_method == 'percentage':
             ylabel = 'Topic Distribution (%)'
+        elif use_weighted_approach:
+            ylabel = 'Topic Weight Sum'
         else:
             ylabel = 'Number of Documents'
 
         ax.set_ylabel(ylabel, fontsize=12)
         ax.set_xlabel(f'Time ({time_grouping.capitalize()})', fontsize=12)
-        title = f'Topic Distribution Over Time (Stacked Area)'
+        weighted_suffix = " [Weighted]" if use_weighted_approach else ""
+        title = f'Topic Distribution Over Time (Stacked Area){weighted_suffix}'
 
     elif plot_type == 'line':
         # Use smoothed data if available, otherwise use original
@@ -235,17 +305,21 @@ def gen_temporal_topic_dist(
         else:
             temporal_dist.plot(kind='line', ax=ax, marker='o', linewidth=2, markersize=6, alpha=0.8, color=distinct_colors)
 
-        # Set label based on normalization method
+        # Set label based on normalization method and weighted approach
         if normalize and normalization_method == 'z-score':
             ylabel = 'Topic Strength (Z-Score)'
         elif normalize and normalization_method == 'percentage':
             ylabel = 'Topic Distribution (%)'
+        elif use_weighted_approach:
+            ylabel = 'Topic Weight Sum'
         else:
             ylabel = 'Number of Documents'
 
         ax.set_ylabel(ylabel, fontsize=12)
         ax.set_xlabel(f'Time ({time_grouping.capitalize()})', fontsize=12)
-        title = f'Topic Distribution Over Time (Line Plot){"  [Smoothed]" if smooth else ""}'
+        smooth_suffix = "  [Smoothed]" if smooth else ""
+        weighted_suffix = " [Weighted]" if use_weighted_approach else ""
+        title = f'Topic Distribution Over Time (Line Plot){weighted_suffix}{smooth_suffix}'
 
     elif plot_type == 'stacked_bar':
         temporal_dist.plot(kind='bar', stacked=True, ax=ax, width=0.8, color=distinct_colors)
@@ -325,6 +399,8 @@ def gen_temporal_topic_dist(
                     ylabel = 'Topic Strength (Z-Score)'
                 elif normalize and normalization_method == 'percentage':
                     ylabel = 'Topic Distribution (%)'
+                elif use_weighted_approach:
+                    ylabel = 'Topic Weight Sum'
                 else:
                     ylabel = 'Number of Documents'
                 ax.set_ylabel(ylabel, fontsize=12)
@@ -416,9 +492,11 @@ def gen_multi_temporal_plots(
     datetime_series: pd.Series,
     output_dir: Union[str, Path],
     table_name: str,
+    s_matrix: Optional[np.ndarray] = None,
     time_grouping: str = 'year',
     min_score: float = 0.0,
-    smooth: bool = False
+    smooth: bool = False,
+    use_weighted: bool = False
 ) -> List[tuple]:
     """
     Generate multiple temporal distribution plots with different visualization types.
@@ -428,9 +506,11 @@ def gen_multi_temporal_plots(
         datetime_series (pd.Series): Series containing datetime information.
         output_dir (str|Path): Directory to save the plots.
         table_name (str): Name of the table/dataset.
+        s_matrix (numpy.ndarray, optional): S matrix for NMTF.
         time_grouping (str): How to group time periods.
         min_score (float): Minimum topic score threshold.
         smooth (bool): If True, apply smoothing to line plots.
+        use_weighted (bool): If True, use normalized topic weights instead of counting.
 
     Returns:
         list: List of (figure, dataframe) tuples for each plot type.
@@ -445,6 +525,7 @@ def gen_multi_temporal_plots(
 
         result = gen_temporal_topic_dist(
             W=W,
+            s_matrix=s_matrix,
             datetime_series=datetime_series,
             output_dir=output_dir,
             table_name=table_name,
@@ -452,7 +533,8 @@ def gen_multi_temporal_plots(
             normalize=True,
             min_score=min_score,
             plot_type=plot_type,
-            smooth=smooth
+            smooth=smooth,
+            use_weighted=use_weighted
         )
         results.append(result)
 

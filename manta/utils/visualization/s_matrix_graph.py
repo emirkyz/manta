@@ -14,7 +14,7 @@ import matplotlib.patches as mpatches
 from pathlib import Path
 from typing import Optional, Union, Tuple, List
 import json
-
+from manta.utils.export.save_s_matrix import load_s_matrix
 
 def visualize_s_matrix_graph(
     s_matrix: np.ndarray,
@@ -824,21 +824,35 @@ def _print_s_matrix_statistics(s_matrix: np.ndarray, threshold: float):
             print(f"  {i}. T{source+1} → T{target+1}: {strength:.2f} ({percentage:.2f}% of total)")
 
 
-def load_s_matrix_from_json(json_path: Union[str, Path]) -> np.ndarray:
+def load_s_matrix_from_json(json_path: Union[str, Path], use_normalized: bool = True) -> np.ndarray:
     """
     Load S matrix from JSON file saved by save_s_matrix.py.
 
+    This function uses the centralized load_s_matrix utility which handles both
+    old and new JSON formats automatically. By default, it returns the normalized
+    version (L1 column normalization) for consistent visualization interpretation.
+
     Args:
         json_path: Path to the JSON file containing S matrix
+        use_normalized: If True (default), returns the column-normalized version.
+                       If False, returns the original unnormalized version.
+                       Only applies to new format files.
 
     Returns:
         S matrix as numpy array
 
     Example:
+        >>> # Load normalized S matrix (default, recommended for visualization)
         >>> s_matrix = load_s_matrix_from_json("output/my_analysis_s_matrix.json")
         >>> visualize_s_matrix_graph(s_matrix, ...)
-    """
-    with open(json_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
+        >>>
+        >>> # Load original unnormalized S matrix
+        >>> s_matrix_orig = load_s_matrix_from_json("output/my_analysis_s_matrix.json",
+        ...                                          use_normalized=False)
 
-    return np.array(data['s_matrix'])
+    Note:
+        - Automatically detects and handles both old and new JSON formats
+        - For old format files, use_normalized parameter is ignored
+        - Uses centralized load_s_matrix function for consistent behavior
+    """
+    return load_s_matrix(json_path, use_normalized=use_normalized)

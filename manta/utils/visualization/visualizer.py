@@ -1,9 +1,21 @@
 from . import visualize_s_matrix_graph
 from ..analysis.word_cooccurrence import calc_word_cooccurrence
 from ..analysis.word_cooccurrence_analyzer import analyze_word_cooccurrence
+from ..export.save_s_matrix import _normalize_s_matrix_columns
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def create_visualization(nmf_output, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir, datetime_series=None):
+    # Normalize S matrix if present (for NMTF)
+    if "S" in nmf_output and nmf_output["S"] is not None:
+        logger.info("Normalizing S matrix for visualizations (L1 column normalization)")
+        # Store both versions in nmf_output
+        nmf_output["S_original"] = nmf_output["S"]
+        nmf_output["S"] = _normalize_s_matrix_columns(nmf_output["S"])
+        logger.info("S matrix normalized - visualizations will use normalized version")
+
     # generate topic distribution plot
     topic_dist_img_count = 0
     if options["gen_topic_distribution"]:
@@ -12,7 +24,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
 
     
     # generate t-SNE visualization plot
-    if True:
+    if False:
         # Use optimized t-SNE for large datasets (>5K documents)
         n_docs = nmf_output["W"].shape[0]
         use_optimized = False
@@ -90,23 +102,26 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 datetime_series = pd.to_datetime(datetime_series)
 
         try:
+
+            #fig, temporal_df = gen_temporal_topic_dist(
+            #    W=nmf_output["W"],
+            #    s_matrix=nmf_output.get("S", None),
+            #    datetime_series=datetime_series,
+            #    output_dir=table_output_dir,
+            #    table_name=table_name,
+            #    time_grouping='year',  # Options: 'year', 'month', 'quarter', 'week'
+            #    plot_type='stacked_area',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
+            #    normalize=True,  # False for count-based, True for percentage-based
+            #    min_score=0.0
+            #)
+
             fig, temporal_df = gen_temporal_topic_dist(
                 W=nmf_output["W"],
                 s_matrix=nmf_output.get("S", None),
                 datetime_series=datetime_series,
                 output_dir=table_output_dir,
                 table_name=table_name,
-                time_grouping='year',  # Options: 'year', 'month', 'quarter', 'week'
-                plot_type='stacked_area',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
-                normalize=True,  # False for count-based, True for percentage-based
-                min_score=0.0
-            )
-            fig, temporal_df = gen_temporal_topic_dist(
-                W=nmf_output["W"],
-                s_matrix=nmf_output.get("S", None),
-                datetime_series=datetime_series,
-                output_dir=table_output_dir,
-                table_name=table_name,
+                use_weighted=True,
                 time_grouping='year',  # Options: 'year', 'month', 'quarter', 'week'
                 plot_type='line',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
                 normalize=False,  # False for count-based, True for percentage-based

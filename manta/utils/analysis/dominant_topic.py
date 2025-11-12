@@ -41,6 +41,8 @@ def get_dominant_topics(W, min_score=0.0, s_matrix=None, H=None):
 
     For NMTF models (when s_matrix is provided), topics are defined by relationships in the
     S matrix. The function uses sorted topic pairs to properly assign documents to topics.
+    The S matrix is expected to be L1 column-normalized (each column sums to 1.0) for
+    consistent probability-like interpretation of topic relationships.
 
     Args:
         W (numpy.ndarray): Document-topic matrix with shape (n_documents, n_topics).
@@ -50,6 +52,7 @@ def get_dominant_topics(W, min_score=0.0, s_matrix=None, H=None):
                                     Default is 0.0.
         s_matrix (numpy.ndarray, optional): S matrix for NMTF with shape (n_topics, n_topics).
                                            If provided, uses NMTF-specific topic extraction.
+                                           Expected to be L1 column-normalized (columns sum to 1.0).
         H (numpy.ndarray, optional): H matrix for NMTF. Currently not used but kept for
                                     potential future enhancements.
 
@@ -65,16 +68,17 @@ def get_dominant_topics(W, min_score=0.0, s_matrix=None, H=None):
         >>> get_dominant_topics(W)
         array([ 0, -1,  1])
 
-    Example (NMTF):
+    Example (NMTF with normalized S matrix):
         >>> W = np.array([[0.5, 0.3], [0.2, 0.8]])
-        >>> S = np.array([[0.9, 0.1], [0.2, 0.7]])
+        >>> S = np.array([[0.9, 0.1], [0.2, 0.7]])  # L1 column-normalized
         >>> dominant_topics = get_dominant_topics(W, s_matrix=S)
-        # Uses S matrix to determine topic relationships
+        # Uses normalized S matrix for consistent topic weighting
 
     Note:
         - Documents with all zero scores are assigned -1 (no dominant topic)
         - Visualizations should filter out documents with topic index -1
         - For NMTF, topic indices correspond to sorted S matrix pairs
+        - S matrix should be column-normalized (L1 norm) for consistent interpretation
         - This prevents polluting topic distributions with meaningless assignments
     """
     # Convert to dense array if sparse
