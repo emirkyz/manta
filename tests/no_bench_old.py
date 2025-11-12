@@ -185,7 +185,7 @@ if __name__ == '__main__':
 
 
 
-    file_path = "../DNA/combined_dna_sequence.csv"
+    file_path = "../misc/DNA/combined_dna_sequence.csv"
     file_path = "../veri_setleri/abstracts_pubmed_v2.csv"
     file_path = "../veri_setleri/radiology_imaging.csv"
 
