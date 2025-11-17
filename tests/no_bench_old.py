@@ -176,11 +176,11 @@ if __name__ == '__main__':
     def get_df_from_db(db_path:Path, table_name:str):
         """Load df from SQLite database."""
 
-        connection_string = f"sqlite:///{db_path}"
-        engine = manta.create_engine(connection_string)
-        df = pd.read_sql_table(table_name, engine)
-        # convert to csv
-
+        connection_path = str(db_path)
+        import sqlite3
+        conn = sqlite3.connect(connection_path)
+        df = pd.read_sql_query(f'SELECT * FROM "{table_name}"', conn)
+        conn.close()
         return df
 
 
@@ -188,18 +188,19 @@ if __name__ == '__main__':
     file_path = "../misc/DNA/combined_dna_sequence.csv"
     file_path = "../veri_setleri/abstracts_pubmed_v2.csv"
     file_path = "../veri_setleri/radiology_imaging.csv"
+    file_path = "../veri_setleri/findings.csv"
 
-
-    column = "abstract"
+    column = "findings"
     result = manta.run_topic_analysis(
         filepath=file_path,
+        #dataframe=get_df_from_db(Path("../veri_setleri/db"), "playstore_app_reviews"),
         column=column,
         separator=",",
         language="EN",
         lemmatize=True,
         topic_count=15,
         words_per_topic=15,
-        nmf_method="nmtf", # "nmf" or "nmtf" or "pnmf"
+        nmf_method="pnmf", # "nmf" or "nmtf" or "pnmf"
         tokenizer_type="bpe",
         filter_app=False,
         data_filter_options = {

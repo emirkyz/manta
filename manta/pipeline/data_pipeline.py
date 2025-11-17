@@ -15,43 +15,100 @@ class DataPipeline:
     """Handles data loading and preprocessing operations."""
     
     @staticmethod
-    def validate_inputs(filepath: str, desired_columns: str, options: Dict[str, Any]) -> None:
+    def validate_inputs(filepath: Optional[str], desired_columns: str, options: Dict[str, Any],
+                       dataframe: Optional[pd.DataFrame] = None) -> None:
         """
         Validate input parameters for processing.
-        
+
         Args:
-            filepath: Path to input file
+            filepath: Path to input file (optional if dataframe provided)
             desired_columns: Column name containing text data
             options: Configuration options
-            
+            dataframe: Optional DataFrame input (alternative to filepath)
+
         Raises:
             ValueError: If inputs are invalid
             FileNotFoundError: If file doesn't exist
         """
-        if not os.path.exists(filepath):
+        # Ensure either filepath or dataframe is provided, but not both
+        if filepath is None and dataframe is None:
+            raise ValueError("Either filepath or dataframe must be provided")
+
+        if filepath is not None and dataframe is not None:
+            raise ValueError("Cannot provide both filepath and dataframe - choose one")
+
+        # Validate filepath if provided
+        if filepath is not None and not os.path.exists(filepath):
             raise FileNotFoundError(f"Input file not found: {filepath}")
-        
+
+        # Validate dataframe if provided
+        if dataframe is not None:
+            if not isinstance(dataframe, pd.DataFrame):
+                raise TypeError("dataframe must be a pandas DataFrame")
+            if dataframe.empty:
+                raise ValueError("dataframe cannot be empty")
+
         if not desired_columns or not desired_columns.strip():
             raise ValueError("desired_columns cannot be empty")
-            
+
         required_options = ["LANGUAGE", "DESIRED_TOPIC_COUNT", "N_TOPICS"]
         for option in required_options:
             if option not in options:
                 raise ValueError(f"Missing required option: {option}")
-        
+
         if options["LANGUAGE"] not in ["TR", "EN"]:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}. Must be 'TR' or 'EN'")
+
+    @staticmethod
+    def load_data(
+        filepath: Optional[str] = None,
+        dataframe: Optional[pd.DataFrame] = None,
+        options: Optional[Dict[str, Any]] = None,
+        console: Optional[ConsoleManager] = None
+    ) -> pd.DataFrame:
+        """
+        Load data from either a file or a DataFrame.
+
+        Args:
+            filepath: Path to input file (CSV or Excel)
+            dataframe: Pre-loaded DataFrame
+            options: Configuration options containing separator and filter settings
+            console: Console manager for status messages
+
+        Returns:
+            Loaded DataFrame
+
+        Raises:
+            ValueError: If neither or both filepath and dataframe are provided
+        """
+        if filepath is None and dataframe is None:
+            raise ValueError("Either filepath or dataframe must be provided")
+
+        if filepath is not None and dataframe is not None:
+            raise ValueError("Cannot provide both filepath and dataframe")
+
+        # Load from file if filepath provided
+        if filepath is not None:
+            return DataPipeline.load_data_file(filepath, options, console)
+
+        # Use provided dataframe
+        if console:
+            console.print_status(f"Using provided DataFrame with {len(dataframe)} rows", "info")
+
+        # Apply data filters if specified
+        df = DataPipeline._apply_data_filters(dataframe.copy(), options, console)
+        return df
 
     @staticmethod
     def load_data_file(filepath: str, options: Dict[str, Any], console: Optional[ConsoleManager] = None) -> pd.DataFrame:
         """
         Load data from CSV or Excel file.
-        
+
         Args:
             filepath: Path to input file
             options: Configuration options containing separator and filter settings
             console: Console manager for status messages
-            
+
         Returns:
             Loaded DataFrame
         """
@@ -59,7 +116,7 @@ class DataPipeline:
             console.print_status("Reading input file...", "processing")
         else:
             print("Reading input file...")
-        
+
         if str(filepath).endswith(".csv"):
             # Read the CSV file with the specified separator
             df = pd.read_csv(

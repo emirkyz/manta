@@ -162,4 +162,13 @@ class ModelingPipeline:
             s_matrix = nmf_output.get("S", None),
         )
 
+
+        # reconstruction error
+
+        import numpy as np
+        X_reconstructed = nmf_output["W"] @ nmf_output["H"]
+        X_reconstructed.to
+        frobenius_norm = np.linalg.norm(tdm - X_reconstructed, 'fro')
+
+
         return topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result

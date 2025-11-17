@@ -7,7 +7,7 @@ that were previously embedded in __init__.py.
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 
 @dataclass
@@ -48,6 +48,13 @@ class TopicAnalysisConfig:
     enable_ngram_bpe: bool = False
     ngram_vocab_limit: int = 10000
     min_pair_frequency: int = 2
+
+    # Cache and processing options
+    use_cache: bool = True  # Check for cached data (will prompt user interactively if found)
+    force_reprocess: bool = False  # Force reprocessing without prompting (skips cache entirely)
+    nmf_variants: Optional[List[str]] = None  # List of NMF variants to run (defaults to [nmf_method])
+    datetime_column: Optional[str] = None  # Column name for temporal analysis
+
     additional_params: Dict = field(default_factory=dict)
 
     def __post_init__(self):
@@ -94,6 +101,18 @@ class TopicAnalysisConfig:
         if self.min_pair_frequency <= 0:
             raise ValueError(f"Invalid min_pair_frequency: {self.min_pair_frequency}. Must be positive")
 
+        # Validate NMF variants if provided
+        if self.nmf_variants is not None:
+            if not isinstance(self.nmf_variants, list):
+                raise ValueError("nmf_variants must be a list")
+            for variant in self.nmf_variants:
+                if variant.lower() not in self.SUPPORTED_NMF_METHODS:
+                    raise ValueError(f"Unsupported NMF variant: {variant}. Must be one of {self.SUPPORTED_NMF_METHODS}")
+
+        # Validate cache options consistency
+        if self.use_cache and self.force_reprocess:
+            raise ValueError("Cannot set both use_cache=True and force_reprocess=True")
+
     def generate_output_name(self, filepath: str) -> str:
         """Generate a descriptive output name based on input file and configuration."""
         filepath_obj = Path(filepath)
@@ -124,15 +143,20 @@ class TopicAnalysisConfig:
             "output_name": self.output_name,
             "enable_ngram_bpe": self.enable_ngram_bpe,
             "ngram_vocab_limit": self.ngram_vocab_limit,
-            "min_pair_frequency": self.min_pair_frequency
+            "min_pair_frequency": self.min_pair_frequency,
+            # New cache and processing options
+            "use_cache": self.use_cache,
+            "force_reprocess": self.force_reprocess,
+            "nmf_variants": self.nmf_variants if self.nmf_variants is not None else [self.nmf_method],
+            "datetime_column": self.datetime_column,
         }
-        
+
         # Merge additional parameters from kwargs
         # Additional params take precedence over defaults but not over explicitly set config values
         for key, value in self.additional_params.items():
             if key not in options:  # Only add if not already present
                 options[key] = value
-        
+
         return options
 
 
@@ -156,6 +180,10 @@ def create_config_from_params(
     enable_ngram_bpe: bool = False,
     ngram_vocab_limit: int = 10000,
     min_pair_frequency: int = 2,
+    use_cache: bool = True,
+    force_reprocess: bool = False,
+    nmf_variants: Optional[List[str]] = None,
+    datetime_column: Optional[str] = None,
     **kwargs
 ) -> TopicAnalysisConfig:
     """Create a TopicAnalysisConfig from individual parameters."""
@@ -184,5 +212,9 @@ def create_config_from_params(
         enable_ngram_bpe=enable_ngram_bpe,
         ngram_vocab_limit=ngram_vocab_limit,
         min_pair_frequency=min_pair_frequency,
+        use_cache=use_cache,
+        force_reprocess=force_reprocess,
+        nmf_variants=nmf_variants,
+        datetime_column=datetime_column,
         additional_params=kwargs
     )

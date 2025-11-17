@@ -54,8 +54,9 @@ __all__ = [
 
 
 def run_topic_analysis(
-    filepath: str,
-    column: str, 
+    filepath: str = None,
+    dataframe = None,
+    column: str = None,
     separator: str = ",",
     language: str = "EN",
     topic_count: int = 5,
@@ -77,12 +78,14 @@ def run_topic_analysis(
 ) -> dict:
     """
     Perform comprehensive topic modeling analysis on text data using Non-negative Matrix Factorization (NMF).
-    
+
     This high-level API provides an easy-to-use interface for topic modeling with sensible defaults.
     It supports both Turkish and English languages with various preprocessing and output options.
-    
+    Data can be provided as either a file path or a pandas DataFrame.
+
     Parameters:
-        filepath: Absolute path to the input file (CSV or Excel format)
+        filepath: Absolute path to the input file (CSV or Excel format). Optional if dataframe provided.
+        dataframe: Pandas DataFrame containing text data. Optional if filepath provided.
         column: Name of the column containing text data to analyze
         separator: CSV file separator (default: ",")
         language: Language of text data - "TR" for Turkish, "EN" for English (default: "EN")
@@ -109,42 +112,55 @@ def run_topic_analysis(
     Returns:
         Dict containing:
             - state: "SUCCESS" if completed successfully, "FAILURE" if error occurred
-            - message: Descriptive message about the processing outcome 
+            - message: Descriptive message about the processing outcome
             - data_name: Name of the processed dataset
-            - topic_word_scores: Dictionary mapping topic IDs to word-score pairs
-            - topic_doc_scores: Dictionary mapping topic IDs to document-score pairs
-            - coherence_scores: Dictionary mapping coherence metrics for each topic
-            - topic_dist_img: Matplotlib plt object of topic distribution plot if topic_distribution is True
-            - topic_document_counts: Count of documents per topic
-            - topic_relationships: Topic-to-topic relationship matrix (only for NMTF method)
+            - results: List of results for each NMF variant (if multiple)
     Raises:
-        ValueError: For invalid language code or unsupported file format
+        ValueError: For invalid language code, unsupported file format, or if both/neither filepath and dataframe provided
         FileNotFoundError: If input file path does not exist
         KeyError: If specified column is missing from input data.
     Example:
-        >>> # Basic usage for Turkish text
+        >>> # Basic usage for Turkish text from file
         >>> result = run_topic_analysis(
-        ...     "reviews.csv",
+        ...     filepath="reviews.csv",
         ...     column="review_text",
         ...     language="TR",
         ...     topic_count=5,
         ...     generate_wordclouds=True,
         ...     export_excel=True
         ... )
+
+        >>> # Using DataFrame input
+        >>> import pandas as pd
+        >>> df = pd.read_csv("reviews.csv")
+        >>> result = run_topic_analysis(
+        ...     dataframe=df,
+        ...     column="review_text",
+        ...     language="TR",
+        ...     topic_count=5
+        ... )
+
         >>> # Check results
-        >>> print(f"Found {len(result['topic_word_scores'])} topics")
+        >>> print(f"Analysis state: {result['state']}")
     :note:
         - Creates output directories for storing results and visualizations
         - Automatically handles file preprocessing and data cleaning
         - Supports both CSV (with automatic delimiter detection) and Excel files
+        - DataFrame input allows for custom preprocessing before topic modeling
 
     """
     from pathlib import Path
-    
+
     # Import dependencies only when needed
     from .manta_entry import run_manta_process
     from .config import create_config_from_params
-    
+
+    # Validate inputs
+    if filepath is None and dataframe is None:
+        raise ValueError("Either filepath or dataframe must be provided")
+    if filepath is not None and dataframe is not None:
+        raise ValueError("Cannot provide both filepath and dataframe - choose one")
+
     # Create configuration object from function parameters
     config = create_config_from_params(
         language=language,
@@ -168,14 +184,24 @@ def run_topic_analysis(
 
     # Set output name if not provided
     if config.output_name is None:
-        config.output_name = config.generate_output_name(filepath)
+        if filepath:
+            config.output_name = config.generate_output_name(filepath)
+        else:
+            # Generate name for DataFrame input
+            config.output_name = f"dataframe_{nmf_method}_{tokenizer_type}_{topic_count}"
 
     # Convert config to run_options format
     run_options = config.to_run_options()
-    
+
+    # Prepare filepath argument
+    resolved_filepath = None
+    if filepath:
+        resolved_filepath = str(Path(filepath).resolve())
+
     # Run the analysis
     return run_manta_process(
-        filepath=str(Path(filepath).resolve()),
+        filepath=resolved_filepath,
+        dataframe=dataframe,
         table_name=run_options['output_name'],
         desired_columns=column,
         options=run_options,

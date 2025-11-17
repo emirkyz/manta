@@ -107,11 +107,12 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
             #    W=nmf_output["W"],
             #    s_matrix=nmf_output.get("S", None),
             #    datetime_series=datetime_series,
+            #    use_weighted=True,
             #    output_dir=table_output_dir,
             #    table_name=table_name,
             #    time_grouping='year',  # Options: 'year', 'month', 'quarter', 'week'
             #    plot_type='stacked_area',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
-            #    normalize=True,  # False for count-based, True for percentage-based
+            #    normalize=False,  # False for count-based, True for percentage-based
             #    min_score=0.0
             #)
 
