@@ -135,11 +135,9 @@ def load_or_process_data(
     datetime_series = None
     if options.get('datetime_column') and options['datetime_column'] in df.columns:
         datetime_col = df[options['datetime_column']]
-        if pd.api.types.is_datetime64_any_dtype(datetime_col):
-            # Convert to integer representation (POSIX timestamp)
-            datetime_series = datetime_col.astype('int64') // 10 ** 9
-        else:
-            datetime_series = datetime_col.copy()
+        # Keep as datetime type for proper handling in visualization
+        # (avoid conversion to POSIX timestamp which causes incorrect date interpretation)
+        datetime_series = datetime_col.copy()
 
         console.print_status(
             f"Extracted {len(datetime_series)} datetime values for temporal analysis",

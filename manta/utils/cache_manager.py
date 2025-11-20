@@ -59,7 +59,17 @@ class CacheManager:
 
             # Handle datetime series if present
             datetime_series = None
-            if "datetime_series" in file and file["datetime_series"] is not None:
+
+            # Try new format first (year and month arrays)
+            if "datetime_year" in file and "datetime_month" in file:
+                datetime_dict = {
+                    'year': file["datetime_year"],
+                    'month': file["datetime_month"]
+                }
+                datetime_series = CacheManager._deserialize_datetime(datetime_dict)
+
+            # Fall back to legacy format for backward compatibility
+            elif "datetime_series" in file and file["datetime_series"] is not None:
                 datetime_series = CacheManager._deserialize_datetime(file["datetime_series"])
 
         if console:
@@ -105,52 +115,84 @@ class CacheManager:
             )
 
         # Serialize datetime if present
-        datetime_array = None
+        datetime_dict = None
         if data.datetime_series is not None:
-            datetime_array = CacheManager._serialize_datetime(data.datetime_series)
+            datetime_dict = CacheManager._serialize_datetime(data.datetime_series)
 
         # Save metadata
-        np.savez_compressed(
-            paths.metadata_file,
-            vocab=data.vocab,
-            text_array=data.text_array,
-            datetime_series=datetime_array
-        )
+        if datetime_dict is not None:
+            # Save with year and month arrays
+            np.savez_compressed(
+                paths.metadata_file,
+                vocab=data.vocab,
+                text_array=data.text_array,
+                datetime_year=datetime_dict['year'],
+                datetime_month=datetime_dict['month']
+            )
+        else:
+            # Save without datetime
+            np.savez_compressed(
+                paths.metadata_file,
+                vocab=data.vocab,
+                text_array=data.text_array
+            )
 
         if console:
             console.print_status("Metadata saved.", "success")
 
     @staticmethod
-    def _serialize_datetime(datetime_series: pd.Series) -> np.ndarray:
+    def _serialize_datetime(datetime_series: pd.Series) -> dict:
         """Convert datetime series to serializable format.
 
-        Converts datetime values to POSIX timestamps (integers) for storage.
+        Stores datetime as separate year and month arrays to avoid conversion issues.
+        This approach is consistent with how datetime is handled throughout the codebase.
 
         Args:
             datetime_series: Pandas Series with datetime values
 
         Returns:
-            NumPy array of integer timestamps
+            Dictionary with 'year' and 'month' NumPy arrays
         """
-        if pd.api.types.is_datetime64_any_dtype(datetime_series):
-            # Convert to POSIX timestamp (seconds since epoch)
-            return datetime_series.astype('int64') // 10**9
-        else:
-            # Already numeric, return as-is
-            return datetime_series.values
+        # Ensure it's datetime type
+        if not pd.api.types.is_datetime64_any_dtype(datetime_series):
+            datetime_series = pd.to_datetime(datetime_series)
+
+        # Extract year and month components
+        return {
+            'year': datetime_series.dt.year.values,
+            'month': datetime_series.dt.month.values
+        }
 
     @staticmethod
-    def _deserialize_datetime(datetime_array: np.ndarray) -> pd.Series:
-        """Convert serialized datetime array back to pandas Series.
+    def _deserialize_datetime(datetime_data) -> pd.Series:
+        """Convert serialized datetime data back to pandas Series.
 
-        Handles both year values (1900-2100) and POSIX timestamps.
+        Handles both new format (dict with year/month) and legacy formats
+        (year values or POSIX timestamps) for backward compatibility.
 
         Args:
-            datetime_array: NumPy array of datetime values
+            datetime_data: Either a dict with 'year'/'month' keys or a NumPy array
 
         Returns:
             Pandas Series with properly typed datetime values
         """
+        # New format: dictionary with year and month arrays
+        if isinstance(datetime_data, dict) or (hasattr(datetime_data, 'keys') and 'year' in datetime_data):
+            year = datetime_data['year']
+            month = datetime_data['month']
+
+            # Create DataFrame with year, month, and day=1
+            datetime_df = pd.DataFrame({
+                'year': year,
+                'month': month,
+                'day': 1
+            })
+
+            # Convert to datetime
+            return pd.to_datetime(datetime_df)
+
+        # Legacy format: NumPy array (backward compatibility)
+        datetime_array = datetime_data
         datetime_series = pd.Series(datetime_array)
 
         # Check if values are years (between 1900-2100)

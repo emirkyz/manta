@@ -40,7 +40,8 @@ def gen_temporal_topic_dist(
     plot_type: str = 'stacked_area',
     figsize: tuple = (14, 8),
     smooth: bool = False,
-    use_weighted: bool = False
+    use_weighted: bool = False,
+    use_mm_yyyy_format: bool = False
 ) -> tuple:
     """
     Generate temporal distribution plot showing how topics evolve over time.
@@ -128,7 +129,12 @@ def gen_temporal_topic_dist(
         elif time_grouping == 'quarter':
             df['period'] = df['datetime'].dt.to_period('Q').astype(str)
         elif time_grouping == 'month':
-            df['period'] = df['datetime'].dt.to_period('M').astype(str)
+            if use_mm_yyyy_format:
+                # Format as MM-YYYY for combined year/month columns
+                df['period'] = df['datetime'].dt.strftime('%m-%Y')
+            else:
+                # Default format: YYYY-MM
+                df['period'] = df['datetime'].dt.to_period('M').astype(str)
         elif time_grouping == 'week':
             df['period'] = df['datetime'].dt.to_period('W').astype(str)
         else:
@@ -167,7 +173,12 @@ def gen_temporal_topic_dist(
         elif time_grouping == 'quarter':
             df['period'] = df['datetime'].dt.to_period('Q').astype(str)
         elif time_grouping == 'month':
-            df['period'] = df['datetime'].dt.to_period('M').astype(str)
+            if use_mm_yyyy_format:
+                # Format as MM-YYYY for combined year/month columns
+                df['period'] = df['datetime'].dt.strftime('%m-%Y')
+            else:
+                # Default format: YYYY-MM
+                df['period'] = df['datetime'].dt.to_period('M').astype(str)
         elif time_grouping == 'week':
             df['period'] = df['datetime'].dt.to_period('W').astype(str)
         else:
@@ -191,6 +202,20 @@ def gen_temporal_topic_dist(
     # Validate temporal distribution
     if temporal_dist.empty:
         raise ValueError("No temporal distribution data generated. Check input data and min_score parameter.")
+
+    # Sort the temporal distribution chronologically
+    # For MM-YYYY format, we need to convert back to datetime for proper sorting
+    if use_mm_yyyy_format and time_grouping == 'month':
+        # Parse MM-YYYY back to datetime for sorting
+        period_dates = pd.to_datetime(temporal_dist.index, format='%m-%Y')
+        # Sort by the parsed dates
+        temporal_dist = temporal_dist.loc[period_dates.sort_values().strftime('%m-%Y')]
+    elif time_grouping == 'year':
+        # For year, ensure integer sorting
+        temporal_dist = temporal_dist.sort_index()
+    else:
+        # For other formats, rely on pandas default sorting
+        temporal_dist = temporal_dist.sort_index()
 
     # Generate distinct colors for topics (consistent with t-SNE visualization)
     n_topics = W.shape[1]
@@ -417,14 +442,16 @@ def gen_temporal_topic_dist(
                     ax.set_xticks(all_years)
                     ax.set_xticklabels(all_years)
         else:
-            # For other groupings, handle bar plots differently
+            # For other groupings (month, quarter, week), configure x-axis properly
             if plot_type == 'stacked_bar':
                 # Bar plots use positional indices
                 ax.set_xticks(range(len(temporal_dist.index)))
                 ax.set_xticklabels(temporal_dist.index, rotation=45, ha='right')
             else:
-                # For other plot types, set limits based on positions
+                # For line and area plots, set limits AND labels for proper month display
                 ax.set_xlim(-0.5, len(temporal_dist.index) - 0.5)
+                ax.set_xticks(range(len(temporal_dist.index)))
+                ax.set_xticklabels(temporal_dist.index, rotation=45, ha='right')
     else:
         # For heatmap, ensure proper year labeling
         if time_grouping == 'year':

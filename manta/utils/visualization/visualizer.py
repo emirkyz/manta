@@ -93,13 +93,23 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         # Convert to datetime if not already
         if not pd.api.types.is_datetime64_any_dtype(datetime_series):
             # Detect format based on column name
-            datetime_col_name = options.get('datetime_column', '').lower()
+            datetime_col = options.get('datetime_column', '')
+            if datetime_col is None:
+                logger.warning("No datetime column specified in options. Using empty string.")
+                datetime_col_name = ''
+            else:
+                datetime_col_name = datetime_col.lower()
+
             if 'millis' in datetime_col_name or 'epoch' in datetime_col_name:
                 datetime_series = pd.to_datetime(datetime_series, unit='ms')
-            elif 'year' in datetime_col_name:
+            elif 'year' in datetime_col_name and not options.get('datetime_is_combined_year_month', False):
                 datetime_series = pd.to_datetime(datetime_series, format='%Y')
             else:
                 datetime_series = pd.to_datetime(datetime_series)
+
+        # Determine appropriate time grouping based on datetime type
+        # Use 'month' grouping for combined year/month columns, otherwise use 'year'
+        time_grouping = 'month' if options.get('datetime_is_combined_year_month', False) else 'year'
 
         try:
 
@@ -123,10 +133,11 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 output_dir=table_output_dir,
                 table_name=table_name,
                 use_weighted=True,
-                time_grouping='year',  # Options: 'year', 'month', 'quarter', 'week'
+                time_grouping="quarter",  # Options: 'year', 'month', 'quarter', 'week'
                 plot_type='line',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
                 normalize=False,  # False for count-based, True for percentage-based
-                min_score=0.0
+                min_score=0.0,
+                use_mm_yyyy_format=options.get('datetime_is_combined_year_month', False)
             )
             print(f"Generated temporal topic distribution visualization")
         except Exception as e:
@@ -198,7 +209,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
             print(f"Warning: Failed to generate violin plot: {e}")
 
     # generate interactive LDAvis-style visualization
-    if True:
+    if False:
         from .manta_ldavis_output import create_manta_ldavis
         ldavis_plot_path = create_manta_ldavis(
             w_matrix=nmf_output["W"],
