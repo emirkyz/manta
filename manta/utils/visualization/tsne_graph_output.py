@@ -965,7 +965,7 @@ def _generate_greedy_distinct_colors(n_topics: int) -> List[tuple]:
         for _ in range(100):
             # Generate candidate color in HSV space for better perceptual distribution
             h = np.random.uniform(0, 1)
-            s = np.random.uniform(0.6, 1.0)  # High saturation for distinction
+            s = np.random.uniform(0.4, 0.8)  # High saturation for distinction
             v = np.random.uniform(0.4, 0.9)  # Avoid very dark or very light
             
             r, g, b = colorsys.hsv_to_rgb(h, s, v)
