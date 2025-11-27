@@ -57,7 +57,7 @@ class TextPipeline:
                 desired_columns,
                 options["LEMMATIZE"],
                 emoji_map=options["emoji_map"],
-                enable_ngram_bpe=options.get("enable_ngram_bpe", False),
+                n_gram_discover_count=options.get("n_grams_to_discover", None),
                 ngram_vocab_limit=options.get("ngram_vocab_limit", 10000),
                 min_pair_frequency=options.get("min_pair_frequency", 2)
             )

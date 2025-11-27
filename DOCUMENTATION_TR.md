@@ -416,6 +416,24 @@ Kelime Bulutları → Dağılım Grafikleri → Excel Dışa Aktarma → JSON De
 | `save_to_db` | bool | Veritabanına kaydet | False | True, False |
 | `output_name` | str | Özel çıktı adı | None | Herhangi bir string |
 | `output_dir` | str | Temel çıktı dizini | None | Herhangi bir yol |
+| `n_grams_to_discover` | int | BPE ile keşfedilecek n-gram sayısı (sadece İngilizce) | None | Herhangi bir pozitif tam sayı |
+
+### N-gram Keşfi
+
+MANTA, İngilizce metin için BPE (Byte Pair Encoding) kullanarak otomatik n-gram keşfini destekler. Bu özellik, sıkça birlikte görülen kelime kombinasyonlarını ("machine_learning" veya "climate_change" gibi) tespit eder ve bunları kelime dağarcığına yeni tokenlar olarak ekler.
+
+`n_grams_to_discover` pozitif bir tam sayı olarak ayarlandığında, BPE algoritması en sık görülen bitişik kelime çiftlerini yinelemeli olarak birleştirerek o kadar yeni kelime kombinasyonu keşfeder. Bu, kelime dağarcığını genişletir ve anlamlı çok kelimeli kavramları yakalayarak konu kalitesini artırabilir.
+
+```python
+# Örnek: İngilizce metin için 200 n-gram keşfet
+results = run_topic_analysis(
+    filepath="arastirma_makaleleri.csv",
+    column="ozet",
+    language="EN",
+    n_grams_to_discover=200,
+    topic_count=10
+)
+```
 
 ### Gelişmiş Seçenekler
 

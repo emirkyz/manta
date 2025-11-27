@@ -189,8 +189,15 @@ if __name__ == '__main__':
     file_path = "../veri_setleri/abstracts_pubmed_v2.csv"
     file_path = "../veri_setleri/radiology_imaging.csv"
     #file_path = "../pubmed_articles.csv"
-    file_path = "../radiology_journals.csv"
+    #file_path = "../radiology_journals.csv"
     column = "abstract"
+
+    # N-gram Discovery via BPE:
+    # The n_grams_to_discover parameter enables BPE-based n-gram discovery for English text.
+    # It specifies how many additional multi-word tokens (n-grams) to discover.
+    # For example, n_grams_to_discover=300 will discover 300 new word combinations
+    # like "machine_learning", "deep_learning", etc. that frequently appear together.
+    # This expands the vocabulary to capture meaningful phrases, improving topic quality.
     result = manta.run_topic_analysis(
         filepath=file_path,
         #dataframe=get_df_from_db(Path("../veri_setleri/db"), "playstore_app_reviews"),
@@ -200,6 +207,7 @@ if __name__ == '__main__':
         lemmatize=True,
         topic_count=25,
         words_per_topic=15,
+        n_grams_to_discover=300,  # Discover 300 n-grams using BPE algorithm
         nmf_method="pnmf", # "nmf" or "nmtf" or "pnmf"
         tokenizer_type="bpe",
         filter_app=False,
@@ -215,7 +223,7 @@ if __name__ == '__main__':
         word_pairs_out=False,
         topic_distribution=True,
         export_excel=False,
-        output_dir="radiology_imaging_full_test",
+        output_dir="radiology_imaging_full_test_new_param",
         gen_tsne=False
     )
 

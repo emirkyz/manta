@@ -324,6 +324,7 @@ results = run_topic_analysis(
 - `output_name` (str): Özel çıktı dizini adı (varsayılan: otomatik oluşturulan)
 - `save_to_db` (bool): Veritabanına kalıcı olarak kaydet (varsayılan: False)
 - `output_dir` (str): Çıktılar için temel dizin (varsayılan: mevcut çalışma dizini)
+- `n_grams_to_discover` (int): İngilizce metin için BPE ile keşfedilecek n-gram sayısı (varsayılan: None, devre dışı)
 
 ## Çıktılar
 
@@ -340,10 +341,28 @@ Analiz, `Output/` dizininde (çalışma zamanında oluşturulan) analizinizin ad
 - **Çok Dilli Destek**: Hem Türkçe hem de İngilizce metinler için optimize edilmiş işleme
 - **Gelişmiş Tokenizasyon**: Türkçe için BPE ve WordPiece tokenizer'ları, İngilizce için geleneksel tokenizasyon
 - **Çoklu NMF Algoritmaları**: Standart NMF ve Ortogonal Projektif NMF (OPNMF)
+- **N-gram Keşfi**: İngilizce metin için BPE kullanarak anlamlı kelime kombinasyonlarının otomatik keşfi
 - **Zengin Görselleştirmeler**: Kelime bulutları ve konu dağılım grafikleri
 - **Esnek Dışa Aktarma**: Excel ve JSON dışa aktarma formatları
 - **Tutarlılık Değerlendirmesi**: Yerleşik konu tutarlılığı skorlaması
 - **Metin Ön İşleme**: Dile özgü metin temizleme ve ön işleme
+
+### N-gram Keşfi
+
+MANTA, İngilizce metin için BPE (Byte Pair Encoding) kullanarak otomatik n-gram keşfini destekler. Bu özellik, sıkça birlikte görülen kelime kombinasyonlarını tespit eder ve bunları kelime dağarcığına yeni tokenlar olarak ekler.
+
+N-gram keşfini etkinleştirmek için `n_grams_to_discover` parametresini kullanın:
+
+```python
+results = run_topic_analysis(
+    filepath="data.csv",
+    column="text",
+    language="EN",
+    n_grams_to_discover=200  # 200 kelime kombinasyonu keşfet
+)
+```
+
+Bu, "machine_learning" veya "climate_change" gibi anlamlı ifadeleri tek token olarak yakalayarak konu kalitesini artırabilir.
 
 ## Gereksinimler
 

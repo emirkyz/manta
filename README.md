@@ -381,6 +381,7 @@ results = run_topic_analysis(
 - `output_name` (str): Custom output directory name (default: auto-generated)
 - `save_to_db` (bool): Whether to persist data to database (default: False)
 - `output_dir` (str): Base directory for outputs (default: current working directory)
+- `n_grams_to_discover` (int): Number of n-grams to discover via BPE for English text (default: None, disabled)
 
 ## Outputs
 
@@ -398,12 +399,30 @@ The analysis generates several outputs in an `Output/` directory (created at run
 - **Advanced Tokenization**: BPE and WordPiece tokenizers for Turkish, traditional tokenization for English
 - **Multiple Factorization Algorithms**: Standard NMF, Orthogonal Projective NMF (PNMF), and Non-negative Matrix Tri-Factorization (NMTF)
 - **Advanced NMF Variants**: Hierarchical NMF, Online NMF, and Symmetric NMF implementations
+- **N-gram Discovery**: Automatic discovery of meaningful word combinations using BPE for English text
 - **Rich Visualizations**: Word clouds and topic distribution plots
 - **Flexible Export**: Excel and JSON export formats with organized export utilities
 - **Coherence Evaluation**: Built-in topic coherence scoring and advanced analysis tools
 - **Database Management**: Comprehensive SQLite database integration with dedicated management utilities
 - **Modular Architecture**: Organized utility modules for analysis, visualization, export, and preprocessing
 - **Text Preprocessing**: Language-specific text cleaning and preprocessing
+
+### N-gram Discovery
+
+MANTA supports automatic n-gram discovery using BPE (Byte Pair Encoding) for English text. This feature identifies frequently occurring word combinations and adds them to the vocabulary as new tokens.
+
+To enable n-gram discovery, use the `n_grams_to_discover` parameter:
+
+```python
+results = run_topic_analysis(
+    filepath="data.csv",
+    column="text",
+    language="EN",
+    n_grams_to_discover=200  # Discover 200 word combinations
+)
+```
+
+This can improve topic quality by capturing meaningful phrases like "machine_learning" or "climate_change" as single tokens.
 
 ## Requirements
 

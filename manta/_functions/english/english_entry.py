@@ -11,7 +11,7 @@ START_TIME = time.time()
 
 
 def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=None,
-                        enable_ngram_bpe=False, ngram_vocab_limit=10000, min_pair_frequency=2,
+                        n_gram_discover_count=None, ngram_vocab_limit=10000, min_pair_frequency=2,
                         ngram_algorithm="wordpiece", min_likelihood_score=0.0):
     """
     Process English text data for topic modeling using NMF.
@@ -63,9 +63,9 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
     counterized_data = counterize_english(vocab=vocab, data=text_array,lemmatize=lemmatize)
 
     # Apply n-gram algorithm if enabled
-    if enable_ngram_bpe : # enable_ngram_bpe
-        target_vocab_size = len(vocab) + min(200, len(vocab) // 5)
-        target_vocab_size = len(vocab) + 1000
+    if n_gram_discover_count is not None : # enable_ngram_bpe
+        #target_vocab_size = len(vocab) + min(200, len(vocab) // 5)
+        target_vocab_size = len(vocab) + n_gram_discover_count
         ngram_algorithm = "bpe"
         if ngram_algorithm.lower() == "wordpiece":
             print(f"Applying n-gram WordPiece with vocab limit: {target_vocab_size}")

@@ -459,6 +459,24 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 | `save_to_db` | bool | Save to database                   | False | True, False |
 | `output_name` | str | Custom output name                  | None | Any string |
 | `output_dir` | str | Base output directory              | None | Any path |
+| `n_grams_to_discover` | int | Number of n-grams to discover via BPE (English only) | None | Any positive integer |
+
+### N-gram Discovery
+
+MANTA supports automatic n-gram discovery using BPE (Byte Pair Encoding) for English text. This feature identifies frequently occurring word combinations (like "machine_learning" or "climate_change") and adds them to the vocabulary as new tokens.
+
+When `n_grams_to_discover` is set to a positive integer, the BPE algorithm will discover that many new word combinations by iteratively merging the most frequently occurring adjacent word pairs. This expands the vocabulary and can improve topic quality by capturing meaningful multi-word concepts.
+
+```python
+# Example: Discover 200 n-grams for English text
+results = run_topic_analysis(
+    filepath="research_papers.csv",
+    column="abstract",
+    language="EN",
+    n_grams_to_discover=200,
+    topic_count=10
+)
+```
 
 ### Advanced Options
 
