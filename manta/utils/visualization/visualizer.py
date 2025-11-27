@@ -24,7 +24,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
 
     
     # generate t-SNE visualization plot
-    if False:
+    if options["gen_tsne"]:
         # Use optimized t-SNE for large datasets (>5K documents)
         n_docs = nmf_output["W"].shape[0]
         use_optimized = False
@@ -113,18 +113,18 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
 
         try:
 
-            #fig, temporal_df = gen_temporal_topic_dist(
-            #    W=nmf_output["W"],
-            #    s_matrix=nmf_output.get("S", None),
-            #    datetime_series=datetime_series,
-            #    use_weighted=True,
-            #    output_dir=table_output_dir,
-            #    table_name=table_name,
-            #    time_grouping='year',  # Options: 'year', 'month', 'quarter', 'week'
-            #    plot_type='stacked_area',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
-            #    normalize=False,  # False for count-based, True for percentage-based
-            #    min_score=0.0
-            #)
+            fig, temporal_df = gen_temporal_topic_dist(
+                W=nmf_output["W"],
+                s_matrix=nmf_output.get("S", None),
+                datetime_series=datetime_series,
+                use_weighted=True,
+                output_dir=table_output_dir,
+                table_name=table_name,
+                time_grouping='quarter',  # Options: 'year', 'month', 'quarter', 'week'
+                plot_type='stacked_area',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
+                normalize=False,  # False for count-based, True for percentage-based
+                min_score=0.0
+            )
 
             fig, temporal_df = gen_temporal_topic_dist(
                 W=nmf_output["W"],

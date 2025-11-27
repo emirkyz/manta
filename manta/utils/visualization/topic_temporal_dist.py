@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import seaborn as sns
 from ...utils.analysis import get_dominant_topics
-
+import matplotlib.dates as mdates
 
 def normalize_W_matrix(W:np.ndarray) -> np.ndarray:
     """
@@ -38,7 +38,7 @@ def gen_temporal_topic_dist(
     normalize: bool = True,
     min_score: float = 0.0,
     plot_type: str = 'stacked_area',
-    figsize: tuple = (14, 8),
+    figsize: tuple = (16, 8),
     smooth: bool = False,
     use_weighted: bool = False,
     use_mm_yyyy_format: bool = False
@@ -326,9 +326,9 @@ def gen_temporal_topic_dist(
     elif plot_type == 'line':
         # Use smoothed data if available, otherwise use original
         if smooth:
-            temporal_dist_plot.plot(kind='line', ax=ax, linewidth=2.5, alpha=0.8, color=distinct_colors)
+            temporal_dist_plot.plot(kind='line', ax=ax, linewidth=2.5, alpha=0.8, color=distinct_colors,markersize=3)
         else:
-            temporal_dist.plot(kind='line', ax=ax, marker='o', linewidth=2, markersize=6, alpha=0.8, color=distinct_colors)
+            temporal_dist.plot(kind='line', ax=ax, marker='o', linewidth=2, markersize=3, alpha=0.8, color=distinct_colors)
 
         # Set label based on normalization method and weighted approach
         if normalize and normalization_method == 'z-score':
@@ -482,7 +482,8 @@ def gen_temporal_topic_dist(
             ax.set_xticklabels(all_years, rotation=45, ha='right')
 
     ax.set_title(title, fontsize=14, fontweight='bold')
-    
+    ax.tick_params(axis='x', labelsize=8)
+
     # Add legend and grid only for non-heatmap plots
     if plot_type != 'heatmap':
         # Move legend below for all plot types to prevent overlap with many topics
