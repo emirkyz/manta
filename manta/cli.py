@@ -46,6 +46,9 @@ Examples:
   
   # Generate interactive LDAvis-style topic exploration
   manta analyze docs.xlsx --column text --language EN --topics 8 --ldavis-plot
+
+  # Discover n-grams for improved English topic modeling
+  manta analyze papers.csv --column abstract --language EN --topics 10 --n-grams-to-discover 200
         """
     )
     
@@ -213,7 +216,14 @@ Examples:
         action='store_true',
         help='Save data to database for persistence'
     )
-    
+
+    analyze_parser.add_argument(
+        '--n-grams-to-discover',
+        type=int,
+        default=None,
+        help='Number of n-grams to discover via BPE for English text (default: None, disabled)'
+    )
+
     return parser
 
 
@@ -272,7 +282,8 @@ def build_options(args: argparse.Namespace) -> tuple[dict[str | Any, Any | None]
         },
         "emoji_map": emoji_map,
         "word_pairs_out": args.word_pairs,
-        "save_to_db": args.save_to_db
+        "save_to_db": args.save_to_db,
+        "n_grams_to_discover": args.n_grams_to_discover
     }
     
     return options, table_name

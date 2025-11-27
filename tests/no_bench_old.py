@@ -207,7 +207,7 @@ if __name__ == '__main__':
         lemmatize=True,
         topic_count=25,
         words_per_topic=15,
-        n_grams_to_discover=300,  # Discover 300 n-grams using BPE algorithm
+        n_grams_to_discover=None,  # Discover 300 n-grams using BPE algorithm
         nmf_method="pnmf", # "nmf" or "nmtf" or "pnmf"
         tokenizer_type="bpe",
         filter_app=False,
