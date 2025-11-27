@@ -16,20 +16,30 @@ class ProcessingPaths:
 
     Attributes:
         output_dir: Base output directory for all files
-        table_name: Unique identifier for this analysis run
+        table_name: Unique identifier for this analysis run (includes topic count)
+        preprocessing_name: Identifier for preprocessing cache (excludes topic count)
     """
     output_dir: Path
     table_name: str
+    preprocessing_name: str
 
     @property
     def tfidf_matrix_file(self) -> Path:
-        """Path to cached TF-IDF matrix file."""
-        return self.output_dir / f"{self.table_name}_tfidf_matrix.npz"
+        """Path to cached TF-IDF matrix file.
+
+        Uses preprocessing_name (without topic count) since TFIDF is
+        independent of the number of topics.
+        """
+        return self.output_dir / f"{self.preprocessing_name}_tfidf_matrix.npz"
 
     @property
     def metadata_file(self) -> Path:
-        """Path to cached metadata file (vocab, text_array, datetime)."""
-        return self.output_dir / f"{self.table_name}_tfidf_metadata.npz"
+        """Path to cached metadata file (vocab, text_array, datetime).
+
+        Uses preprocessing_name (without topic count) since preprocessing
+        is independent of the number of topics.
+        """
+        return self.output_dir / f"{self.preprocessing_name}_tfidf_metadata.npz"
 
     def table_output_dir(self, variant_table_name: Optional[str] = None) -> Path:
         """Get output directory for a specific table/variant.
