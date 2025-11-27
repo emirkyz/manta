@@ -9,10 +9,16 @@ import pandas as pd
 from .._functions.common_language.topic_extractor import topic_extract
 from .._functions.nmf import run_nmf
 from ..utils.analysis.coherence_score import calculate_coherence_scores
+from ..utils.analysis.topic_correlation import build_correlation_graph
+from ..utils.analysis.topic_similarity import HybridTFIDFTopicSimilarity
 from ..utils.export.save_doc_score_pair import save_doc_score_pair
 from ..utils.export.save_word_score_pair import save_word_score_pair
 from ..utils.export.save_s_matrix import save_s_matrix
 from ..utils.console.console_manager import ConsoleManager
+from ..utils.visualization.topic_similarity_heatmap import plot_combined_similarity_analysis
+import json
+import numpy as np
+from pathlib import Path
 
 
 class ModelingPipeline:
@@ -62,7 +68,7 @@ class ModelingPipeline:
             word_result, document_result = topic_extract(
                 H=nmf_output["H"],
                 W=nmf_output["W"],
-                doc_word_pairs=nmf_output.get("S", None),
+                s_matrix=nmf_output.get("S", None),
                 topic_count=int(options["DESIRED_TOPIC_COUNT"]),
                 vocab=vocab,
                 tokenizer=options["tokenizer"],
@@ -77,7 +83,7 @@ class ModelingPipeline:
             word_result, document_result = topic_extract(
                 H=nmf_output["H"],
                 W=nmf_output["W"],
-                doc_word_pairs=nmf_output.get("S", None),
+                s_matrix=nmf_output.get("S", None),
                 topic_count=int(options["DESIRED_TOPIC_COUNT"]),
                 vocab=vocab,
                 documents=text_array,
@@ -162,13 +168,109 @@ class ModelingPipeline:
             s_matrix = nmf_output.get("S", None),
         )
 
+        if False:
+            # Calculate topic similarity using hybrid weighted TF-IDF
+            if console:
+                console.print_status("Computing topic similarity scores...", "processing")
+            else:
+                print("Computing topic similarity scores...")
 
-        # reconstruction error
+            try:
+                # Create vocabulary dict if it's a list
+                if isinstance(vocab, list):
+                    vocab_dict = {word: idx for idx, word in enumerate(vocab)}
+                else:
+                    vocab_dict = vocab
 
-        import numpy as np
-        X_reconstructed = nmf_output["W"] @ nmf_output["H"]
-        X_reconstructed.to
-        frobenius_norm = np.linalg.norm(tdm - X_reconstructed, 'fro')
+                # Get topic names from word_result
+                topic_names = list(word_result.keys())
+
+                # Initialize similarity scorer
+                similarity_scorer = HybridTFIDFTopicSimilarity(
+                    H_matrix=nmf_output["H"],
+                    vocabulary=vocab_dict,
+                    tfidf_matrix=tdm,  # Use the TF-IDF matrix to compute IDF values
+                    topic_names=topic_names
+                )
+
+                # Compute weighted TF-IDF vectors and similarity matrix
+                similarity_scorer.create_weighted_tfidf_vectors(
+                    top_n_words=100,  # Focus on top 100 words per topic
+                    normalize=True
+                )
+
+                similarity_matrix = similarity_scorer.compute_similarity_matrix(
+                    method='cosine'
+                )
+
+                # Get summary statistics
+                similarity_stats = similarity_scorer.get_summary_statistics()
+
+                # Find redundant topics
+                redundant_pairs = similarity_scorer.find_redundant_topics(
+                    threshold=0.8
+                )
+
+                # Get merge suggestions
+                merge_suggestions = similarity_scorer.suggest_topic_merging(
+                    threshold=0.8,
+                    method='hierarchical'
+                )
+
+                # Save results to JSON
+                similarity_results = {
+                    'n_topics': int(similarity_scorer.n_topics),
+                    'topic_names': topic_names,
+                    'similarity_matrix': similarity_matrix.tolist(),
+                    'summary_statistics': similarity_stats,
+                    'redundant_pairs': redundant_pairs,
+                    'merge_suggestions': merge_suggestions
+                }
+
+                output_file = Path(table_output_dir) / f"{table_name}_topic_similarity.json"
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    json.dump(similarity_results, f, indent=2, ensure_ascii=False)
+
+                if console:
+                    console.print_status(f"Topic similarity results saved to: {output_file}", "success")
+                else:
+                    print(f"Topic similarity results saved to: {output_file}")
+
+                # Generate visualizations
+                if console:
+                    console.print_status("Generating topic similarity visualizations...", "processing")
+                else:
+                    print("Generating topic similarity visualizations...")
+
+                viz_paths = plot_combined_similarity_analysis(
+                    similarity_matrix=similarity_matrix,
+                    topic_names=topic_names,
+                    output_dir=str(table_output_dir),
+                    dataset_name=table_name,
+                    threshold=0.5,
+                    create_network=True,
+                    create_dendrogram=True,
+                    create_distribution=True
+                )
+
+                if console:
+                    console.print_status("Topic similarity analysis completed!", "success")
+                else:
+                    print("Topic similarity analysis completed!")
+
+            except Exception as e:
+                error_msg = f"Warning: Could not compute topic similarity: {str(e)}"
+                if console:
+                    console.print_status(error_msg, "warning")
+                else:
+                    print(error_msg)
+
+        # Calculate reconstruction error
+
+        # X_reconstructed = nmf_output["W"] @ nmf_output["H"]
+        # frobenius_norm = np.linalg.norm(tdm - X_reconstructed, 'fro')
+
+        #A,L  = build_correlation_graph(nmf_output["W"])
 
 
         return topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result
