@@ -1,4 +1,5 @@
 from collections import Counter
+from pathlib import Path
 
 import numpy as np
 from scipy.sparse import lil_matrix
@@ -17,6 +18,9 @@ def load_model_components(model_file="topic_model_components.npz"):
         H = data['H']
         vocab = data['vocab']
 
+        # Load S matrix if present (NMTF models)
+        S = data['S'] if 'S' in data else None
+
         # Handle different vocab formats - convert to list if needed
         if isinstance(vocab, np.ndarray):
             if vocab.ndim == 0:  # scalar array (single item)
@@ -26,13 +30,13 @@ def load_model_components(model_file="topic_model_components.npz"):
 
         print(f"Model components loaded from {model_file}")
         print(f"Vocabulary type: {type(vocab)}, length: {len(vocab) if hasattr(vocab, '__len__') else 'N/A'}")
-        return W, H, vocab
+        return W, H, vocab, S
     except FileNotFoundError:
         print(f"Model file {model_file} not found. Run training first.")
-        return None, None, None
+        return None, None, None, None
     except Exception as e:
         print(f"Error loading model: {e}")
-        return None, None, None
+        return None, None, None, None
 
 
 def predict_topics(text, model_file="topic_model_components.npz", top_n=3, normalization='l1'):
@@ -49,7 +53,7 @@ def predict_topics(text, model_file="topic_model_components.npz", top_n=3, norma
         dict: Dictionary with raw scores and normalized scores using specified method
     """
     # Load model components
-    W, H, vocab = load_model_components(model_file)
+    W, H, vocab, S = load_model_components(model_file)
     if H is None or vocab is None:
         return None
 
@@ -78,6 +82,7 @@ def predict_topics(text, model_file="topic_model_components.npz", top_n=3, norma
     input_matrix.data = np.ones_like(input_matrix.data)
 
     idf = 1
+    input_matrix = input_matrix.tocsr()
     tf = tf_l(input_matrix)
     tf_idf = tf.multiply(idf)
 
@@ -113,7 +118,7 @@ if __name__ == '__main__':
     import psycopg2
     import pandas as pd
     import os
-    
+
     # Database connection parameters
     db_config = {
         'host': 'localhost',
@@ -122,7 +127,7 @@ if __name__ == '__main__':
         'password': '123',
         'port': 5432
     }
-    
+
     # SQL query to fetch data
     sql_query = """select distinct rev_submit_millis_since_epoch, device,review_text
             from dxhub.playstore_app_reviews
@@ -136,27 +141,27 @@ if __name__ == '__main__':
         # Connect to PostgreSQL database
         print("Connecting to PostgreSQL database...")
         conn = psycopg2.connect(**db_config)
-        
+
         # Execute query and load into DataFrame
         print("Executing SQL query...")
         df = pd.read_sql_query(sql_query, conn)
-        
+
         # Close database connection
         conn.close()
         print(f"Successfully fetched {len(df)} records from database")
-        
+
         # Create output directory if it doesn't exist
         output_dir = "../veri_setleri"
         os.makedirs(output_dir, exist_ok=True)
-        
+
         # Save to CSV
         csv_file_path = os.path.join(output_dir, "database_export.csv")
         df.to_csv(csv_file_path, index=False, sep="|", encoding='utf-8')
         print(f"Data exported to: {csv_file_path}")
-        
+
         # Update file_path to use the exported CSV
         file_path = csv_file_path
-        
+
     except psycopg2.Error as e:
         print(f"Database error: {e}")
         print("Falling back to original CSV file...")
@@ -168,48 +173,67 @@ if __name__ == '__main__':
 
 
 
-    file_path = "../veri_setleri/playstore.csv"
-    column = "review_text"
+    def get_df_from_db(db_path:Path, table_name:str):
+        """Load df from SQLite database."""
+
+        connection_string = f"sqlite:///{db_path}"
+        engine = manta.create_engine(connection_string)
+        df = pd.read_sql_table(table_name, engine)
+        # convert to csv
+
+        return df
+
+
+
+    file_path = "../misc/DNA/combined_dna_sequence.csv"
+    file_path = "../veri_setleri/abstracts_pubmed_v2.csv"
+    file_path = "../veri_setleri/radiology_imaging.csv"
+
+
+    column = "abstract"
     result = manta.run_topic_analysis(
         filepath=file_path,
         column=column,
-        separator="|",
-        language="TR",
+        separator=",",
+        language="EN",
         lemmatize=True,
-        topic_count=10,
+        topic_count=15,
         words_per_topic=15,
-        nmf_method="nmf", # "nmf" or "nmtf" or "pnmf"
+        nmf_method="nmtf", # "nmf" or "nmtf" or "pnmf"
         tokenizer_type="bpe",
-        filter_app=True,
+        filter_app=False,
         data_filter_options = {
             "filter_app_country": "TR",
             "filter_app_country_column": "reviewer_language",
             "filter_app_name":"com.turkcell.ott",
             "filter_app_column": "package_name",
         },
-        emoji_map=True,
+        emoji_map=False,
         generate_wordclouds=True,
         save_to_db=False,
         word_pairs_out=False,
         topic_distribution=True,
+        export_excel=False,
+        output_dir="weighted_time_test",
     )
 
-    old_str = """
-    Manchester City secured a crucial 2-1 victory over Arsenal at the Emirates Stadium, extending their lead at the top of the Premier League table to five points. Erling Haaland opened the scoring in the 23rd minute with a trademark finish, capitalizing on a perfectly weighted through ball from Kevin De Bruyne.
-     claim their third consecutive Premier League title. Ayrıca bu kazanç, ingiltere liginde ilgiye sebep oldu
-     """
-    str ="""
-    COVID-19 pandemic has underscored the need for a well-trained public health workforce to save lives through timely outbreaks detection and response  In Yemen  a country that is entering its seventh year of a protracted war  the ongoing conflict severely limited the country s capacity to implement effective preparedness and response measures to outbreaks including COVID-19  There are growing concerns that the virus may be circulating within communities undetected and unmitigated especially as underreporting continues in some areas of the country due to a lack of testing facilities  delays in seeking treatment  stigma  difficulty accessing treatment centers  the perceived risks of seeking care or for political issues  The Yemen Field Epidemiology Training Program  FETP  was launched in 2011 to address the shortage of a skilled public health workforce  with the objective of strengthening capacity in field epidemiology  Thus  events of public health importance can be detected and investigated in a timely and effective manner  During the COVID-19 pandemic  the Yemen FETP s response has been instrumental through participating in country-level coordination  planning  monitoring  and developing guidelines standard operating procedures and strengthening surveillance capacities  outbreak investigations  contact tracing  case management  infection prevention  and control  risk communication  and research  As the third wave is circulating with a steeper upward curve than the previous ones with possible new variants  the country will not be able to deal with a surge of cases as secondary care is extremely crippled  Since COVID-19 prevention and control are the only option available to reduce its grave impact on morbidity and mortality  health partners should support the Yemen FETP to strengthen the health system s response to future epidemics  One important lesson learned from the COVID-19 pandemic  especially in the Yemen context and applicable to developing and war-torn countries  is that access to outside experts becomes limited  therefore  it is crucial to invest in building national expertise to provide timely  cost-effective  and sustainable services that are culturally appropriate  It is also essential to build such expertise at the governorate and district levels  as they are normally the first respondents  and to provide them with the necessary tools for immediate response in order to overcome the disastrous delays
-    """
+    if False:
+        old_str = """
+        Manchester City secured a crucial 2-1 victory over Arsenal at the Emirates Stadium, extending their lead at the top of the Premier League table to five points. Erling Haaland opened the scoring in the 23rd minute with a trademark finish, capitalizing on a perfectly weighted through ball from Kevin De Bruyne.
+         claim their third consecutive Premier League title. Ayrıca bu kazanç, ingiltere liginde ilgiye sebep oldu
+         """
+        str ="""
+        COVID-19 pandemic has underscored the need for a well-trained public health workforce to save lives through timely outbreaks detection and response  In Yemen  a country that is entering its seventh year of a protracted war  the ongoing conflict severely limited the country s capacity to implement effective preparedness and response measures to outbreaks including COVID-19  There are growing concerns that the virus may be circulating within communities undetected and unmitigated especially as underreporting continues in some areas of the country due to a lack of testing facilities  delays in seeking treatment  stigma  difficulty accessing treatment centers  the perceived risks of seeking care or for political issues  The Yemen Field Epidemiology Training Program  FETP  was launched in 2011 to address the shortage of a skilled public health workforce  with the objective of strengthening capacity in field epidemiology  Thus  events of public health importance can be detected and investigated in a timely and effective manner  During the COVID-19 pandemic  the Yemen FETP s response has been instrumental through participating in country-level coordination  planning  monitoring  and developing guidelines standard operating procedures and strengthening surveillance capacities  outbreak investigations  contact tracing  case management  infection prevention  and control  risk communication  and research  As the third wave is circulating with a steeper upward curve than the previous ones with possible new variants  the country will not be able to deal with a surge of cases as secondary care is extremely crippled  Since COVID-19 prevention and control are the only option available to reduce its grave impact on morbidity and mortality  health partners should support the Yemen FETP to strengthen the health system s response to future epidemics  One important lesson learned from the COVID-19 pandemic  especially in the Yemen context and applicable to developing and war-torn countries  is that access to outside experts becomes limited  therefore  it is crucial to invest in building national expertise to provide timely  cost-effective  and sustainable services that are culturally appropriate  It is also essential to build such expertise at the governorate and district levels  as they are normally the first respondents  and to provide them with the necessary tools for immediate response in order to overcome the disastrous delays
+        """
 
-    model_file = result.get("model_file", None)
+        model_file = result.get("model_file", None)
 
-    print("\n=== Testing save/load workflow ===")
-    # Test the new prediction function with the same text
-    test_predictions = predict_topics(str, model_file=model_file, top_n=5)
-    if test_predictions:
-        print("Top predictions using saved model:")
-        for i in range(len(test_predictions['raw_scores'])):
-            raw_topic, raw_score = test_predictions['raw_scores'][i]
-            l1_topic, l1_score = test_predictions['l1_scores'][i]
-            print(f"{raw_topic} raw: {raw_score:.4f} L1: {l1_score:.4f}")
+        print("\n=== Testing save/load workflow ===")
+        # Test the new prediction function with the same text
+        test_predictions = predict_topics(str, model_file=model_file, top_n=5)
+        if test_predictions:
+            print("Top predictions using saved model:")
+            for i in range(len(test_predictions['raw_scores'])):
+                raw_topic, raw_score = test_predictions['raw_scores'][i]
+                l1_topic, l1_score = test_predictions['l1_scores'][i]
+                print(f"{raw_topic} raw: {raw_score:.4f} L1: {l1_score:.4f}")

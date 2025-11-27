@@ -22,7 +22,10 @@
 - **Multiple Tokenization Methods**: BPE (Byte-Pair Encoding) and WordPiece for Turkish
 - **Multiple NMF Factorization Algorithms**: Standard NMF, Projective NMF (PNMF), and Non-negative Matrix Tri-Factorization (NMTF)
 - **Advanced NMF Variants**: Hierarchical NMF, Online NMF, and Symmetric NMF implementations
-- **Rich Output Generation**: Word clouds, topic distributions, Excel reports, coherence scores, and topic relationship analysis (NMTF)
+- **N-gram Support**: Flexible n-gram processing for enhanced topic extraction and phrase detection
+- **Sparse Matrix Optimization**: CSR (Compressed Sparse Row) format support for improved performance and memory efficiency
+- **Interactive Visualizations**: t-SNE plots with PCA preprocessing, LDAvis-style interactive topic visualization, and traditional word clouds
+- **Rich Output Generation**: Word clouds, topic distributions, Excel reports, coherence scores, topic relationship analysis (NMTF), and interactive HTML visualizations
 - **Database Management**: Comprehensive SQLite database integration with dedicated management utilities
 - **Modular Architecture**: Organized utility modules for analysis, visualization, export, and preprocessing
 - **Comprehensive Preprocessing**: Text cleaning, tokenization, and TF-IDF vectorization
@@ -397,6 +400,14 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 - **`word_cooccurrence.py`**: Word co-occurrence analysis
 - **`word_cooccurrence_analyzer.py`**: Advanced word co-occurrence analysis
 
+#### visualization/
+- **`gen_cloud.py`**: Word cloud generation
+- **`image_to_base.py`**: Image to base64 conversion
+- **`topic_dist.py`**: Topic distribution visualization
+- **`visualizer.py`**: General visualization utilities
+- **`tsne_visualizer.py`**: Optimized t-SNE visualization with PCA preprocessing and multi-threading
+- **`ldavis_creator.py`**: LDAvis-style interactive topic visualization
+
 #### console/
 - **`console_manager.py`**: Console and logging management utilities
 
@@ -412,12 +423,6 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 
 #### preprocess/
 - **`combine_number_suffix.py`**: Number and suffix combination utilities
-
-#### visualization/
-- **`gen_cloud.py`**: Word cloud generation
-- **`image_to_base.py`**: Image to base64 conversion
-- **`topic_dist.py`**: Topic distribution visualization
-- **`visualizer.py`**: General visualization utilities
 
 #### agent/
 - **`claude_prompt_generator.py`**: Claude AI prompt generation utilities

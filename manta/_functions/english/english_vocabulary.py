@@ -1,4 +1,5 @@
 from typing import List
+from collections import Counter
 
 
 
@@ -31,10 +32,15 @@ def create_english_vocab(cleaned_data: List[str], alanadi: str, lemmatize=False,
             print("Lemmatization is enabled")
     else:
         print("Lemmatization is disabled")
-    # Process all documents in a single pass using set comprehension
-    sozluk = set().union(*[set(doc.split()) for doc in cleaned_data])
-    
-    return sorted(sozluk), len(cleaned_data)
+    # Use Counter for efficient single-pass vocabulary building
+    word_counter = Counter()
+    for doc in cleaned_data:
+        word_counter.update(doc.split())
+
+    # Extract unique words and sort them
+    sozluk = sorted(word_counter.keys())
+
+    return sozluk, len(cleaned_data)
 
     # def sozluk_goster(self):
     #     return self.sozluk

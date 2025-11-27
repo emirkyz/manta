@@ -120,13 +120,13 @@ def _extract_topic_words(topic_word_vector, word_ids, tokenizer, vocabulary, emo
 def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
     """
     Extract and process documents for a single topic.
-    
+
     Args:
         topic_doc_vector (numpy.ndarray): Document scores for this topic
         doc_ids (numpy.ndarray): Sorted document IDs by score
         documents: Collection of documents (DataFrame or list)
         emoji_map: Emoji map for decoding (optional)
-        
+
     Returns:
         dict: Dictionary of document_id -> document_text:score strings
     """
@@ -136,17 +136,21 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
         if doc_id < len(documents):
             score = topic_doc_vector[doc_id]
 
+            # Skip documents with zero or negative scores
+            if score <= 0.0:
+                continue
+
             if hasattr(documents, 'iloc'):
                 document_text = documents.iloc[doc_id]
             else:
                 document_text = documents[doc_id]
-                
+
             if emoji_map is not None:
                 if emoji_map.check_if_text_contains_tokenized_emoji_doc(document_text):
                     document_text = emoji_map.decode_text_doc(document_text)
             document_text = document_text.translate(str.maketrans('', '', '\n')).replace('\"', '')
             document_score_list[f"{doc_id}"] = f"{document_text}:{score:.16f}"
-            
+
     return document_score_list
 
 

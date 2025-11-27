@@ -2,21 +2,40 @@
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+from ...utils.analysis import get_dominant_topics
 
-def gen_topic_dist(W,output_dir,table_name):
+def gen_topic_dist(W, output_dir, table_name, s_matrix=None):
     """Generate a bar plot of the document distribution across topics.
     From the W matrix, first we get biggest value per row. This is the topic that the document is most associated with.
     Then we count the number of documents for each topic.
     Bar plot values should sum up to the number of documents.
+
+    For NMTF models (when s_matrix is provided), topics are defined by S matrix relationships.
+
     Args:
         W (numpy.ndarray): The matrix of topic distributions.
         output_dir (str): The directory to save the plot.
         table_name (str): The name of the table.
+        s_matrix (numpy.ndarray, optional): S matrix for NMTF models.
     """
     print("Calculating document distribution across topics...")
-    dominant_topics = np.argmax(W, axis=1)
-    # Count number of documents per topic
-    topic_counts = np.bincount(dominant_topics)
+
+    # Get dominant topics, filtering out zero-score documents
+    dominant_topics = get_dominant_topics(W, min_score=0.0, s_matrix=s_matrix)
+
+    # Filter out documents with no dominant topic (marked as -1)
+    valid_mask = dominant_topics != -1
+    valid_dominant_topics = dominant_topics[valid_mask]
+    excluded_count = np.sum(~valid_mask)
+
+    if excluded_count > 0:
+        print(f"Excluded {excluded_count} documents with all zero topic scores from visualization")
+
+    # Count number of documents per topic (only valid assignments)
+    if len(valid_dominant_topics) > 0:
+        topic_counts = np.bincount(valid_dominant_topics)
+    else:
+        topic_counts = np.array([0])
     
     # Print the counts
     print("\nNumber of documents per topic:")
@@ -31,6 +50,7 @@ def gen_topic_dist(W,output_dir,table_name):
     plt.xlabel('Topic Number')
     plt.ylabel('Number of Documents')
     plt.title('Number of Documents per Topic')
+    plt.grid(False)
     plt.xticks(range(start_index, end_index))
     
     # Add count labels on top of each bar

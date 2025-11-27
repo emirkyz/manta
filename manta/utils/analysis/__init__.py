@@ -6,8 +6,10 @@ This module provides functions for coherence scoring and word co-occurrence anal
 
 from .coherence_score import calculate_coherence_scores
 from .word_cooccurrence import calc_word_cooccurrence
+from .dominant_topic import get_dominant_topics
 
 __all__ = [
     "calculate_coherence_scores",
-    "calc_word_cooccurrence"
+    "calc_word_cooccurrence",
+    "get_dominant_topics"
 ]

@@ -45,6 +45,10 @@ class TopicAnalysisConfig:
     save_to_db: bool = False
     data_filter_options: DataFilterOptions = field(default_factory=DataFilterOptions)
     output_name: Optional[str] = None
+    enable_ngram_bpe: bool = False
+    ngram_vocab_limit: int = 10000
+    min_pair_frequency: int = 2
+    additional_params: Dict = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -83,6 +87,13 @@ class TopicAnalysisConfig:
             if not self.output_name.strip():
                 raise ValueError("output_name cannot be empty or whitespace only")
 
+        # Validate n-gram BPE parameters
+        if self.ngram_vocab_limit <= 0:
+            raise ValueError(f"Invalid ngram_vocab_limit: {self.ngram_vocab_limit}. Must be positive")
+
+        if self.min_pair_frequency <= 0:
+            raise ValueError(f"Invalid min_pair_frequency: {self.min_pair_frequency}. Must be positive")
+
     def generate_output_name(self, filepath: str) -> str:
         """Generate a descriptive output name based on input file and configuration."""
         filepath_obj = Path(filepath)
@@ -93,7 +104,7 @@ class TopicAnalysisConfig:
 
     def to_run_options(self) -> Dict:
         """Convert config to format expected by run_standalone_nmf."""
-        return {
+        options = {
             "LANGUAGE": self.language.upper(),
             "DESIRED_TOPIC_COUNT": self.topic_count if self.topic_count is not None else self.topics,
             "N_TOPICS": self.words_per_topic,
@@ -110,8 +121,19 @@ class TopicAnalysisConfig:
             "emoji_map": self.emoji_map,
             "save_to_db": self.save_to_db,
             "data_filter_options": self.data_filter_options.__dict__,
-            "output_name": self.output_name
+            "output_name": self.output_name,
+            "enable_ngram_bpe": self.enable_ngram_bpe,
+            "ngram_vocab_limit": self.ngram_vocab_limit,
+            "min_pair_frequency": self.min_pair_frequency
         }
+        
+        # Merge additional parameters from kwargs
+        # Additional params take precedence over defaults but not over explicitly set config values
+        for key, value in self.additional_params.items():
+            if key not in options:  # Only add if not already present
+                options[key] = value
+        
+        return options
 
 
 def create_config_from_params(
@@ -131,6 +153,10 @@ def create_config_from_params(
     emoji_map: bool = False,
     save_to_db: bool = False,
     output_name: str = None,
+    enable_ngram_bpe: bool = False,
+    ngram_vocab_limit: int = 10000,
+    min_pair_frequency: int = 2,
+    **kwargs
 ) -> TopicAnalysisConfig:
     """Create a TopicAnalysisConfig from individual parameters."""
     if data_filter_options is not None:
@@ -154,5 +180,9 @@ def create_config_from_params(
         word_pairs_out=word_pairs_out,
         save_to_db=save_to_db,
         data_filter_options=dfo,
-        output_name=output_name
+        output_name=output_name,
+        enable_ngram_bpe=enable_ngram_bpe,
+        ngram_vocab_limit=ngram_vocab_limit,
+        min_pair_frequency=min_pair_frequency,
+        additional_params=kwargs
     )

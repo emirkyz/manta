@@ -5,6 +5,7 @@ import matplotlib.patches as mpatches
 from pathlib import Path
 from typing import Optional, Union, List, Tuple
 import math
+from ...utils.analysis import get_dominant_topics
 
 
 def topic_space_graph_output(w: np.ndarray, h: np.ndarray,
@@ -66,12 +67,27 @@ def topic_space_graph_output(w: np.ndarray, h: np.ndarray,
 
     n_docs, n_topics = w_dense.shape
 
+    # Filter out documents with all zero topic scores
+    dominant_topics = get_dominant_topics(w_dense, min_score=0.0)
+    valid_mask = dominant_topics != -1
+    excluded_count = np.sum(~valid_mask)
+
+    if excluded_count > 0:
+        print(f"⚠️  Excluded {excluded_count} documents with all zero topic scores from visualization")
+
+    # Filter to only valid documents
+    w_filtered = w_dense[valid_mask]
+
+    if w_filtered.shape[0] == 0:
+        print("⚠️  Error: No valid documents to visualize after filtering")
+        return None
+
     # Calculate topic centers (always circular) - REDUCED RADIUS
     topic_centers = _calculate_topic_centers(n_topics)
     print(f"🎯 Placed {n_topics} topic centers in circular arrangement")
 
     # Position documents using specified method
-    doc_positions, doc_data = _position_documents(w_dense, topic_centers, top_k, min_probability, positioning)
+    doc_positions, doc_data = _position_documents(w_filtered, topic_centers, top_k, min_probability, positioning)
     print(f"📍 Positioned {len(doc_positions)} documents using {positioning} method")
 
     # Create the visualization

@@ -103,12 +103,13 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
 
 
     w, h = init_func(in_mat, topic_count)
-
+    print(f"Rank of the matrix : {find_max_rank(in_mat)} (Theoretical recommended max rank but might not be applicable to all datasets.)")
     if log:
         print("Starting Factorization Process..")
         start = datetime.now()
 
     nmf_output = None
+    in_mat = in_mat.tocsr()
 
     if nmf_method == "pnmf":
         # If projective NMF is used, we do not need to run the core NMF function
@@ -118,6 +119,7 @@ def _nmf_cpu(in_mat: sp.csc_matrix, log: bool = True, rank_factor: float = 1.0,
                        norm_func=np.linalg.norm)
     elif nmf_method == "nmtf":
         # If NMTF is used, we run the NMTF function
+        # Convert to CSR format for NMTF
         nmf_output = nmtf(in_mat, rank_factor=rank_factor, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
                     init_func=nmtf_initialization_random,topic_count=topic_count)
     else:

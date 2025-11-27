@@ -7,22 +7,57 @@
 
 A comprehensive topic modeling system using Non-negative Matrix Factorization (NMF) and Non-negative Matrix Tri-Factorization (NMTF) that supports both English and Turkish text processing. Features advanced tokenization techniques, multiple factorization algorithms including NMTF for topic relationship analysis, and rich visualization capabilities.
 
+
+
+
+
 ### To cite this work;
+
+
 ```bibtex
+
+
 @article{KARAYAGIZ2025102386,
+
+
 title = {Manta: Multi-lingual advanced NMF-based topic analysis},
+
+
 journal = {SoftwareX},
+
+
 volume = {32},
+
+
 pages = {102386},
+
+
 year = {2025},
+
+
 issn = {2352-7110},
+
+
 doi = {https://doi.org/10.1016/j.softx.2025.102386},
+
+
 url = {https://www.sciencedirect.com/science/article/pii/S2352711025003528},
+
+
 author = {Emir Karayağız and Tolga Berber},
+
+
 keywords = {Topic modeling, Non-negative matrix factorization, Python, Natural language processing, Information retrieval},
+
+
 abstract = {This paper presents MANTA (Multi-lingual Advanced NMF-based Topic Analysis), a novel open-source Python library that provides an integrated pipeline to address key limitations in existing topic modeling workflows. MANTA provides an integrated, easy-to-use pipeline for Non-negative Matrix Factorization (NMF) based topic analysis, uniquely combining corpus-specific subword tokenization (BPE/WordPiece) with advanced term weighting schemes (SMART, BM25) and flexible NMF solver options, including a high-performance Projective NMF method. It offers native support for both English and morphologically complex languages like Turkish. With a simple one-function interface and a command-line utility, MANTA lowers the technical barrier for sophisticated topic analysis, making it a powerful tool for researchers in computational social science and digital humanities.}
+
+
 }
+
+
 ```
+
 
 ## Quick Start
 ### Installing locally for Development

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - N-gram Implementation
+
+### Added
+- **N-gram Support**: Enhanced NMF and NMTF functions with flexible n-gram processing capabilities
+- **t-SNE Visualization**: Optimized t-SNE visualization module for large datasets with PCA preprocessing and multi-threading support
+- **LDAvis Integration**: Support for pyLDAvis-style interactive topic visualizations via `create_manta_ldavis` function
+
+### Changed
+- **CSR Format Support**: Updated NMF and NMTF functions to use Compressed Sparse Row (CSR) format for improved performance and memory efficiency
+- **Enhanced S Matrix**: Improved S matrix support in NMF and NMTF functions for better topic relationship modeling
+- **Topic Extraction**: Updated `extract_topics` function to support CSR format and optional S matrix parameter
+- **Informative Logging**: Added comprehensive logging throughout NMF and NMTF processing pipeline
+
+### Improved
+- **Performance**: Significant performance improvements through CSR sparse matrix format adoption
+- **Memory Efficiency**: Reduced memory footprint for large-scale topic modeling tasks
+- **Topic Quality**: Enhanced topic extraction algorithms for more coherent results
+
 ## [0.3.5] - 2025-01-XX
 
 ### Changed

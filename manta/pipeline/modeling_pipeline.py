@@ -11,6 +11,7 @@ from .._functions.nmf import run_nmf
 from ..utils.analysis.coherence_score import calculate_coherence_scores
 from ..utils.export.save_doc_score_pair import save_doc_score_pair
 from ..utils.export.save_word_score_pair import save_word_score_pair
+from ..utils.export.save_s_matrix import save_s_matrix
 from ..utils.console.console_manager import ConsoleManager
 
 
@@ -22,13 +23,12 @@ class ModelingPipeline:
         tdm, 
         options: Dict[str, Any], 
         vocab, 
-        text_array, 
-        df: pd.DataFrame, 
-        desired_columns: str, 
+        text_array,
         db_config, 
         table_name: str, 
         table_output_dir, 
-        console: Optional[ConsoleManager] = None
+        console: Optional[ConsoleManager] = None,
+        desired_columns: str = "text"
     ) -> Tuple[Dict, Dict, Dict, Dict, Any]:
         """
         Perform NMF topic modeling and analysis.
@@ -80,7 +80,7 @@ class ModelingPipeline:
                 doc_word_pairs=nmf_output.get("S", None),
                 topic_count=int(options["DESIRED_TOPIC_COUNT"]),
                 vocab=vocab,
-                documents=[str(doc).strip() for doc in df[desired_columns]],
+                documents=text_array,
                 db_config=db_config,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
@@ -115,6 +115,34 @@ class ModelingPipeline:
             data_frame_name=table_name,
         )
 
+        # Save S matrix if present (for NMTF)
+        if "S" in nmf_output:
+            if console:
+                console.print_status("Saving S matrix...", "processing")
+            save_s_matrix(
+                s_matrix=nmf_output["S"],
+                output_dir=table_output_dir,
+                table_name=table_name,
+                data_frame_name=table_name,
+            )
+
+            # Generate S matrix graph visualizations
+            if console:
+                console.print_status("Generating S matrix graph visualizations...", "processing")
+            else:
+                print("Generating S matrix graph visualizations...")
+
+            from ..utils.visualization.s_matrix_graph import visualize_s_matrix_graph
+            visualize_s_matrix_graph(
+                s_matrix=nmf_output["S"],
+                output_dir=table_output_dir,
+                table_name=table_name,
+                threshold=0.01,
+                layout="circular",
+                create_interactive=False,
+                create_heatmap=True
+            )
+
         if console:
             console.print_status("Calculating coherence scores...", "processing")
         else:
@@ -131,6 +159,7 @@ class ModelingPipeline:
             topic_word_matrix=nmf_output["H"],
             doc_topic_matrix=nmf_output["W"],
             vocabulary=vocab,
+            s_matrix = nmf_output.get("S", None),
         )
 
         return topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result

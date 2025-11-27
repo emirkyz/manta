@@ -10,7 +10,7 @@ wheels/
 .venv
 /instance
 *.db
-/Output
+/misc/Output
 /veri_setleri
 *.csv
 .idea/dataSources.xml
@@ -23,6 +23,5 @@ docs
 tests/TopicAnalysis
 manta/utils/other
 local_dev
-references
-TopicAnalysis
-tests/benchmark_outputs
+misc
+tests
