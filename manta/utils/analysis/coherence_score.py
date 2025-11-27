@@ -26,13 +26,13 @@ def fix_multiprocessing_fork():
 # --- TopicDiversityScorer Class ---
 
 class TopicDiversityScorer:
-    def __init__(self, topic_word_scores, top_words=10):
+    def __init__(self, topic_word_scores, top_words=25):
         """
         Initialize topic diversity calculator
-        
+
         Args:
             topic_word_scores (dict): Dictionary containing topics and their word scores
-            top_words (int): Number of top words to consider per topic for diversity calculation
+            top_words (int): Number of top words to consider per topic for diversity calculation (default: 25)
         """
         if not isinstance(topic_word_scores, dict):
             raise ValueError("topic_word_scores must be a dictionary")
@@ -109,30 +109,38 @@ class TopicDiversityScorer:
     def calculate_proportion_unique_words(self):
         """
         Calculate Proportion of Unique Words (PUW) - Intra-topic diversity
-        
+
+        Formula: unique_words / (top_words × num_topics)
+
         Returns:
-            float: Ratio of unique words across all topics vs total words
+            float: Ratio of unique words across all topics normalized by expected total words.
+                   Score close to 1.0 means perfect diversity (all words unique across topics).
+                   Score close to 0.0 means low diversity (topics share many words).
         """
         if not self.topic_word_lists:
             print("Warning: No topic word lists available for PUW calculation")
             return 0.0
-        
-        # Count total word instances across all topics (allowing duplicates across topics)
-        total_word_instances = sum(len(words) for words in self.topic_word_lists.values())
-        
+
+        # Count number of topics
+        num_topics = len(self.topic_word_lists)
+
         # Count unique words across all topics
         unique_words = len(self.all_words)
-        
-        if total_word_instances == 0:
-            print("Warning: No words found in any topic for PUW calculation")
+
+        if num_topics == 0:
+            print("Warning: No topics found for PUW calculation")
             return 0.0
-        
+
         if unique_words == 0:
             print("Warning: No unique words found for PUW calculation")
             return 0.0
-            
-        puw_score = unique_words / total_word_instances
-        
+
+        # Calculate expected total words (top_words per topic × number of topics)
+        expected_total_words = self.top_words * num_topics
+
+        # Calculate diversity score: unique words / expected total words
+        puw_score = unique_words / expected_total_words
+
         # PUW should be between 0 and 1, with higher values indicating more diversity
         return min(1.0, max(0.0, puw_score))
     
@@ -770,7 +778,7 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
     diversity_scores = calculate_diversity_scores(
         topic_word_matrix=topic_word_matrix,
         vocabulary=vocabulary,
-        top_words=50,
+        top_words=25,
         output_dir=output_dir,
         table_name=table_name
     )
