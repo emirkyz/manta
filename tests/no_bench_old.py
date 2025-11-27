@@ -188,9 +188,9 @@ if __name__ == '__main__':
     file_path = "../misc/DNA/combined_dna_sequence.csv"
     file_path = "../veri_setleri/abstracts_pubmed_v2.csv"
     file_path = "../veri_setleri/radiology_imaging.csv"
-    file_path = "../veri_setleri/findings.csv"
-
-    column = "findings"
+    #file_path = "../pubmed_articles.csv"
+    file_path = "../radiology_journals.csv"
+    column = "abstract"
     result = manta.run_topic_analysis(
         filepath=file_path,
         #dataframe=get_df_from_db(Path("../veri_setleri/db"), "playstore_app_reviews"),
@@ -198,7 +198,7 @@ if __name__ == '__main__':
         separator=",",
         language="EN",
         lemmatize=True,
-        topic_count=15,
+        topic_count=25,
         words_per_topic=15,
         nmf_method="pnmf", # "nmf" or "nmtf" or "pnmf"
         tokenizer_type="bpe",
@@ -215,7 +215,8 @@ if __name__ == '__main__':
         word_pairs_out=False,
         topic_distribution=True,
         export_excel=False,
-        output_dir="weighted_time_test",
+        output_dir="radiology_imaging_full_test",
+        gen_tsne=False
     )
 
     if False:

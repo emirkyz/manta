@@ -45,14 +45,27 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
         ValueError: If the DataFrame is empty or contains no valid text data
     """
     text_array = clean_english_text(metin=df[desired_columns].values, lemmatize=lemmatize, emoji_map=emoji_map)
+
+    # Track text processing results
+    original_doc_count = len(df[desired_columns].values)
+    non_empty_docs = sum(1 for text in text_array if text and text.strip())
+    empty_docs = original_doc_count - non_empty_docs
+    print(f"\n[TEXT PROCESSING] Document statistics after cleaning:")
+    print(f"  Original documents: {original_doc_count}")
+    print(f"  Non-empty after cleaning: {non_empty_docs}")
+    print(f"  Empty after cleaning: {empty_docs}")
+    if empty_docs > 0:
+        percent_empty = (empty_docs / original_doc_count * 100) if original_doc_count > 0 else 0
+        print(f"  WARNING: {empty_docs} documents ({percent_empty:.1f}%) became empty during text cleaning!")
+
     print(f"Preprocess completed in {time.time() - START_TIME:.2f} seconds")
     vocab, N = create_english_vocab(text_array, desired_columns, lemmatize=lemmatize)
     counterized_data = counterize_english(vocab=vocab, data=text_array,lemmatize=lemmatize)
 
     # Apply n-gram algorithm if enabled
-    if True : # enable_ngram_bpe
+    if enable_ngram_bpe : # enable_ngram_bpe
         target_vocab_size = len(vocab) + min(200, len(vocab) // 5)
-        target_vocab_size = len(vocab) + 300
+        target_vocab_size = len(vocab) + 1000
         ngram_algorithm = "bpe"
         if ngram_algorithm.lower() == "wordpiece":
             print(f"Applying n-gram WordPiece with vocab limit: {target_vocab_size}")
