@@ -182,80 +182,6 @@ def load_or_process_data(
     return cached_data
 
 
-def run_nmf_variant(
-        variant: str,
-        cached_data: CachedData,
-        options: Dict[str, Any],
-        paths: ProcessingPaths,
-        db_config: Any,
-        console: ConsoleManager,
-        desired_columns: str,
-        output_dir: Path
-) -> Dict[str, Any]:
-    """Run a single NMF variant analysis.
-
-    Args:
-        variant: NMF variant name (nmf, nmtf, pnmf)
-        cached_data: Preprocessed data
-        options: Processing configuration options
-        paths: Processing paths manager
-        db_config: Database configuration
-        console: Console manager
-        desired_columns: Column name with text data
-        output_dir: Base output directory
-
-    Returns:
-        Dictionary with analysis results
-    """
-    console.print_header(f"NMF variant: {variant}")
-
-    # Update table name and nmf_type for this variant
-    table_name_variant = paths.table_name.replace(options["nmf_type"], variant)
-    options["nmf_type"] = variant
-
-    # Create variant-specific output directory
-    table_output_dir = paths.table_output_dir(table_name_variant)
-    table_output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Topic modeling stage
-    modeling_start = time.time()
-    console.print_status("Performing topic modeling", "processing")
-
-    topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result = (
-        ModelingPipeline.perform_topic_modeling(
-            cached_data.tdm, options, cached_data.vocab, cached_data.text_array,
-            db_config, table_name_variant, table_output_dir, console, desired_columns
-        )
-    )
-    console.record_stage_time(f"NMF Topic Modeling ({variant})", modeling_start)
-
-    # Output generation stage
-    output_start = time.time()
-    console.print_status("Generating outputs", "processing")
-
-    visual_returns = OutputPipeline.generate_outputs(
-        nmf_output, cached_data.vocab, table_output_dir, table_name_variant, options,
-        word_result, topic_word_scores, cached_data.text_array, db_config.topics_db_engine,
-        db_config.program_output_dir, output_dir, topic_doc_scores, console,
-        datetime_series=cached_data.datetime_series
-    )
-    console.record_stage_time(f"Output Generation ({variant})", output_start)
-
-    # Save model components
-    model_components = ModelComponents.from_nmf_output(
-        nmf_output, cached_data.vocab, cached_data.text_array
-    )
-    CacheManager.save_model_components(paths, model_components, table_name_variant, console)
-
-    return {
-        "variant": variant,
-        "topic_word_scores": topic_word_scores,
-        "topic_doc_scores": topic_doc_scores,
-        "coherence_scores": coherence_scores,
-        "visual_returns": visual_returns
-    }
-
-
 def process_file(
         filepath: Optional[str] = None,
         dataframe: Optional[pd.DataFrame] = None,
@@ -325,24 +251,48 @@ def process_file(
                 paths, db_config, console
             )
 
-        # Get NMF variants to run
-        nmf_variants = ["pnmf"]
+        # Create output directory
+        table_output_dir = paths.table_output_dir(table_name)
+        table_output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Run each NMF variant
-        results = []
-        for variant in nmf_variants:
-            with console.progress_context(f"Processing {variant}"):
-                result = run_nmf_variant(
-                    variant, cached_data, options.copy(), paths, db_config,
-                    console, desired_columns, db_config.output_dir
-                )
-                results.append(result)
+        # Topic modeling stage
+        modeling_start = time.time()
+        console.print_status("Performing topic modeling", "processing")
+
+        topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result = (
+            ModelingPipeline.perform_topic_modeling(
+                cached_data.tdm, options, cached_data.vocab, cached_data.text_array,
+                db_config, table_name, table_output_dir, console, desired_columns
+            )
+        )
+        console.record_stage_time("NMF Topic Modeling", modeling_start)
+
+        # Output generation stage
+        output_start = time.time()
+        console.print_status("Generating outputs", "processing")
+
+        visual_returns = OutputPipeline.generate_outputs(
+            nmf_output, cached_data.vocab, table_output_dir, table_name, options,
+            word_result, topic_word_scores, cached_data.text_array, db_config.topics_db_engine,
+            db_config.program_output_dir, db_config.output_dir, topic_doc_scores, console,
+            datetime_series=cached_data.datetime_series
+        )
+        console.record_stage_time("Output Generation", output_start)
+
+        # Save model components
+        model_components = ModelComponents.from_nmf_output(
+            nmf_output, cached_data.vocab, cached_data.text_array
+        )
+        CacheManager.save_model_components(paths, model_components, table_name, console)
 
         return {
             "state": "SUCCESS",
-            "message": f"Topic modeling completed successfully for variants: {nmf_variants}",
+            "message": "Topic modeling completed successfully",
             "data_name": table_name,
-            "results": results
+            "topic_word_scores": topic_word_scores,
+            "topic_doc_scores": topic_doc_scores,
+            "coherence_scores": coherence_scores,
+            "visual_returns": visual_returns
         }
 
     except Exception as e:
