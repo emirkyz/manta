@@ -17,13 +17,15 @@ from .pipeline import DataPipeline, TextPipeline, ModelingPipeline, OutputPipeli
 
 def setup_processing(
         table_name: str,
+        preprocessing_name: str,
         output_base_dir: Optional[str],
         console: ConsoleManager
 ) -> Tuple[ProcessingPaths, Any]:
     """Initialize processing paths and database configuration.
 
     Args:
-        table_name: Unique identifier for this analysis run
+        table_name: Unique identifier for this analysis run (includes topic count)
+        preprocessing_name: Identifier for preprocessing cache (excludes topic count)
         output_base_dir: Base directory for outputs (optional)
         console: Console manager for status messages
 
@@ -39,7 +41,8 @@ def setup_processing(
     # Create processing paths manager
     paths = ProcessingPaths(
         output_dir=db_config.output_dir,
-        table_name=table_name
+        table_name=table_name,
+        preprocessing_name=preprocessing_name
     )
 
     console.record_stage_time("Setup", setup_start)
@@ -148,6 +151,21 @@ def load_or_process_data(
     tdm, vocab, counterized_data, text_array, options = TextPipeline.perform_text_processing(
         df, desired_columns, options, console
     )
+
+    # Print final data statistics summary
+    print(f"\n{'='*60}")
+    print(f"FINAL DATA STATISTICS")
+    print(f"{'='*60}")
+    print(f"  DataFrame rows: {len(df)}")
+    print(f"  Text array length: {len(text_array)}")
+    print(f"  Non-empty texts: {sum(1 for t in text_array if t and t.strip())}")
+    print(f"  Vocabulary size: {len(vocab)}")
+    print(f"  TF-IDF matrix shape: {tdm.shape}")
+    print(f"    Documents (rows): {tdm.shape[0]}")
+    print(f"    Features (columns): {tdm.shape[1]}")
+    if datetime_series is not None:
+        print(f"  Datetime values: {len(datetime_series)}")
+    print(f"{'='*60}\n")
 
     # Create cached data object
     cached_data = CachedData(
@@ -283,7 +301,22 @@ def process_file(
 
         # Setup processing paths and database config
         desired_columns = desired_columns.strip() if desired_columns else None
-        paths, db_config = setup_processing(table_name, output_base_dir, console)
+
+        # Create preprocessing name (without NMF type and topic count)
+        # Preprocessing is independent of modeling parameters
+        # table_name format: {data_name}_{nmf_type}_{tokenizer_type}_{topic_count}
+        # preprocessing_name should be: {data_name}_{tokenizer_type}
+        parts = table_name.rsplit('_', 3)  # Split from right, max 3 splits
+        if len(parts) == 4:
+            # Successfully split into [data_name, nmf_type, tokenizer_type, topic_count]
+            data_name = parts[0]
+            tokenizer_type = parts[2]
+            preprocessing_name = f"{data_name}_{tokenizer_type}"
+        else:
+            # Fallback: use table_name as-is if format doesn't match expected pattern
+            preprocessing_name = table_name
+
+        paths, db_config = setup_processing(table_name, preprocessing_name, output_base_dir, console)
 
         # Load or process data (with caching support)
         with console.progress_context("Topic Analysis Pipeline"):
