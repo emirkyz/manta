@@ -4,6 +4,36 @@ import numpy as np
 import pandas as pd
 
 
+def _sort_matrices(s: np.ndarray) -> tuple[list[tuple[int, int]], list[float]]:
+    """
+    Determine which word-cluster (H row) best corresponds to which doc-cluster (W column).
+
+    For each column in S (document-cluster), find the row (word-cluster) with maximum value.
+    Returns pairs sorted by coupling strength (descending).
+
+    Args:
+        s: S matrix from NMTF (k x k) - coupling between doc-clusters and word-clusters
+
+    Returns:
+        ind: Array of (word_cluster_id, doc_cluster_id) tuples, sorted by max coupling
+        max_values: Corresponding maximum coupling values
+    """
+    ind = []
+    max_values = []
+
+    for i in range(s.shape[1]):  # For each column (word-cluster)
+        col = s[:, i]
+        max_ind = np.argmax(col)  # Find best doc-cluster (row with max value)
+        max_values.append(col[max_ind])
+        ind.append((i, max_ind))
+
+    ind_sorted = np.argsort(max_values)[::-1]
+    ind = np.array(ind)[ind_sorted]
+    max_values = np.array(max_values)[ind_sorted]
+
+    return ind, max_values
+
+
 def _create_vocab_from_tokenizer(tokenizer, n_vocab: int, emoji_map=None) -> List[str]:
     """
     Create vocabulary list from tokenizer, handling emoji decoding and filtering.
@@ -195,12 +225,12 @@ def get_topic_top_terms(h_matrix: np.ndarray,
     """
     Get top terms for all topics based on relevance score.
 
-    Uses the NMF-Equivalent Method for NMTF where document clusters are treated as primary topics
-    and words are projected onto the document-cluster space via H' = S @ H transformation.
+    For NMTF, uses topic pairing via S matrix analysis to find which word-cluster (H row)
+    best corresponds to which doc-cluster (W column), preserving discrete topic structure.
 
     Args:
         h_matrix: Topic-word matrix (n_topics x n_vocab). For NMTF, this should be the original
-                 H matrix before S transformation.
+                 H matrix (not transformed).
         vocab: List of vocabulary words
         term_frequency: Array of term frequencies
         w_matrix: Document-topic matrix (n_docs x n_topics)
@@ -208,8 +238,8 @@ def get_topic_top_terms(h_matrix: np.ndarray,
         top_n: Number of top terms per topic
         tokenizer: Tokenizer for vocabulary creation
         emoji_map: Emoji map for decoding
-        s_matrix: S matrix for NMTF (k x k). If provided, H will be transformed to H' = S @ H
-                 to project words onto document clusters.
+        s_matrix: S matrix for NMTF (k x k). If provided, uses topic pairing to find
+                 best (word_cluster, doc_cluster) pairs from S matrix.
 
     Returns:
         Dictionary with format:
@@ -223,41 +253,64 @@ def get_topic_top_terms(h_matrix: np.ndarray,
         h_matrix = h_matrix.toarray()
     h_matrix = np.asarray(h_matrix)
 
-    # Apply NMTF transformation if S matrix is provided
-    # This transforms H to project words onto document-cluster space: H' = S @ H
-    if s_matrix is not None:
-        if hasattr(s_matrix, 'toarray'):
-            s_matrix = s_matrix.toarray()
-        s_matrix = np.asarray(s_matrix)
-        h_matrix = s_matrix @ h_matrix
-
     if hasattr(w_matrix, 'toarray'):
         w_matrix = w_matrix.toarray()
     if w_matrix is not None:
         w_matrix = np.asarray(w_matrix)
 
     topic_terms = {}
-    n_topics = h_matrix.shape[0]
 
-    # Process all topics sequentially (works for both NMF and NMTF after transformation)
-    for topic_idx in range(n_topics):
-        df = calculate_term_relevance(
-            h_matrix=h_matrix,
-            vocab=vocab,
-            term_frequency=term_frequency,
-            w_matrix=w_matrix,
-            topic_idx=topic_idx,
-            lambda_val=lambda_val,
-            top_n=top_n,
-            tokenizer=tokenizer,
-            emoji_map=emoji_map
-        )
+    if s_matrix is not None:
+        # NMTF mode: use topic pairing via S matrix analysis
+        if hasattr(s_matrix, 'toarray'):
+            s_matrix = s_matrix.toarray()
+        s_matrix = np.asarray(s_matrix)
 
-        # Format topic name with zero-padding (topic_01, topic_02, etc.)
-        topic_name = f"topic_{topic_idx + 1:02d}"
+        # Find which word-cluster (H row) best corresponds to which doc-cluster (W column)
+        ind, _ = _sort_matrices(s_matrix)
 
-        # Create dictionary of word:score pairs
-        topic_terms[topic_name] = dict(zip(df['Term'], df['relevance'].round(4)))
+        for idx, (word_cluster_id, doc_cluster_id) in enumerate(ind):
+            df = calculate_term_relevance(
+                h_matrix=h_matrix,
+                vocab=vocab,
+                term_frequency=term_frequency,
+                w_matrix=w_matrix,
+                topic_idx=idx,  # For display purposes
+                topic_word_idx=word_cluster_id,  # Use specific H row
+                topic_doc_idx=doc_cluster_id,    # Use specific W column
+                lambda_val=lambda_val,
+                top_n=top_n,
+                tokenizer=tokenizer,
+                emoji_map=emoji_map
+            )
+
+            # Format topic name with zero-padding (topic_01, topic_02, etc.)
+            topic_name = f"topic_{idx + 1:02d}"
+
+            # Create dictionary of word:score pairs
+            topic_terms[topic_name] = dict(zip(df['Term'], df['relevance'].round(4)))
+    else:
+        # Standard NMF mode: iterate sequentially
+        n_topics = h_matrix.shape[0]
+
+        for topic_idx in range(n_topics):
+            df = calculate_term_relevance(
+                h_matrix=h_matrix,
+                vocab=vocab,
+                term_frequency=term_frequency,
+                w_matrix=w_matrix,
+                topic_idx=topic_idx,
+                lambda_val=lambda_val,
+                top_n=top_n,
+                tokenizer=tokenizer,
+                emoji_map=emoji_map
+            )
+
+            # Format topic name with zero-padding (topic_01, topic_02, etc.)
+            topic_name = f"topic_{topic_idx + 1:02d}"
+
+            # Create dictionary of word:score pairs
+            topic_terms[topic_name] = dict(zip(df['Term'], df['relevance'].round(4)))
 
     return topic_terms
 

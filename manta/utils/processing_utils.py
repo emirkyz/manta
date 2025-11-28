@@ -88,11 +88,13 @@ class CachedData:
         vocab: Vocabulary list (words/tokens)
         text_array: Original text documents
         datetime_series: Optional datetime values for temporal analysis
+        datetime_is_combined: Whether datetime was created from combined year/month columns
     """
     tdm: sparse.csr_matrix
     vocab: List[str]
     text_array: List[str]
     datetime_series: Optional[pd.Series] = None
+    datetime_is_combined: bool = False
 
     def __len__(self) -> int:
         """Return number of documents in the cached data."""

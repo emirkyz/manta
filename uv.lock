@@ -545,7 +545,7 @@ wheels = [
 
 [[package]]
 name = "manta-topic-modelling"
-version = "0.7.1"
+version = "0.8"
 source = { editable = "." }
 dependencies = [
     { name = "annoy" },

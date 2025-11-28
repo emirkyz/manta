@@ -14,9 +14,89 @@ import numpy as np
 import pandas as pd
 import json
 from pathlib import Path
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict, Any, Tuple
 from scipy.stats import entropy
 from sklearn.manifold import MDS
+
+
+def _sort_matrices(s: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Determine which word-cluster (H row) best corresponds to which doc-cluster (W column).
+
+    For each column in S (word-cluster), find the row (doc-cluster) with maximum value.
+    Returns pairs sorted by coupling strength (descending).
+
+    Args:
+        s: S matrix from NMTF (k x k) - coupling between doc-clusters and word-clusters
+
+    Returns:
+        ind: Array of (word_cluster_id, doc_cluster_id) tuples, sorted by max coupling
+        max_values: Corresponding maximum coupling values
+    """
+    ind = []
+    max_values = []
+
+    for i in range(s.shape[1]):  # For each word-cluster column
+        col = s[:, i]
+        max_ind = np.argmax(col)  # Find best doc-cluster (row with max value)
+        max_values.append(col[max_ind])
+        ind.append((i, max_ind))
+
+    ind_sorted = np.argsort(max_values)[::-1]
+    ind = np.array(ind)[ind_sorted]
+    max_values = np.array(max_values)[ind_sorted]
+
+    return ind, max_values
+
+
+def _reorder_W_by_pairing(W: np.ndarray, s_matrix: np.ndarray) -> np.ndarray:
+    """
+    Reorder W matrix columns based on topic pairing from S matrix.
+
+    This ensures that W columns are reordered to match the topic ordering
+    determined by the S matrix pairing (sorted by coupling strength).
+
+    Args:
+        W: Document-topic matrix (n_docs, n_topics)
+        s_matrix: S matrix from NMTF (k x k)
+
+    Returns:
+        W_reordered: W matrix with columns reordered by topic pairing
+    """
+    ind, _ = _sort_matrices(s_matrix)
+    n_topics = W.shape[1]
+    W_reordered = np.zeros_like(W)
+
+    for new_idx, (word_cluster_id, doc_cluster_id) in enumerate(ind):
+        if new_idx < n_topics:
+            W_reordered[:, new_idx] = W[:, doc_cluster_id]
+
+    return W_reordered
+
+
+def _reorder_H_by_pairing(H: np.ndarray, s_matrix: np.ndarray) -> np.ndarray:
+    """
+    Reorder H matrix rows based on topic pairing from S matrix.
+
+    This ensures that H rows are reordered to match the topic ordering
+    determined by the S matrix pairing (sorted by coupling strength).
+
+    Args:
+        H: Topic-word matrix (n_topics, n_words)
+        s_matrix: S matrix from NMTF (k x k)
+
+    Returns:
+        H_reordered: H matrix with rows reordered by topic pairing
+    """
+    ind, _ = _sort_matrices(s_matrix)
+    n_topics = H.shape[0]
+    H_reordered = np.zeros_like(H)
+
+    for new_idx, (word_cluster_id, doc_cluster_id) in enumerate(ind):
+        if new_idx < n_topics:
+            H_reordered[new_idx, :] = H[word_cluster_id, :]
+
+    return H_reordered
 
 
 def create_manta_ldavis(w_matrix: np.ndarray,
@@ -166,14 +246,20 @@ def prepare_manta_data(w_matrix: np.ndarray,
         w_matrix = w_matrix.toarray()
     if hasattr(h_matrix, 'toarray'):
         h_matrix = h_matrix.toarray()
-    
+
     w_matrix = np.asarray(w_matrix)
     h_matrix = np.asarray(h_matrix)
-    
+
     n_docs, n_topics = w_matrix.shape
     n_topics_h, n_vocab = h_matrix.shape
-    
+
     assert n_topics == n_topics_h, f"Matrix dimension mismatch: W has {n_topics} topics, H has {n_topics_h}"
+
+    # For NMTF models, reorder W and H based on topic pairing from S matrix
+    if s_matrix is not None:
+        w_matrix = _reorder_W_by_pairing(w_matrix, s_matrix)
+        h_matrix = _reorder_H_by_pairing(h_matrix, s_matrix)
+        print("🔄 Reordered W and H matrices based on NMTF topic pairing")
     
     # Create vocabulary from tokenizer if needed
     if vocab is None and tokenizer is not None:
@@ -188,18 +274,14 @@ def prepare_manta_data(w_matrix: np.ndarray,
     h_matrix_norm = h_matrix / (h_matrix.sum(axis=1, keepdims=True) + 1e-10)
 
     # Calculate topic sizes (total probability mass)
-    if s_matrix is not None:
-        # NMTF mode: Calculate topic sizes using dominant topic assignments
-        from ...utils.analysis import get_dominant_topics
-        dominant_topics = get_dominant_topics(w_matrix, min_score=0.0, s_matrix=s_matrix)
-        valid_mask = dominant_topics != -1
-        n_topics_effective = len(np.unique(dominant_topics[valid_mask]))
-        topic_sizes = np.zeros(n_topics_effective)
-        for topic_idx in range(n_topics_effective):
-            topic_sizes[topic_idx] = np.sum(dominant_topics == topic_idx)
-    else:
-        # Standard NMF mode: Sum of document-topic weights
-        topic_sizes = w_matrix.sum(axis=0)
+    # Note: For NMTF, w_matrix has already been reordered by topic pairing above
+    from ...utils.analysis import get_dominant_topics
+    dominant_topics = get_dominant_topics(w_matrix, min_score=0.0)
+    valid_mask = dominant_topics != -1
+    n_topics_effective = n_topics  # Use the actual number of topics
+    topic_sizes = np.zeros(n_topics_effective)
+    for topic_idx in range(n_topics_effective):
+        topic_sizes[topic_idx] = np.sum(dominant_topics == topic_idx)
     
     # Calculate term frequencies if not provided
     # Use both H matrix and W matrix to get proper corpus-wide term frequencies

@@ -110,6 +110,11 @@ def load_or_process_data(
             try:
                 # Load from cache
                 cached_data = CacheManager.load_cached_data(paths, console)
+
+                # Restore the datetime_is_combined flag to options for visualization
+                if cached_data.datetime_is_combined:
+                    options['datetime_is_combined_year_month'] = True
+
                 console.record_stage_time("Data Loading (from cache)", data_start)
                 return cached_data
 
@@ -172,7 +177,8 @@ def load_or_process_data(
         tdm=tdm,
         vocab=vocab,
         text_array=text_array,
-        datetime_series=datetime_series
+        datetime_series=datetime_series,
+        datetime_is_combined=options.get('datetime_is_combined_year_month', False)
     )
 
     # Save to cache for future use

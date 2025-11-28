@@ -5,8 +5,63 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Tuple
 from ...utils.analysis import get_dominant_topics
+
+
+def _sort_matrices(s: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Determine which word-cluster (H row) best corresponds to which doc-cluster (W column).
+
+    For each column in S (word-cluster), find the row (doc-cluster) with maximum value.
+    Returns pairs sorted by coupling strength (descending).
+
+    Args:
+        s: S matrix from NMTF (k x k) - coupling between doc-clusters and word-clusters
+
+    Returns:
+        ind: Array of (word_cluster_id, doc_cluster_id) tuples, sorted by max coupling
+        max_values: Corresponding maximum coupling values
+    """
+    ind = []
+    max_values = []
+
+    for i in range(s.shape[1]):  # For each word-cluster column
+        col = s[:, i]
+        max_ind = np.argmax(col)  # Find best doc-cluster (row with max value)
+        max_values.append(col[max_ind])
+        ind.append((i, max_ind))
+
+    ind_sorted = np.argsort(max_values)[::-1]
+    ind = np.array(ind)[ind_sorted]
+    max_values = np.array(max_values)[ind_sorted]
+
+    return ind, max_values
+
+
+def _reorder_W_by_pairing(W: np.ndarray, s_matrix: np.ndarray) -> np.ndarray:
+    """
+    Reorder W matrix columns based on topic pairing from S matrix.
+
+    This ensures that W columns are reordered to match the topic ordering
+    determined by the S matrix pairing (sorted by coupling strength).
+
+    Args:
+        W: Document-topic matrix (n_docs, n_topics)
+        s_matrix: S matrix from NMTF (k x k)
+
+    Returns:
+        W_reordered: W matrix with columns reordered by topic pairing
+    """
+    ind, _ = _sort_matrices(s_matrix)
+    n_topics = W.shape[1]
+    W_reordered = np.zeros_like(W)
+
+    for new_idx, (word_cluster_id, doc_cluster_id) in enumerate(ind):
+        if new_idx < n_topics:
+            W_reordered[:, new_idx] = W[:, doc_cluster_id]
+
+    return W_reordered
 
 
 def tsne_graph_output(w: np.ndarray, h: np.ndarray,
@@ -105,8 +160,14 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     tsne_embedding = tsne.fit_transform(w_dense)
     tsne_embedding = pd.DataFrame(tsne_embedding, columns=['x', 'y'])
 
+    # For NMTF models, reorder W columns based on topic pairing from S matrix
+    if s_matrix is not None:
+        w_for_topics = _reorder_W_by_pairing(w_dense, s_matrix)
+    else:
+        w_for_topics = w_dense
+
     # Get dominant topics, filtering out zero-score documents
-    dominant_topics = get_dominant_topics(w_dense, min_score=0.0, s_matrix=s_matrix)
+    dominant_topics = get_dominant_topics(w_for_topics, min_score=0.0)
     tsne_embedding['hue'] = dominant_topics
 
     # Filter out documents with no dominant topic (marked as -1)

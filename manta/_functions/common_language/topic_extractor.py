@@ -4,6 +4,36 @@ from ...utils.analysis.distance_two_words import calc_levenstein_distance, calc_
 from ...utils.database.database_manager import DatabaseManager
 
 
+def _sort_matrices(s: np.ndarray) -> tuple[list[tuple[int, int]], list[float]]:
+    """
+    Determine which word-cluster (H row) best corresponds to which doc-cluster (W column).
+
+    For each column in S (document-cluster), find the row (word-cluster) with maximum value.
+    Returns pairs sorted by coupling strength (descending).
+
+    Args:
+        s: S matrix from NMTF (k x k) - coupling between doc-clusters and word-clusters
+
+    Returns:
+        ind: Array of (word_cluster_id, doc_cluster_id) tuples, sorted by max coupling
+        max_values: Corresponding maximum coupling values
+    """
+    ind = []
+    max_values = []
+
+    for i in range(s.shape[1]):  # For each column (word-cluster)
+        col = s[:, i]
+        max_ind = np.argmax(col)  # Find best doc-cluster (row with max value)
+        max_values.append(col[max_ind])
+        ind.append((i, max_ind))
+
+    ind_sorted = np.argsort(max_values)[::-1]
+    ind = np.array(ind)[ind_sorted]
+    max_values = np.array(max_values)[ind_sorted]
+
+    return ind, max_values
+
+
 def _process_word_token(word_id, tokenizer, vocabulary, emoji_map):
     """
     Process a single word token, handling tokenizer vs sozluk and emoji decoding.
@@ -223,39 +253,61 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
     if tokenizer is None and vocab is None:
         raise ValueError("Either tokenizer (for Turkish) or vocab (for English) must be provided")
 
-    # Apply NMTF transformation if S matrix is provided
-    # This transforms H to project words onto document-cluster space: H' = S @ H
-    if s_matrix is not None:
-        H = s_matrix @ H
-
     word_result = {}
     document_result = {}
 
-    if topic_count == -1:
-        topic_count = H.shape[0]
+    if s_matrix is not None:
+        # NMTF mode: use topic pairing via S matrix analysis
+        # Find which word-cluster (H row) best corresponds to which doc-cluster (W column)
+        ind, max_vals = _sort_matrices(s_matrix)
 
-    # Process all topics sequentially (works for both NMF and NMTF after transformation)
-    for i in range(topic_count):
-        topic_word_vector = H[i, :]
-        topic_doc_vector = W[:, i]
+        for idx, (word_cluster_id, doc_cluster_id) in enumerate(ind):
+            topic_word_vector = H[word_cluster_id, :]
+            topic_doc_vector = W[:, doc_cluster_id]
 
-        # Get sorted indices by score (highest first)
-        sorted_word_ids = np.flip(np.argsort(topic_word_vector))
-        sorted_doc_ids = np.flip(np.argsort(topic_doc_vector))
+            # Get sorted indices by score (highest first)
+            sorted_word_ids = np.flip(np.argsort(topic_word_vector))
+            sorted_doc_ids = np.flip(np.argsort(topic_doc_vector))
 
-        # Extract words for this topic
-        word_scores = _extract_topic_words(
-            topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
-        )
-        word_result[f"Topic {i+1:02d}"] = word_scores
-
-        # Extract documents for this topic (optional)
-        if include_documents and documents is not None:
-            top_doc_ids = sorted_doc_ids[:10]
-            doc_scores = _extract_topic_documents(
-                topic_doc_vector, top_doc_ids, documents, emoji_map
+            # Extract words for this topic pair
+            word_scores = _extract_topic_words(
+                topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
-            document_result[f"Topic {i+1}"] = doc_scores
+            word_result[f"Topic {idx+1:02d}"] = word_scores
+
+            # Extract documents for this topic pair (optional)
+            if include_documents and documents is not None:
+                top_doc_ids = sorted_doc_ids[:10]
+                doc_scores = _extract_topic_documents(
+                    topic_doc_vector, top_doc_ids, documents, emoji_map
+                )
+                document_result[f"Topic {idx+1}"] = doc_scores
+    else:
+        # Standard NMF mode: iterate sequentially
+        if topic_count == -1:
+            topic_count = H.shape[0]
+
+        for i in range(topic_count):
+            topic_word_vector = H[i, :]
+            topic_doc_vector = W[:, i]
+
+            # Get sorted indices by score (highest first)
+            sorted_word_ids = np.flip(np.argsort(topic_word_vector))
+            sorted_doc_ids = np.flip(np.argsort(topic_doc_vector))
+
+            # Extract words for this topic
+            word_scores = _extract_topic_words(
+                topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
+            )
+            word_result[f"Topic {i+1:02d}"] = word_scores
+
+            # Extract documents for this topic (optional)
+            if include_documents and documents is not None:
+                top_doc_ids = sorted_doc_ids[:10]
+                doc_scores = _extract_topic_documents(
+                    topic_doc_vector, top_doc_ids, documents, emoji_map
+                )
+                document_result[f"Topic {i+1}"] = doc_scores
 
     # Save to database if provided
     if db_config and db_config.topics_db_engine and data_frame_name:

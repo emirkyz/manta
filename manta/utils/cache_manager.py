@@ -59,6 +59,7 @@ class CacheManager:
 
             # Handle datetime series if present
             datetime_series = None
+            datetime_is_combined = False
 
             # Try new format first (year and month arrays)
             if "datetime_year" in file and "datetime_month" in file:
@@ -67,10 +68,14 @@ class CacheManager:
                     'month': file["datetime_month"]
                 }
                 datetime_series = CacheManager._deserialize_datetime(datetime_dict)
+                # Load the combined flag, defaulting to True for year/month format
+                # (backward compatibility: old caches without this flag were combined)
+                datetime_is_combined = bool(file["datetime_is_combined"]) if "datetime_is_combined" in file else True
 
             # Fall back to legacy format for backward compatibility
             elif "datetime_series" in file and file["datetime_series"] is not None:
                 datetime_series = CacheManager._deserialize_datetime(file["datetime_series"])
+                datetime_is_combined = False
 
         if console:
             console.print_status("Loaded pre-processed data.", "success")
@@ -79,7 +84,8 @@ class CacheManager:
             tdm=tdm,
             vocab=vocab,
             text_array=text_array,
-            datetime_series=datetime_series
+            datetime_series=datetime_series,
+            datetime_is_combined=datetime_is_combined
         )
 
     @staticmethod
@@ -127,7 +133,8 @@ class CacheManager:
                 vocab=data.vocab,
                 text_array=data.text_array,
                 datetime_year=datetime_dict['year'],
-                datetime_month=datetime_dict['month']
+                datetime_month=datetime_dict['month'],
+                datetime_is_combined=data.datetime_is_combined
             )
         else:
             # Save without datetime
@@ -155,13 +162,57 @@ class CacheManager:
         """
         # Ensure it's datetime type
         if not pd.api.types.is_datetime64_any_dtype(datetime_series):
-            datetime_series = pd.to_datetime(datetime_series)
+            # Detect the type of values and convert appropriately
+            # pd.to_datetime() interprets integers as nanoseconds since epoch,
+            # which produces wrong dates (1970) for year values like 2000, 2020
+            sample = datetime_series.dropna()
+            if len(sample) > 0:
+                try:
+                    numeric_sample = pd.to_numeric(sample, errors='coerce').dropna()
+                    if len(numeric_sample) > 0:
+                        min_val = numeric_sample.min()
+                        max_val = numeric_sample.max()
+
+                        # Check if values are years (1900-2100 range)
+                        if 1900 < min_val < 2100 and 1900 < max_val < 2100:
+                            # Convert year integers to datetime properly
+                            datetime_series = pd.to_datetime(
+                                datetime_series.astype(int).astype(str),
+                                format='%Y',
+                                errors='coerce'
+                            )
+                        # Check if values are POSIX timestamps (milliseconds since epoch)
+                        elif min_val > 1e12:
+                            datetime_series = pd.to_datetime(datetime_series, unit='ms', errors='coerce')
+                        # Check if values are POSIX timestamps (seconds since epoch)
+                        elif min_val > 1e9:
+                            datetime_series = pd.to_datetime(datetime_series, unit='s', errors='coerce')
+                        else:
+                            # Fallback to standard conversion
+                            datetime_series = pd.to_datetime(datetime_series, errors='coerce')
+                    else:
+                        # Non-numeric values, try standard conversion
+                        datetime_series = pd.to_datetime(datetime_series, errors='coerce')
+                except Exception:
+                    # If detection fails, try standard conversion
+                    datetime_series = pd.to_datetime(datetime_series, errors='coerce')
+            else:
+                datetime_series = pd.to_datetime(datetime_series, errors='coerce')
 
         # Extract year and month components
-        return {
-            'year': datetime_series.dt.year.values,
-            'month': datetime_series.dt.month.values
-        }
+        # Handle both Series and DatetimeIndex
+        if hasattr(datetime_series, 'dt'):
+            # It's a Series with datetime accessor
+            return {
+                'year': datetime_series.dt.year.values,
+                'month': datetime_series.dt.month.values
+            }
+        else:
+            # It's a DatetimeIndex
+            return {
+                'year': datetime_series.year.values,
+                'month': datetime_series.month.values
+            }
 
     @staticmethod
     def _deserialize_datetime(datetime_data) -> pd.Series:
