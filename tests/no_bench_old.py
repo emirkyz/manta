@@ -115,9 +115,10 @@ def predict_topics(text, model_file="topic_model_components.npz", top_n=3, norma
 if __name__ == '__main__':
 
     # Get data from PostgreSQL database and convert to CSV
-    import psycopg2
-    import pandas as pd
     import os
+
+    import pandas as pd
+    import psycopg2
 
     # Database connection parameters
     db_config = {
@@ -208,7 +209,7 @@ if __name__ == '__main__':
         topic_count=10,
         words_per_topic=15,
         n_grams_to_discover=None,  # Discover 300 n-grams using BPE algorithm
-        nmf_method="pnmf", # "nmf" or "nmtf" or "pnmf"
+        nmf_method="nmtf", # "nmf" or "nmtf" or "pnmf"
         tokenizer_type="bpe",
         filter_app=False,
         data_filter_options = {
