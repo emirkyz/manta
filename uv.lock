@@ -8,15 +8,6 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "annoy"
-version = "1.17.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/07/38/e321b0e05d8cc068a594279fb7c097efb1df66231c295d482d7ad51b6473/annoy-1.17.3.tar.gz", hash = "sha256:9cbfebefe0a5f843eba29c6be4c84d601f4f41ad4ded0486f1b88c3b07739c15", size = 647460, upload-time = "2023-06-14T16:37:34.152Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/59/c1/dafbf82add040db10e6663da2a719eea9b2ca7a3b4dc79dc42cc130b121b/annoy-1.17.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:c33a5d4d344c136c84976bfb2825760142a8bb25335165e24e11c9afbfa8c2e9", size = 57745, upload-time = "2023-06-14T16:37:32.469Z" },
-]
-
-[[package]]
 name = "black"
 version = "25.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -548,7 +539,6 @@ name = "manta-topic-modelling"
 version = "0.8"
 source = { editable = "." }
 dependencies = [
-    { name = "annoy" },
     { name = "duckdb" },
     { name = "emoji" },
     { name = "gensim" },
@@ -573,7 +563,6 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "tokenizers" },
     { name = "tqdm" },
-    { name = "trimap" },
     { name = "umap-learn" },
     { name = "wordcloud" },
 ]
@@ -588,7 +577,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "annoy", specifier = ">=1.17.3" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "duckdb", specifier = ">=1.4.2" },
     { name = "emoji", specifier = "~=2.14.1" },
@@ -616,7 +604,6 @@ requires-dist = [
     { name = "sqlalchemy", specifier = "==2.0.27" },
     { name = "tokenizers", specifier = "==0.21.1" },
     { name = "tqdm", specifier = ">=4.65.0" },
-    { name = "trimap", specifier = ">=1.1.4" },
     { name = "umap-learn", specifier = ">=0.5.7" },
     { name = "wordcloud", specifier = "==1.9.4" },
 ]
@@ -1503,19 +1490,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a8/4b/29b4ef32e036bb34e4ab51796dd745cdba7ed47ad142a9f4a1eb8e0c744d/tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2", size = 169737, upload-time = "2024-11-24T20:12:22.481Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2", size = 78540, upload-time = "2024-11-24T20:12:19.698Z" },
-]
-
-[[package]]
-name = "trimap"
-version = "1.1.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "annoy" },
-    { name = "numba" },
-    { name = "scikit-learn" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/2a/5bc48c9c4dbf0eef900d30fb3403aca452ae93babd42bcb70a7f2dcbda3a/trimap-1.1.4-py3-none-any.whl", hash = "sha256:ff9f0895fe99136af14b8bb4c9e717dfea5f0018ccbd16980daaed32703cf6ff", size = 15461, upload-time = "2022-04-21T04:07:46.878Z" },
 ]
 
 [[package]]

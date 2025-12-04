@@ -271,6 +271,48 @@ def nmtf_initialization_nndsvd_adaptive(in_mat: sp.csr_matrix, rank: int,
     return w, s_matrix, h
 
 
+def nmtf_initialization_nndsvd_correlation(
+    in_mat: sp.csr_matrix,
+    rank: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Correlation-based NNDSVD initialization for NMTF.
+
+    Performs NNDSVD on input matrix, then constructs S from
+    topic correlations (H @ H.T) to ensure a square S matrix.
+
+    Args:
+        in_mat: Input sparse matrix to factorize (m × n)
+        rank: Target rank for factorization
+
+    Returns:
+        W (m × rank): Document-topic matrix
+        S (rank × rank): Topic correlation matrix
+        H (rank × n): Topic-term matrix
+    """
+    from manta._functions.nmf.nmf_initialization import nmf_initialization_nndsvd
+
+    # First NNDSVD: A → W, H
+    W, H = nmf_initialization_nndsvd(in_mat, rank)
+    # W: (m × rank), H: (rank × n)
+
+    # Construct S from topic correlations
+    S = H @ H.T  # (rank × rank)
+
+    # Normalize S to [0, 1] range
+    S = S / (np.max(S) + 1e-9)
+
+    # Ensure non-negativity (already non-negative since H is non-negative)
+    S = np.maximum(S, 0)
+
+    # Threshold small values
+    W[W < 1e-11] = 0
+    S[S < 1e-11] = 0
+    H[H < 1e-11] = 0
+
+    return W, S, H
+
+
 def nmtf_initialization_nndsvd(in_mat: sp.csr_matrix, rank: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Default NNDSVD initialization for NMTF (uses direct method).

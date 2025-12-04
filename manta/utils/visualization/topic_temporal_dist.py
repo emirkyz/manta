@@ -15,60 +15,6 @@ from ...utils.analysis import get_dominant_topics
 import matplotlib.dates as mdates
 
 
-def _sort_matrices(s: np.ndarray) -> tuple[list[tuple[int, int]], list[float]]:
-    """
-    Determine which word-cluster (H row) best corresponds to which doc-cluster (W column).
-
-    For each column in S (document-cluster), find the row (word-cluster) with maximum value.
-    Returns pairs sorted by coupling strength (descending).
-
-    Args:
-        s: S matrix from NMTF (k x k) - coupling between doc-clusters and word-clusters
-
-    Returns:
-        ind: Array of (word_cluster_id, doc_cluster_id) tuples, sorted by max coupling
-        max_values: Corresponding maximum coupling values
-    """
-    ind = []
-    max_values = []
-
-    for i in range(s.shape[1]):  # For each column (word-cluster)
-        col = s[:, i]
-        max_ind = np.argmax(col)  # Find best doc-cluster (row with max value)
-        max_values.append(col[max_ind])
-        ind.append((i, max_ind))
-
-    ind_sorted = np.argsort(max_values)[::-1]
-    ind = np.array(ind)[ind_sorted]
-    max_values = np.array(max_values)[ind_sorted]
-
-    return ind, max_values
-
-
-def _reorder_W_by_pairing(W: np.ndarray, s_matrix: np.ndarray) -> np.ndarray:
-    """
-    Reorder W matrix columns based on topic pairing from S matrix.
-
-    This ensures Topic 1 in temporal plots matches Topic 1 in word exports.
-
-    Args:
-        W: Document-topic matrix (n_docs, n_topics)
-        s_matrix: S matrix from NMTF (k x k)
-
-    Returns:
-        W_reordered: W matrix with columns reordered by coupling strength
-    """
-    ind, _ = _sort_matrices(s_matrix)
-    n_topics = W.shape[1]
-    W_reordered = np.zeros_like(W)
-
-    for new_idx, (word_cluster_id, doc_cluster_id) in enumerate(ind):
-        if new_idx < n_topics:
-            W_reordered[:, new_idx] = W[:, doc_cluster_id]
-
-    return W_reordered
-
-
 def normalize_W_matrix(W:np.ndarray) -> np.ndarray:
     """
     Normalize W matrix so each document (row) sums to 1.
@@ -103,7 +49,9 @@ def gen_temporal_topic_dist(
 
     Args:
         W (numpy.ndarray): Document-topic matrix where rows are documents and columns are topics.
-        s_matrix (numpy.ndarray, optional): S matrix for NMTF. If provided, W @ s_matrix is used before normalization.
+                          Topic ordering is sequential: Topic i uses W column i.
+        s_matrix (numpy.ndarray, optional): S matrix for NMTF. DEPRECATED: No longer used for reordering.
+                                           Kept for backwards compatibility but has no effect.
         datetime_series (pd.Series): Series containing datetime information for each document.
         output_dir (str|Path): Directory to save the plots.
         table_name (str): Name of the table/dataset.
@@ -160,12 +108,10 @@ def gen_temporal_topic_dist(
         # Weighted approach: sum normalized topic weights over time
         print(f"Using weighted approach: summing normalized topic weights")
 
-        # Apply topic pairing if S matrix provided (for NMTF)
-        if s_matrix is not None:
-            print(f"Applying topic pairing based on S matrix for consistent topic ordering")
-            W_effective = _reorder_W_by_pairing(W, s_matrix)
-        else:
-            W_effective = W.copy()
+        # Use W directly - no reordering needed
+        # Topic ordering is now sequential (Topic i = W column i)
+        # This ensures consistency with word extraction
+        W_effective = W.copy()
 
         # Normalize the W matrix so each document (row) sums to 1
         W_normalized = normalize_W_matrix(W_effective)
@@ -202,14 +148,12 @@ def gen_temporal_topic_dist(
         # Original approach: count documents by dominant topic
         print(f"Using count approach: assigning documents to dominant topics")
 
-        # Apply topic pairing if S matrix provided (for NMTF)
-        if s_matrix is not None:
-            print(f"Applying topic pairing based on S matrix for consistent topic ordering")
-            W_for_dominant = _reorder_W_by_pairing(W, s_matrix)
-        else:
-            W_for_dominant = W
+        # Use W directly - no reordering needed
+        # Topic ordering is now sequential (Topic i = W column i)
+        # This ensures consistency with word extraction
+        W_for_dominant = W
 
-        # Get dominant topics (using reordered W for NMTF)
+        # Get dominant topics
         dominant_topics = get_dominant_topics(W_for_dominant, min_score=min_score, s_matrix=None)
 
         # Create DataFrame with topic assignments and datetime

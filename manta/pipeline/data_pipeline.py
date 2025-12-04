@@ -315,8 +315,8 @@ class DataPipeline:
 
             # Combine year and month into a datetime column (day=1 for proper sorting)
             df['datetime_combined'] = pd.to_datetime(
-                df['year'].astype(str) + '-' +
-                df['month_numeric'].astype(str).str.zfill(2) + '-01',
+                df['year'].astype(int).astype(str) + '-' +
+                df['month_numeric'].astype(int).astype(str).str.zfill(2) + '-01',
                 format='%Y-%m-%d',
                 errors='coerce'
             )

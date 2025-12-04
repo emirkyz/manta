@@ -4,34 +4,23 @@ from ...utils.analysis.distance_two_words import calc_levenstein_distance, calc_
 from ...utils.database.database_manager import DatabaseManager
 
 
-def _sort_matrices(s: np.ndarray) -> tuple[list[tuple[int, int]], list[float]]:
+def _get_word_cluster_for_doc_cluster(s_matrix: np.ndarray, doc_cluster_idx: int) -> int:
     """
-    Determine which word-cluster (H row) best corresponds to which doc-cluster (W column).
+    For a given doc-cluster (W column), find the best matching word-cluster (H row).
 
-    For each column in S (document-cluster), find the row (word-cluster) with maximum value.
-    Returns pairs sorted by coupling strength (descending).
+    S matrix structure: S[j, i] = coupling between W column i and H row j
+    - Column i corresponds to doc-cluster i (W[:, i])
+    - Row j corresponds to word-cluster j (H[j, :])
 
     Args:
-        s: S matrix from NMTF (k x k) - coupling between doc-clusters and word-clusters
+        s_matrix: S matrix (k x k) where S[j, i] = coupling between W[:,i] and H[j,:]
+        doc_cluster_idx: Index of the document cluster (W column)
 
     Returns:
-        ind: Array of (word_cluster_id, doc_cluster_id) tuples, sorted by max coupling
-        max_values: Corresponding maximum coupling values
+        Index of the best matching word cluster (H row)
     """
-    ind = []
-    max_values = []
-
-    for i in range(s.shape[1]):  # For each column (word-cluster)
-        col = s[:, i]
-        max_ind = np.argmax(col)  # Find best doc-cluster (row with max value)
-        max_values.append(col[max_ind])
-        ind.append((i, max_ind))
-
-    ind_sorted = np.argsort(max_values)[::-1]
-    ind = np.array(ind)[ind_sorted]
-    max_values = np.array(max_values)[ind_sorted]
-
-    return ind, max_values
+    # Find word-cluster (row j) with maximum coupling to this doc-cluster (column i)
+    return np.argmax(s_matrix[doc_cluster_idx, :])
 
 
 def _process_word_token(word_id, tokenizer, vocabulary, emoji_map):
@@ -257,31 +246,36 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
     document_result = {}
 
     if s_matrix is not None:
-        # NMTF mode: use topic pairing via S matrix analysis
-        # Find which word-cluster (H row) best corresponds to which doc-cluster (W column)
-        ind, max_vals = _sort_matrices(s_matrix)
+        # NMTF mode: use sequential doc-cluster indices as topics
+        # Map each doc-cluster (W column) to its best word-cluster (H row) via S matrix
+        # S[j, i] = coupling between W column i and H row j
+        if topic_count == -1:
+            topic_count = W.shape[1]
 
-        for idx, (word_cluster_id, doc_cluster_id) in enumerate(ind):
-            topic_word_vector = H[word_cluster_id, :]
-            topic_doc_vector = W[:, doc_cluster_id]
+        for topic_idx in range(topic_count):
+            # Find best word-cluster (H row j) for this doc-cluster (W column i)
+            word_cluster_idx = _get_word_cluster_for_doc_cluster(s_matrix, topic_idx)
+
+            topic_word_vector = H[word_cluster_idx, :]
+            topic_doc_vector = W[:, topic_idx]
 
             # Get sorted indices by score (highest first)
             sorted_word_ids = np.flip(np.argsort(topic_word_vector))
             sorted_doc_ids = np.flip(np.argsort(topic_doc_vector))
 
-            # Extract words for this topic pair
+            # Extract words for this topic
             word_scores = _extract_topic_words(
                 topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
-            word_result[f"Topic {idx+1:02d}"] = word_scores
+            word_result[f"Topic {topic_idx+1:02d}"] = word_scores
 
-            # Extract documents for this topic pair (optional)
+            # Extract documents for this topic (optional)
             if include_documents and documents is not None:
                 top_doc_ids = sorted_doc_ids[:10]
                 doc_scores = _extract_topic_documents(
                     topic_doc_vector, top_doc_ids, documents, emoji_map
                 )
-                document_result[f"Topic {idx+1}"] = doc_scores
+                document_result[f"Topic {topic_idx+1}"] = doc_scores
     else:
         # Standard NMF mode: iterate sequentially
         if topic_count == -1:

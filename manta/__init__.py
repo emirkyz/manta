@@ -18,9 +18,9 @@ Main Features:
 Example Usage:
     >>> from manta import run_topic_analysis
     >>> result = run_topic_analysis(
-    ...     "data.csv", 
-    ...     column="text", 
-    ...     language="TR", 
+    ...     "data.csv",
+    ...     column="text",
+    ...     language="TR",
     ...     topics=5
     ... )
     >>> print(f"Found {len(result['topic_word_scores'])} topics")
@@ -35,6 +35,9 @@ __author__ = "Emir Kyz"
 __email__ = "emirkyzmain@gmail.com"
 
 # Lazy import for EmojiMap to keep it in public API while hiding internal modules
+from typing import Any
+
+
 def __getattr__(name):
     """Lazy import for public API components."""
     if name == "EmojiMap":
@@ -64,6 +67,7 @@ def run_topic_analysis(
     lemmatize: bool = False,
     tokenizer_type: str = "bpe",
     words_per_topic: int = 15,
+    n_grams_to_discover : Any = None,
     word_pairs_out: bool = True,
     generate_wordclouds: bool = True,
     export_excel: bool = True,
@@ -95,6 +99,7 @@ def run_topic_analysis(
         lemmatize: Apply lemmatization for English text (default: False)
         tokenizer_type: Tokenization method for Turkish - "bpe" or "wordpiece" (default: "bpe")
         word_pairs_out: Create word pairs output (default: True)
+        n_grams_to_discover: Discover top n n-grams via BPE style algorithm. Set None to not disvoer, Set to k(int) to discover k amount of n-grams (default: None)
         generate_wordclouds: Create word cloud visualizations (default: True)
         export_excel: Export results to Excel format (default: True)
         topic_distribution: Generate topic distribution plots (default: True)
@@ -151,9 +156,10 @@ def run_topic_analysis(
     """
     from pathlib import Path
 
+    from .config import create_config_from_params
+
     # Import dependencies only when needed
     from .manta_entry import run_manta_process
-    from .config import create_config_from_params
 
     # Validate inputs
     if filepath is None and dataframe is None:
@@ -169,6 +175,7 @@ def run_topic_analysis(
         lemmatize=lemmatize,
         tokenizer_type=tokenizer_type,
         words_per_topic=words_per_topic,
+        n_grams_to_discover = n_grams_to_discover,
         word_pairs_out=word_pairs_out,
         generate_wordclouds=generate_wordclouds,
         export_excel=export_excel,

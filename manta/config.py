@@ -7,7 +7,7 @@ that were previously embedded in __init__.py.
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -22,12 +22,12 @@ class DataFilterOptions:
 @dataclass
 class TopicAnalysisConfig:
     """Configuration for topic analysis with validation."""
-    
+
     # Supported values for configuration options
     SUPPORTED_LANGUAGES = {'EN', 'TR'}
     SUPPORTED_NMF_METHODS = {'nmf', 'nmtf', 'pnmf'}
     SUPPORTED_TOKENIZER_TYPES = {'bpe', 'wordpiece'}
-    
+
     language: str = 'EN'
     topics: Optional[int] = field(default=5)
     topic_count: int = field(default=5)
@@ -42,6 +42,7 @@ class TopicAnalysisConfig:
     filter_app: bool = False
     emoji_map: bool = False
     word_pairs_out: bool = False
+    n_grams_to_discover: Any = None
     save_to_db: bool = False
     data_filter_options: DataFilterOptions = field(default_factory=DataFilterOptions)
     output_name: Optional[str] = None
@@ -60,33 +61,33 @@ class TopicAnalysisConfig:
     def __post_init__(self):
         """Validate configuration after initialization."""
         self.validate()
-        
+
     def validate(self) -> None:
         """Validate all configuration options."""
         # Validate language
         if self.language.upper() not in self.SUPPORTED_LANGUAGES:
             raise ValueError(f"Unsupported language: {self.language}. Must be one of {self.SUPPORTED_LANGUAGES}")
-        
+
         # Validate topic count
         if self.topic_count <= 0 and self.topic_count != -1:
             raise ValueError(f"Invalid topic_count: {self.topic_count}. Must be positive")
-        
+
         # Validate words per topic
         if self.words_per_topic <= 0:
             raise ValueError(f"Invalid words_per_topic: {self.words_per_topic}. Must be positive")
-            
+
         # Validate NMF method
         if self.nmf_method.lower() not in self.SUPPORTED_NMF_METHODS:
             raise ValueError(f"Unsupported NMF method: {self.nmf_method}. Must be one of {self.SUPPORTED_NMF_METHODS}")
-            
+
         # Validate tokenizer type
         if self.tokenizer_type.lower() not in self.SUPPORTED_TOKENIZER_TYPES:
             raise ValueError(f"Unsupported tokenizer type: {self.tokenizer_type}. Must be one of {self.SUPPORTED_TOKENIZER_TYPES}")
-            
+
         # Validate separator
         if not self.separator:
             raise ValueError("Separator cannot be empty")
-            
+
         # Validate output_name if provided
         if self.output_name is not None:
             if not isinstance(self.output_name, str):
@@ -133,6 +134,7 @@ class TopicAnalysisConfig:
             "nmf_type": self.nmf_method,
             "separator": self.separator,
             "word_pairs_out": self.word_pairs_out,
+            "n_grams_to_discover" : self.n_grams_to_discover,
             "gen_cloud": self.generate_wordclouds,
             "save_excel": self.export_excel,
             "gen_topic_distribution": self.topic_distribution,
@@ -168,6 +170,7 @@ def create_config_from_params(
     tokenizer_type: str = "bpe",
     words_per_topic: int = 15,
     word_pairs_out: bool = True,
+    n_grams_to_discover: Any = None,
     generate_wordclouds: bool = True,
     export_excel: bool = True,
     topic_distribution: bool = True,
@@ -206,6 +209,7 @@ def create_config_from_params(
         filter_app=filter_app,
         emoji_map=emoji_map,
         word_pairs_out=word_pairs_out,
+        n_grams_to_discover=n_grams_to_discover,
         save_to_db=save_to_db,
         data_filter_options=dfo,
         output_name=output_name,

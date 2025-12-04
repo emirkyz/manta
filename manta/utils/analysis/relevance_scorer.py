@@ -4,34 +4,23 @@ import numpy as np
 import pandas as pd
 
 
-def _sort_matrices(s: np.ndarray) -> tuple[list[tuple[int, int]], list[float]]:
+def _get_word_cluster_for_doc_cluster(s_matrix: np.ndarray, doc_cluster_idx: int) -> int:
     """
-    Determine which word-cluster (H row) best corresponds to which doc-cluster (W column).
+    For a given doc-cluster (W column), find the best matching word-cluster (H row).
 
-    For each column in S (document-cluster), find the row (word-cluster) with maximum value.
-    Returns pairs sorted by coupling strength (descending).
+    S matrix structure: S[j, i] = coupling between W column i and H row j
+    - Column i corresponds to doc-cluster i (W[:, i])
+    - Row j corresponds to word-cluster j (H[j, :])
 
     Args:
-        s: S matrix from NMTF (k x k) - coupling between doc-clusters and word-clusters
+        s_matrix: S matrix (k x k) where S[j, i] = coupling between W[:,i] and H[j,:]
+        doc_cluster_idx: Index of the document cluster (W column)
 
     Returns:
-        ind: Array of (word_cluster_id, doc_cluster_id) tuples, sorted by max coupling
-        max_values: Corresponding maximum coupling values
+        Index of the best matching word cluster (H row)
     """
-    ind = []
-    max_values = []
-
-    for i in range(s.shape[1]):  # For each column (word-cluster)
-        col = s[:, i]
-        max_ind = np.argmax(col)  # Find best doc-cluster (row with max value)
-        max_values.append(col[max_ind])
-        ind.append((i, max_ind))
-
-    ind_sorted = np.argsort(max_values)[::-1]
-    ind = np.array(ind)[ind_sorted]
-    max_values = np.array(max_values)[ind_sorted]
-
-    return ind, max_values
+    # Find word-cluster (row j) with maximum coupling to this doc-cluster (column i)
+    return np.argmax(s_matrix[doc_cluster_idx, :])
 
 
 def _create_vocab_from_tokenizer(tokenizer, n_vocab: int, emoji_map=None) -> List[str]:
@@ -225,8 +214,11 @@ def get_topic_top_terms(h_matrix: np.ndarray,
     """
     Get top terms for all topics based on relevance score.
 
-    For NMTF, uses topic pairing via S matrix analysis to find which word-cluster (H row)
-    best corresponds to which doc-cluster (W column), preserving discrete topic structure.
+    For NMTF, uses sequential doc-cluster indices as topics. For each topic i (W column i),
+    finds the best matching word-cluster (H row) via S matrix.
+
+    Topic ordering is sequential: Topic i uses W column i. This ensures consistency
+    with temporal visualization and other outputs.
 
     Args:
         h_matrix: Topic-word matrix (n_topics x n_vocab). For NMTF, this should be the original
@@ -238,8 +230,8 @@ def get_topic_top_terms(h_matrix: np.ndarray,
         top_n: Number of top terms per topic
         tokenizer: Tokenizer for vocabulary creation
         emoji_map: Emoji map for decoding
-        s_matrix: S matrix for NMTF (k x k). If provided, uses topic pairing to find
-                 best (word_cluster, doc_cluster) pairs from S matrix.
+        s_matrix: S matrix for NMTF (k x k). S[j, i] = coupling between W[:,i] and H[j,:].
+                 Used to find the best H row for each W column (topic).
 
     Returns:
         Dictionary with format:
@@ -261,23 +253,27 @@ def get_topic_top_terms(h_matrix: np.ndarray,
     topic_terms = {}
 
     if s_matrix is not None:
-        # NMTF mode: use topic pairing via S matrix analysis
+        # NMTF mode: use sequential doc-cluster indices as topics
+        # Map each doc-cluster (W column) to its best word-cluster (H row) via S matrix
+        # S[j, i] = coupling between W column i and H row j
         if hasattr(s_matrix, 'toarray'):
             s_matrix = s_matrix.toarray()
         s_matrix = np.asarray(s_matrix)
 
-        # Find which word-cluster (H row) best corresponds to which doc-cluster (W column)
-        ind, _ = _sort_matrices(s_matrix)
+        n_topics = w_matrix.shape[1] if w_matrix is not None else s_matrix.shape[1]
 
-        for idx, (word_cluster_id, doc_cluster_id) in enumerate(ind):
+        for topic_idx in range(n_topics):
+            # Find best word-cluster (H row j) for this doc-cluster (W column i)
+            word_cluster_idx = _get_word_cluster_for_doc_cluster(s_matrix, topic_idx)
+
             df = calculate_term_relevance(
                 h_matrix=h_matrix,
                 vocab=vocab,
                 term_frequency=term_frequency,
                 w_matrix=w_matrix,
-                topic_idx=idx,  # For display purposes
-                topic_word_idx=word_cluster_id,  # Use specific H row
-                topic_doc_idx=doc_cluster_id,    # Use specific W column
+                topic_idx=topic_idx,  # For display purposes
+                topic_word_idx=word_cluster_idx,  # Use best H row for this topic
+                topic_doc_idx=topic_idx,          # Use sequential W column
                 lambda_val=lambda_val,
                 top_n=top_n,
                 tokenizer=tokenizer,
@@ -285,7 +281,7 @@ def get_topic_top_terms(h_matrix: np.ndarray,
             )
 
             # Format topic name with zero-padding (topic_01, topic_02, etc.)
-            topic_name = f"topic_{idx + 1:02d}"
+            topic_name = f"topic_{topic_idx + 1:02d}"
 
             # Create dictionary of word:score pairs
             topic_terms[topic_name] = dict(zip(df['Term'], df['relevance'].round(4)))
