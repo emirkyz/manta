@@ -12,7 +12,7 @@ START_TIME = time.time()
 
 def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=None,
                         n_gram_discover_count=None, ngram_vocab_limit=10000, min_pair_frequency=2,
-                        ngram_algorithm="wordpiece", min_likelihood_score=0.0):
+                        ngram_algorithm="wordpiece", min_likelihood_score=0.0, pagerank_weights=None):
     """
     Process English text data for topic modeling using NMF.
 
@@ -31,6 +31,8 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
         min_pair_frequency (int): Minimum frequency threshold for pair merging (BPE only)
         ngram_algorithm (str): Choice of n-gram algorithm: "bpe" or "wordpiece" (default: "wordpiece")
         min_likelihood_score (float): Minimum likelihood threshold for pair merging (WordPiece only, default: 0.0)
+        pagerank_weights (numpy.ndarray, optional): Per-document weights for TF-IDF boosting.
+            Array of shape (N,) with weights typically in range [1, 2].
 
     Returns:
         tuple: A tuple containing:
@@ -128,6 +130,14 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
         else:
             raise ValueError(f"Unknown n-gram algorithm: {ngram_algorithm}. Must be 'bpe' or 'wordpiece'.")
 
+        # Reconstruct text_array to reflect n-gram merges for coherence calculation
+        text_array = [
+            " ".join([vocab[token_id] if token_id < len(vocab) else f"UNK_{token_id}"
+                      for token_id in doc])
+            for doc in counterized_data
+        ]
+        print(f"Text array reconstructed with n-gram tokens for coherence calculation")
+
         # Save n-grams to JSON file (optional)
         #try:
         #    output_dir = "Output"
@@ -139,7 +149,7 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
 
     # tfidf
     tdm = tf_idf_english(N, vocab=vocab, data=counterized_data, fieldname=desired_columns, output_dir=None,
-                         lemmatize=lemmatize)
+                         lemmatize=lemmatize, pagerank_weights=pagerank_weights)
 
     print(f"TF-IDF shape = {tdm.shape}, the amount of words = {tdm.shape[1]}, and the amount of documents = {tdm.shape[0]} ")
     return tdm, vocab, counterized_data, text_array, emoji_map

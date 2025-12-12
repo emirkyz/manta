@@ -2,9 +2,9 @@
 Data loading and preprocessing pipeline for MANTA topic analysis.
 """
 
-import os
-from typing import Dict, Any, Optional
 import logging
+import os
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
@@ -16,10 +16,14 @@ logger = logging.getLogger(__name__)
 
 class DataPipeline:
     """Handles data loading and preprocessing operations."""
-    
+
     @staticmethod
-    def validate_inputs(filepath: Optional[str], desired_columns: str, options: Dict[str, Any],
-                       dataframe: Optional[pd.DataFrame] = None) -> None:
+    def validate_inputs(
+        filepath: Optional[str],
+        desired_columns: str,
+        options: Dict[str, Any],
+        dataframe: Optional[pd.DataFrame] = None,
+    ) -> None:
         """
         Validate input parameters for processing.
 
@@ -67,7 +71,7 @@ class DataPipeline:
         filepath: Optional[str] = None,
         dataframe: Optional[pd.DataFrame] = None,
         options: Optional[Dict[str, Any]] = None,
-        console: Optional[ConsoleManager] = None
+        console: Optional[ConsoleManager] = None,
     ) -> pd.DataFrame:
         """
         Load data from either a file or a DataFrame.
@@ -99,11 +103,13 @@ class DataPipeline:
             console.print_status(f"Using provided DataFrame with {len(dataframe)} rows", "info")
 
         # Apply data filters if specified
-        df = DataPipeline._apply_data_filters(dataframe.copy(), options, console)
+        df = DataPipeline._apply_data_filters(dataframe, options, console)
         return df
 
     @staticmethod
-    def load_data_file(filepath: str, options: Dict[str, Any], console: Optional[ConsoleManager] = None) -> pd.DataFrame:
+    def load_data_file(
+        filepath: str, options: Dict[str, Any], console: Optional[ConsoleManager] = None
+    ) -> pd.DataFrame:
         """
         Load data from CSV or Excel file.
 
@@ -128,9 +134,9 @@ class DataPipeline:
                 sep=options["separator"],
                 engine="python",
                 on_bad_lines="skip",
-                #nrows=1_000, #TODO: will be removed when we have a better way to handle large files
+                # nrows=1_000, #TODO: will be removed when we have a better way to handle large files
             )
-            #df = df.sample(n = 1_000)
+            # df = df.sample(n = 1_000)
 
             # Track initial data load
             initial_row_count = len(df)
@@ -139,14 +145,14 @@ class DataPipeline:
             # Track year filter
             if "year" in df.columns:
                 before_year_filter = len(df)
-                df = df[df["year"]<2026]
+                df = df[df["year"] < 2026]
                 after_year_filter = len(df)
                 rows_removed = before_year_filter - after_year_filter
                 if rows_removed > 0:
                     print(f"[YEAR FILTER] Removed {rows_removed} rows with year >= 2026")
                     print(f"  Before: {before_year_filter} rows, After: {after_year_filter} rows")
             else:
-                df = df[df["year"]<2026]
+                df = df[df["year"] < 2026]
         elif str(filepath).endswith(".xlsx") or str(filepath).endswith(".xls"):
             df = pd.read_excel(filepath)
 
@@ -155,7 +161,9 @@ class DataPipeline:
         return df
 
     @staticmethod
-    def _apply_data_filters(df: pd.DataFrame, options: Dict[str, Any], console: Optional[ConsoleManager] = None) -> pd.DataFrame:
+    def _apply_data_filters(
+        df: pd.DataFrame, options: Dict[str, Any], console: Optional[ConsoleManager] = None
+    ) -> pd.DataFrame:
         """Apply data filters based on configuration options."""
         try:
             if options.get("filter_app", False):
@@ -174,7 +182,10 @@ class DataPipeline:
                         print(f"  Filtered for country: {filter_options['filter_app_country']}")
                         print(f"  Before: {before_country}, After: {after_country}")
                         if console:
-                            console.print_status(f"Applied country filter: {filter_options['filter_app_country']}", "info")
+                            console.print_status(
+                                f"Applied country filter: {filter_options['filter_app_country']}",
+                                "info",
+                            )
                     else:
                         msg = f"Warning: Filter column '{country_col}' not found in data"
                         if console:
@@ -193,7 +204,9 @@ class DataPipeline:
                         print(f"  Filtered for app: {filter_options['filter_app_name']}")
                         print(f"  Before: {before_app}, After: {after_app}")
                         if console:
-                            console.print_status(f"Applied app filter: {filter_options['filter_app_name']}", "info")
+                            console.print_status(
+                                f"Applied app filter: {filter_options['filter_app_name']}", "info"
+                            )
                     else:
                         msg = f"Warning: Filter column '{app_col}' not found in data"
                         if console:
@@ -227,7 +240,7 @@ class DataPipeline:
         options: Dict[str, Any],
         main_db_eng,
         table_name: str,
-        console: Optional[ConsoleManager] = None
+        console: Optional[ConsoleManager] = None,
     ) -> pd.DataFrame:
         """
         Preprocess the loaded DataFrame.
@@ -249,17 +262,39 @@ class DataPipeline:
         # Select only desired columns and validate they exist
         if desired_columns not in df.columns:
             available_columns = ", ".join(df.columns.tolist())
-            raise KeyError(f"Column '{desired_columns}' not found in data. Available columns: {available_columns}")
+            raise KeyError(
+                f"Column '{desired_columns}' not found in data. Available columns: {available_columns}"
+            )
+
+        # Check for PageRank column to use for TF-IDF weighting
+        pagerank_col = options.get("pagerank_column")
+        has_pagerank = pagerank_col and pagerank_col in df.columns
+        if pagerank_col and pagerank_col not in df.columns:
+            print(
+                f"[WARNING] PageRank column '{pagerank_col}' not found in data. Skipping PageRank weighting."
+            )
+            options["pagerank_column"] = None
+            has_pagerank = False
 
         # Check for datetime columns to preserve for temporal analysis
-        common_datetime_cols = ['year', 'date', 'datetime', 'timestamp', 'time',
-                                'rev_submit_millis_since_epoch', 'created_at', 'updated_at']
+        common_datetime_cols = [
+            "year",
+            "date",
+            "datetime",
+            "timestamp",
+            "time",
+            "rev_submit_millis_since_epoch",
+            "created_at",
+            "updated_at",
+        ]
         datetime_col_found = None
 
         # Check if both 'year' and 'month' columns exist - combine them into MM-YYYY format
-        if 'year' in df.columns and 'month' in df.columns:
+        if "year" in df.columns and "month" in df.columns:
             if console:
-                console.print_status("Combining 'year' and 'month' columns into datetime...", "processing")
+                console.print_status(
+                    "Combining 'year' and 'month' columns into datetime...", "processing"
+                )
 
             # Make a copy to avoid SettingWithCopyWarning
             df = df.copy()
@@ -279,23 +314,37 @@ class DataPipeline:
                 month_str = str(month_val).strip()
 
                 # Check for None values
-                if month_str is None or month_str == 'None':
-                    logger.warning(f"Invalid month value encountered: {month_val}. Defaulting to January.")
+                if month_str is None or month_str == "None":
+                    logger.warning(
+                        f"Invalid month value encountered: {month_val}. Defaulting to January."
+                    )
                     return 1
 
                 month_map = {
-                    'jan': 1, 'january': 1,
-                    'feb': 2, 'february': 2,
-                    'mar': 3, 'march': 3,
-                    'apr': 4, 'april': 4,
-                    'may': 5,
-                    'jun': 6, 'june': 6,
-                    'jul': 7, 'july': 7,
-                    'aug': 8, 'august': 8,
-                    'sep': 9, 'sept': 9, 'september': 9,
-                    'oct': 10, 'october': 10,
-                    'nov': 11, 'november': 11,
-                    'dec': 12, 'december': 12
+                    "jan": 1,
+                    "january": 1,
+                    "feb": 2,
+                    "february": 2,
+                    "mar": 3,
+                    "march": 3,
+                    "apr": 4,
+                    "april": 4,
+                    "may": 5,
+                    "jun": 6,
+                    "june": 6,
+                    "jul": 7,
+                    "july": 7,
+                    "aug": 8,
+                    "august": 8,
+                    "sep": 9,
+                    "sept": 9,
+                    "september": 9,
+                    "oct": 10,
+                    "october": 10,
+                    "nov": 11,
+                    "november": 11,
+                    "dec": 12,
+                    "december": 12,
                 }
 
                 # Try to parse as month name
@@ -311,26 +360,33 @@ class DataPipeline:
                     return 1  # Default to January if can't parse
 
             # Apply conversion to month column
-            df['month_numeric'] = df['month'].apply(convert_month_to_numeric)
+            df["month_numeric"] = df["month"].apply(convert_month_to_numeric)
 
             # Combine year and month into a datetime column (day=1 for proper sorting)
-            df['datetime_combined'] = pd.to_datetime(
-                df['year'].astype(int).astype(str) + '-' +
-                df['month_numeric'].astype(int).astype(str).str.zfill(2) + '-01',
-                format='%Y-%m-%d',
-                errors='coerce'
+            df["datetime_combined"] = pd.to_datetime(
+                df["year"].astype(int).astype(str)
+                + "-"
+                + df["month_numeric"].astype(int).astype(str).str.zfill(2)
+                + "-01",
+                format="%Y-%m-%d",
+                errors="coerce",
             )
 
             # Store that we combined year and month
-            datetime_col_found = 'datetime_combined'
-            options['datetime_column'] = datetime_col_found
-            options['datetime_is_combined_year_month'] = True
+            datetime_col_found = "datetime_combined"
+            options["datetime_column"] = datetime_col_found
+            options["datetime_is_combined_year_month"] = True
 
-            # Select columns to keep
-            df = df[[desired_columns, 'datetime_combined']]
+            # Select columns to keep (include pagerank if available)
+            cols_to_keep = [desired_columns, "datetime_combined"]
+            if has_pagerank:
+                cols_to_keep.append(pagerank_col)
+            df = df[cols_to_keep]
 
             if console:
-                console.print_status(f"Created combined datetime column from year and month", "info")
+                console.print_status(
+                    f"Created combined datetime column from year and month", "info"
+                )
         else:
             # Original logic for other datetime columns
             for col in common_datetime_cols:
@@ -338,18 +394,24 @@ class DataPipeline:
                     datetime_col_found = col
                     break
 
-            # Select text column and datetime column if available
+            # Select text column and datetime column if available (include pagerank if available)
             if datetime_col_found:
-                df = df[[desired_columns, datetime_col_found]]
-                options['datetime_column'] = datetime_col_found  # Store for later use in pipeline
-                options['datetime_is_combined_year_month'] = False
+                cols_to_keep = [desired_columns, datetime_col_found]
+                if has_pagerank:
+                    cols_to_keep.append(pagerank_col)
+                df = df[cols_to_keep]
+                options["datetime_column"] = datetime_col_found  # Store for later use in pipeline
+                options["datetime_is_combined_year_month"] = False
                 if console:
                     console.print_status(f"Preserved datetime column: {datetime_col_found}", "info")
             else:
-                df = df[[desired_columns]]
-                options['datetime_column'] = None
-                options['datetime_is_combined_year_month'] = False
-        
+                cols_to_keep = [desired_columns]
+                if has_pagerank:
+                    cols_to_keep.append(pagerank_col)
+                df = df[cols_to_keep]
+                options["datetime_column"] = None
+                options["datetime_is_combined_year_month"] = False
+
         # Remove duplicates and null values
         initial_count = len(df)
         print(f"\n[PREPROCESSING] Starting with {initial_count} rows")
@@ -387,7 +449,7 @@ class DataPipeline:
         print(f"  Initial rows: {initial_count}")
         print(f"  Final rows: {len(df)}")
         print(f"  Total removed: {total_removed} ({percent_removed:.1f}%)")
-        print(f"  Retention rate: {(len(df)/initial_count*100):.1f}%")
+        print(f"  Retention rate: {(len(df) / initial_count * 100):.1f}%")
 
         if len(df) == 0:
             raise ValueError("No data remaining after removing duplicates and null values")
@@ -405,9 +467,45 @@ class DataPipeline:
         else:
             print(f"File has {len(df)} rows.")
 
+        # Extract and normalize PageRank values if available
+        if has_pagerank and pagerank_col in df.columns:
+            import numpy as np
+
+            pagerank_values = df[pagerank_col].values.astype(float)
+
+            # Handle any NaN values (replace with min value)
+            nan_mask = np.isnan(pagerank_values)
+            if nan_mask.any():
+                pagerank_values[nan_mask] = np.nanmin(pagerank_values)
+
+            # Normalize to [0, 1] range then add 1 to get [1, 2] range
+            pr_min, pr_max = pagerank_values.min(), pagerank_values.max()
+            if pr_max > pr_min:
+                normalized = (pagerank_values - pr_min) / (pr_max - pr_min)
+            else:
+                # All values are the same, set to 0.5 (middle of range)
+                normalized = np.full_like(pagerank_values, 0.5)
+
+            # Add 1 to get weights in [1, 2] range
+            options["pagerank_weights"] = normalized + 1.0
+
+            print(f"[PAGERANK] Extracted {len(pagerank_values)} PageRank weights")
+            print(f"  Original range: [{pr_min:.6f}, {pr_max:.6f}]")
+            print(
+                f"  Weight range: [{options['pagerank_weights'].min():.4f}, {options['pagerank_weights'].max():.4f}]"
+            )
+
+            if console:
+                console.print_status(f"PageRank weights extracted (range: 1.0-2.0)", "info")
+
+            # Drop the pagerank column from df (no longer needed)
+            df = df.drop(columns=[pagerank_col])
+        else:
+            options["pagerank_weights"] = None
+
         # Handle database persistence
         df = DatabaseManager.handle_dataframe_persistence(
             df, table_name, main_db_eng, save_to_db=options["save_to_db"]
         )
-        
+
         return df

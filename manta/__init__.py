@@ -78,6 +78,7 @@ def run_topic_analysis(
     output_name: str = None,
     save_to_db: bool = False,
     output_dir: str = None,
+    pagerank_column: str = None,
     **kwargs
 ) -> dict:
     """
@@ -113,6 +114,8 @@ def run_topic_analysis(
         emoji_map: Enable emoji processing (default: False)
         output_name: Custom name for output directory (default: auto-generated)
         output_dir: Base directory for outputs. Defaults to current working directory.
+        pagerank_column: Column name containing PageRank scores to use for TF-IDF weighting.
+            If provided, documents with higher PageRank get boosted TF-IDF scores (range 1-2x).
         **kwargs: Additional parameters to pass through to the analysis pipeline (e.g., visualization options)
     Returns:
         Dict containing:
@@ -186,6 +189,7 @@ def run_topic_analysis(
         emoji_map=emoji_map,
         save_to_db=save_to_db,
         output_name=output_name,
+        pagerank_column=pagerank_column,
         **kwargs
     )
 

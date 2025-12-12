@@ -224,6 +224,11 @@ Examples:
         help='Number of n-grams to discover via BPE for English text (default: None, disabled)'
     )
 
+    analyze_parser.add_argument(
+        '--pagerank-column',
+        help='Column name containing PageRank scores to use for TF-IDF weighting (boosts high-PageRank documents)'
+    )
+
     return parser
 
 
@@ -283,7 +288,8 @@ def build_options(args: argparse.Namespace) -> tuple[dict[str | Any, Any | None]
         "emoji_map": emoji_map,
         "word_pairs_out": args.word_pairs,
         "save_to_db": args.save_to_db,
-        "n_grams_to_discover": args.n_grams_to_discover
+        "n_grams_to_discover": args.n_grams_to_discover,
+        "pagerank_column": args.pagerank_column
     }
     
     return options, table_name

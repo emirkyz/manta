@@ -38,6 +38,9 @@ class TextPipeline:
         else:
             print("Starting preprocessing...")
         
+        # Get PageRank weights from options (may be None)
+        pagerank_weights = options.get("pagerank_weights")
+
         if options["LANGUAGE"] == "TR":
             tdm, vocab, counterized_data, text_array, options["tokenizer"], options["emoji_map"] = (
                 process_turkish_file(
@@ -48,7 +51,8 @@ class TextPipeline:
                     emoji_map=options["emoji_map"],
                     enable_ngram_bpe=options.get("enable_ngram_bpe", False),
                     ngram_vocab_limit=options.get("ngram_vocab_limit", 10000),
-                    min_pair_frequency=options.get("min_pair_frequency", 2)
+                    min_pair_frequency=options.get("min_pair_frequency", 2),
+                    pagerank_weights=pagerank_weights
                 )
             )
         elif options["LANGUAGE"] == "EN":
@@ -59,7 +63,8 @@ class TextPipeline:
                 emoji_map=options["emoji_map"],
                 n_gram_discover_count=options.get("n_grams_to_discover", None),
                 ngram_vocab_limit=options.get("ngram_vocab_limit", 10000),
-                min_pair_frequency=options.get("min_pair_frequency", 2)
+                min_pair_frequency=options.get("min_pair_frequency", 2),
+                pagerank_weights=pagerank_weights
             )
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")

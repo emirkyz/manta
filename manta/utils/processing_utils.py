@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, List
+import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
 
@@ -89,12 +90,14 @@ class CachedData:
         text_array: Original text documents
         datetime_series: Optional datetime values for temporal analysis
         datetime_is_combined: Whether datetime was created from combined year/month columns
+        pagerank_weights: Optional PageRank weights for TF-IDF boosting (range [1, 2])
     """
     tdm: sparse.csr_matrix
     vocab: List[str]
     text_array: List[str]
     datetime_series: Optional[pd.Series] = None
     datetime_is_combined: bool = False
+    pagerank_weights: Optional[np.ndarray] = None
 
     def __len__(self) -> int:
         """Return number of documents in the cached data."""
@@ -104,6 +107,11 @@ class CachedData:
     def has_datetime(self) -> bool:
         """Check if datetime information is available."""
         return self.datetime_series is not None and len(self.datetime_series) > 0
+
+    @property
+    def has_pagerank_weights(self) -> bool:
+        """Check if PageRank weights are available."""
+        return self.pagerank_weights is not None and len(self.pagerank_weights) > 0
 
 
 @dataclass

@@ -55,6 +55,7 @@ class TopicAnalysisConfig:
     force_reprocess: bool = False  # Force reprocessing without prompting (skips cache entirely)
     nmf_variants: Optional[List[str]] = None  # List of NMF variants to run (defaults to [nmf_method])
     datetime_column: Optional[str] = None  # Column name for temporal analysis
+    pagerank_column: Optional[str] = None  # Column name for PageRank weights (boosts TF-IDF)
 
     additional_params: Dict = field(default_factory=dict)
 
@@ -151,6 +152,7 @@ class TopicAnalysisConfig:
             "force_reprocess": self.force_reprocess,
             "nmf_variants": self.nmf_variants if self.nmf_variants is not None else [self.nmf_method],
             "datetime_column": self.datetime_column,
+            "pagerank_column": self.pagerank_column,
         }
 
         # Merge additional parameters from kwargs
@@ -187,6 +189,7 @@ def create_config_from_params(
     force_reprocess: bool = False,
     nmf_variants: Optional[List[str]] = None,
     datetime_column: Optional[str] = None,
+    pagerank_column: Optional[str] = None,
     **kwargs
 ) -> TopicAnalysisConfig:
     """Create a TopicAnalysisConfig from individual parameters."""
@@ -220,5 +223,6 @@ def create_config_from_params(
         force_reprocess=force_reprocess,
         nmf_variants=nmf_variants,
         datetime_column=datetime_column,
+        pagerank_column=pagerank_column,
         additional_params=kwargs
     )

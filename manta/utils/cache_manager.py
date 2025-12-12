@@ -77,6 +77,13 @@ class CacheManager:
                 datetime_series = CacheManager._deserialize_datetime(file["datetime_series"])
                 datetime_is_combined = False
 
+            # Load PageRank weights if present
+            pagerank_weights = None
+            if "pagerank_weights" in file:
+                pr_weights = file["pagerank_weights"]
+                if pr_weights is not None and len(pr_weights) > 0:
+                    pagerank_weights = pr_weights
+
         if console:
             console.print_status("Loaded pre-processed data.", "success")
 
@@ -85,7 +92,8 @@ class CacheManager:
             vocab=vocab,
             text_array=text_array,
             datetime_series=datetime_series,
-            datetime_is_combined=datetime_is_combined
+            datetime_is_combined=datetime_is_combined,
+            pagerank_weights=pagerank_weights
         )
 
     @staticmethod
@@ -126,6 +134,9 @@ class CacheManager:
             datetime_dict = CacheManager._serialize_datetime(data.datetime_series)
 
         # Save metadata
+        # Prepare pagerank weights (empty array if None for consistent loading)
+        pr_weights = data.pagerank_weights if data.pagerank_weights is not None else np.array([])
+
         if datetime_dict is not None:
             # Save with year and month arrays
             np.savez_compressed(
@@ -134,14 +145,16 @@ class CacheManager:
                 text_array=data.text_array,
                 datetime_year=datetime_dict['year'],
                 datetime_month=datetime_dict['month'],
-                datetime_is_combined=data.datetime_is_combined
+                datetime_is_combined=data.datetime_is_combined,
+                pagerank_weights=pr_weights
             )
         else:
             # Save without datetime
             np.savez_compressed(
                 paths.metadata_file,
                 vocab=data.vocab,
-                text_array=data.text_array
+                text_array=data.text_array,
+                pagerank_weights=pr_weights
             )
 
         if console:
