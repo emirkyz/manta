@@ -20,6 +20,7 @@ from sklearn.cluster import MiniBatchKMeans
 import warnings
 
 from ...utils.analysis import get_dominant_topics
+from ..console.console_manager import ConsoleManager, get_console
 
 
 def tsne_graph_output_optimized(
@@ -64,23 +65,21 @@ def tsne_graph_output_optimized(
     # Start performance monitoring
     perf_monitor = _PerformanceMonitor()
     perf_monitor.start("total_time")
-    
-    print(f"\n🚀 Starting Optimized t-SNE Visualization")
-    print(f"📊 Input Data:")
-    print(f"  • Documents: {w.shape[0] if w is not None else 'None'}")
-    print(f"  • Topics: {h.shape[0] if h is not None else 'None'}")
-    print(f"  • Performance Mode: {performance_mode}")
+
+    _console = get_console()
+    _console.print_debug("Starting Optimized t-SNE Visualization", tag="VISUALIZATION")
+    _console.print_debug(f"Input Data: Documents={w.shape[0] if w is not None else 'None'}, Topics={h.shape[0] if h is not None else 'None'}, Mode={performance_mode}", tag="VISUALIZATION")
     if time_data is not None:
-        print(f"  • Time-series mode: {len(time_ranges) if time_ranges else 'Auto-detect'} periods")
-    print(f"  • Output: {table_name}")
-    
+        _console.print_debug(f"Time-series mode: {len(time_ranges) if time_ranges else 'Auto-detect'} periods", tag="VISUALIZATION")
+    _console.print_debug(f"Output: {table_name}", tag="VISUALIZATION")
+
     # Input validation
     if w is None or h is None:
-        print("⚠️  Error: Invalid input matrices for t-SNE visualization")
+        _console.print_warning("Invalid input matrices for t-SNE visualization", tag="VISUALIZATION")
         return None
-        
+
     if w.shape[0] < 2:
-        print("⚠️  Error: Need at least 2 documents for t-SNE visualization")
+        _console.print_warning("Need at least 2 documents for t-SNE visualization", tag="VISUALIZATION")
         return None
     
     # Convert to dense array efficiently
@@ -89,11 +88,11 @@ def tsne_graph_output_optimized(
     perf_monitor.end("data_conversion")
     
     n_docs, n_topics = w_dense.shape
-    print(f"📈 Dataset size: {n_docs:,} documents × {n_topics} topics")
-    
+    _console.print_debug(f"Dataset size: {n_docs:,} documents x {n_topics} topics", tag="VISUALIZATION")
+
     # Determine optimal settings based on dataset size and performance mode
     settings = _optimize_tsne_parameters(n_docs, n_topics, performance_mode)
-    print(f"⚙️  Optimized settings: {settings}")
+    _console.print_debug(f"Optimized settings: {settings}", tag="VISUALIZATION")
     
     # Apply PCA preprocessing for dimensionality reduction
     perf_monitor.start("pca_preprocessing")
@@ -101,12 +100,11 @@ def tsne_graph_output_optimized(
     perf_monitor.end("pca_preprocessing")
     
     if pca_info:
-        print(f"🔍 PCA: {w_dense.shape[1]} → {w_processed.shape[1]} dimensions "
-              f"({pca_info['variance_explained']:.1f}% variance retained)")
+        _console.print_debug(f"PCA: {w_dense.shape[1]} -> {w_processed.shape[1]} dimensions ({pca_info['variance_explained']:.1f}% variance retained)", tag="VISUALIZATION")
     
     # Apply optimized t-SNE
     perf_monitor.start("tsne_computation")
-    print(f"\ Computing optimized t-SNE embedding...")
+    _console.print_debug("Computing optimized t-SNE embedding...", tag="VISUALIZATION")
     tsne = TSNE(
         random_state=42,
         perplexity=settings['perplexity'],
@@ -135,7 +133,7 @@ def tsne_graph_output_optimized(
     excluded_count = (~valid_mask).sum()
     
     if excluded_count > 0:
-        print(f"📝 Excluded {excluded_count} documents with insufficient topic scores")
+        _console.print_debug(f"Excluded {excluded_count} documents with insufficient topic scores", tag="VISUALIZATION")
     
     tsne_df = tsne_df[valid_mask].reset_index(drop=True)
     
@@ -160,8 +158,9 @@ def tsne_graph_output_optimized(
 
 def _convert_to_dense_efficiently(w: np.ndarray) -> np.ndarray:
     """Convert sparse matrix to dense efficiently with memory monitoring."""
+    _console = get_console()
     if hasattr(w, 'toarray'):
-        print(f"🔄 Converting sparse matrix to dense: {w.shape}")
+        _console.print_debug(f"Converting sparse matrix to dense: {w.shape}", tag="VISUALIZATION")
         return w.toarray()
     else:
         return np.asarray(w)
@@ -285,24 +284,25 @@ def _apply_pca_preprocessing(w_dense: np.ndarray, settings: Dict) -> Tuple[np.nd
         Tuple of (processed_matrix, pca_info_dict)
     """
     
+    _console = get_console()
     if not settings['use_pca']:
-        print("📊 Skipping PCA (small dataset)")
+        _console.print_debug("Skipping PCA (small dataset)", tag="VISUALIZATION")
         return w_dense, None
-    
+
     n_docs, n_features = w_dense.shape
     target_components = min(settings['pca_components'], n_features, n_docs - 1)
-    
+
     if target_components >= n_features:
-        print(f"📊 Skipping PCA (target components {target_components} >= features {n_features})")
+        _console.print_debug(f"Skipping PCA (target components {target_components} >= features {n_features})", tag="VISUALIZATION")
         return w_dense, None
-    
-    print(f"🔍 Applying PCA: {n_features} → {target_components} components...")
-    
+
+    _console.print_debug(f"Applying PCA: {n_features} -> {target_components} components...", tag="VISUALIZATION")
+
     pca_start_time = time.time()
-    
+
     if settings['use_incremental_pca']:
         # Use incremental PCA for very large datasets
-        print("📊 Using Incremental PCA for memory efficiency...")
+        _console.print_debug("Using Incremental PCA for memory efficiency...", tag="VISUALIZATION")
         pca = IncrementalPCA(n_components=target_components, batch_size=min(1000, n_docs // 10))
         
         # Fit in batches
@@ -334,8 +334,8 @@ def _apply_pca_preprocessing(w_dense: np.ndarray, settings: Dict) -> Tuple[np.nd
         'method': 'incremental' if settings['use_incremental_pca'] else 'standard'
     }
     
-    print(f"✅ PCA completed in {pca_time:.2f}s - {variance_explained:.1f}% variance retained")
-    
+    _console.print_debug(f"PCA completed in {pca_time:.2f}s - {variance_explained:.1f}% variance retained", tag="VISUALIZATION")
+
     return w_pca, pca_info
 
 
@@ -357,8 +357,9 @@ def _efficient_post_processing(tsne_df: pd.DataFrame, settings: Dict) -> pd.Data
     max_points = settings.get('max_points')
     if max_points is None or len(tsne_df) <= max_points:
         return tsne_df
-    
-    print(f"🎯 Applying efficient density reduction: {len(tsne_df):,} → {max_points:,} points")
+
+    _console = get_console()
+    _console.print_debug(f"Applying efficient density reduction: {len(tsne_df):,} -> {max_points:,} points", tag="VISUALIZATION")
     
     # Use grid-based sampling instead of expensive k-NN
     return _grid_based_sampling(tsne_df, max_points)
@@ -475,7 +476,8 @@ def _create_optimized_visualization(
         point_size = max(8, 25 - np.log10(n_points) * 4)
         alpha = max(0.6, 0.9 - (n_points / 10000))
     
-    print(f"✨ Visualization: {n_points:,} points, size={point_size:.1f}, alpha={alpha:.2f}")
+    _console = get_console()
+    _console.print_debug(f"Visualization: {n_points:,} points, size={point_size:.1f}, alpha={alpha:.2f}", tag="VISUALIZATION")
     
     # Generate optimized color palette
     unique_topics = sorted(tsne_df['hue'].unique())
@@ -503,7 +505,7 @@ def _create_optimized_visualization(
               title='Topics', title_fontsize=11)
     
     # Optimized styling
-    title_text = f'🚀 Optimized Topic Visualization\n{table_name.replace("_", " ").title()}'
+    title_text = f'Optimized Topic Visualization\n{table_name.replace("_", " ").title()}'
     ax.set_title(title_text, fontsize=18, fontweight='bold', pad=25,
                  color='#2E3440', family='sans-serif')
     ax.set_xlabel('t-SNE Component 1', fontsize=13, color='#4C566A', fontweight='medium')
@@ -533,19 +535,16 @@ def _create_optimized_visualization(
                     facecolor='white', edgecolor='none',
                     pad_inches=0.2, format='png')
         saved_path = str(file_path)
-        print(f"💾 Optimized plot saved: {saved_path}")
-    
+        _console.print_debug(f"Optimized plot saved: {saved_path}", tag="VISUALIZATION")
+
     plt.show()
-    
+
     # Print visualization summary
-    print(f"\n📊 Optimized Visualization Summary:")
-    print(f"📝 Total points plotted: {n_points:,}")
-    print(f"🎨 Topics: {len(unique_topics)}")
-    print(f"🔍 Topic Distribution:")
+    _console.print_debug(f"Optimized Visualization Summary: {n_points:,} points, {len(unique_topics)} topics", tag="VISUALIZATION")
     for topic_id in unique_topics:
         topic_count = len(tsne_df[tsne_df['hue'] == topic_id])
         percentage = (topic_count / n_points) * 100
-        print(f"  • Topic {topic_id + 1}: {topic_count:,} points ({percentage:.1f}%)")
+        _console.print_debug(f"  Topic {topic_id + 1}: {topic_count:,} points ({percentage:.1f}%)", tag="VISUALIZATION")
     
     return saved_path
 
@@ -623,10 +622,8 @@ class _PerformanceMonitor:
 
 def _print_performance_summary(monitor: _PerformanceMonitor, n_docs: int, pca_info: Optional[Dict]):
     """Print comprehensive performance summary."""
-    
-    print(f"\n🚀 Performance Summary for {n_docs:,} documents:")
-    print(f"{'='*60}")
-    
+    _console = get_console()
+
     # Timing breakdown
     total_time = monitor.get_duration('total_time')
     conversion_time = monitor.get_duration('data_conversion')
@@ -635,39 +632,23 @@ def _print_performance_summary(monitor: _PerformanceMonitor, n_docs: int, pca_in
     topic_time = monitor.get_duration('topic_assignment')
     post_time = monitor.get_duration('post_processing')
     viz_time = monitor.get_duration('visualization')
-    
-    print(f"⏱️  Timing Breakdown:")
-    print(f"  • Data conversion: {conversion_time:.2f}s ({conversion_time/total_time*100:.1f}%)")
+
+    _console.print_debug(f"Performance Summary for {n_docs:,} documents:", tag="VISUALIZATION")
+    _console.print_debug(f"Timing: conversion={conversion_time:.2f}s, tsne={tsne_time:.2f}s, total={total_time:.2f}s", tag="VISUALIZATION")
+
     if pca_info:
-        print(f"  • PCA preprocessing: {pca_time:.2f}s ({pca_time/total_time*100:.1f}%)")
-    print(f"  • t-SNE computation: {tsne_time:.2f}s ({tsne_time/total_time*100:.1f}%)")
-    print(f"  • Topic assignment: {topic_time:.2f}s ({topic_time/total_time*100:.1f}%)")
-    print(f"  • Post-processing: {post_time:.2f}s ({post_time/total_time*100:.1f}%)")
-    print(f"  • Visualization: {viz_time:.2f}s ({viz_time/total_time*100:.1f}%)")
-    print(f"  • Total time: {total_time:.2f}s")
-    
+        _console.print_debug(f"PCA: {pca_info['original_dims']} -> {pca_info['reduced_dims']} dims, {pca_info['variance_explained']:.1f}% variance", tag="VISUALIZATION")
+
     # Memory usage
     peak_memory = max([monitor.get_memory_usage(op) for op in monitor.memory_usage.keys()])
-    print(f"\n💾 Memory Usage:")
-    print(f"  • Peak memory: {peak_memory:.1f} MB")
-    print(f"  • Memory per document: {peak_memory/n_docs*1000:.2f} KB/doc")
-    
-    # Performance metrics
     docs_per_second = n_docs / total_time
-    print(f"\n📈 Performance Metrics:")
-    print(f"  • Processing speed: {docs_per_second:.0f} documents/second")
-    
-    if pca_info:
-        print(f"  • PCA efficiency: {pca_info['original_dims']} → {pca_info['reduced_dims']} dims")
-        print(f"  • Variance retained: {pca_info['variance_explained']:.1f}%")
-    
+    _console.print_debug(f"Memory: {peak_memory:.1f} MB peak, Speed: {docs_per_second:.0f} docs/sec", tag="VISUALIZATION")
+
     # Estimated speedup vs original implementation
     if n_docs > 1000:
         estimated_original_time = (n_docs / 1000) ** 1.5 * 30  # Rough estimate
         speedup = estimated_original_time / total_time
-        print(f"  • Estimated speedup: {speedup:.1f}x faster than original")
-    
-    print(f"{'='*60}")
+        _console.print_debug(f"Estimated speedup: {speedup:.1f}x faster than original", tag="VISUALIZATION")
 
 
 

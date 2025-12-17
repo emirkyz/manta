@@ -8,7 +8,7 @@ import pandas as pd
 
 from .._functions.english.english_entry import process_english_file
 from .._functions.turkish.turkish_entry import process_turkish_file
-from ..utils.console.console_manager import ConsoleManager
+from ..utils.console.console_manager import ConsoleManager, get_console
 
 
 class TextPipeline:
@@ -33,10 +33,8 @@ class TextPipeline:
         Returns:
             Tuple of (tdm, vocab, counterized_data, text_array, updated_options)
         """
-        if console:
-            console.print_status(f"Starting text processing ({options['LANGUAGE']})...", "processing")
-        else:
-            print("Starting preprocessing...")
+        _console = console or get_console()
+        _console.print_status(f"Starting text processing ({options['LANGUAGE']})...", "processing")
         
         # Get PageRank weights from options (may be None)
         pagerank_weights = options.get("pagerank_weights")
@@ -64,12 +62,16 @@ class TextPipeline:
                 n_gram_discover_count=options.get("n_grams_to_discover", None),
                 ngram_vocab_limit=options.get("ngram_vocab_limit", 10000),
                 min_pair_frequency=options.get("min_pair_frequency", 2),
-                pagerank_weights=pagerank_weights
+                pagerank_weights=pagerank_weights,
+                keep_numbers=options.get("keep_numbers", False),
+                ngram_auto_k=options.get("ngram_auto_k", 0.5),
+                filter_standalone_numbers=options.get("filter_standalone_numbers", True),
+                use_pmi=options.get("use_pmi", True),
+                console=console
             )
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
-        
-        if console:
-            console.print_status("Text processing completed", "success")
-        
+
+        _console.print_status("Text processing completed", "success")
+
         return tdm, vocab, counterized_data, text_array, options

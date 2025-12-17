@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional, Union, Tuple, List
 import json
 from manta.utils.export.save_s_matrix import load_s_matrix
+from manta.utils.console.console_manager import ConsoleManager, get_console
 
 def visualize_s_matrix_graph(
     s_matrix: np.ndarray,
@@ -24,7 +25,8 @@ def visualize_s_matrix_graph(
     layout: str = "circular",
     create_interactive: bool = True,
     create_heatmap: bool = True,
-    figsize: Tuple[int, int] = (14, 14)
+    figsize: Tuple[int, int] = (14, 14),
+    console: Optional[ConsoleManager] = None
 ) -> dict:
     """
     Create graph visualizations of the S matrix showing topic relationships.
@@ -62,10 +64,11 @@ def visualize_s_matrix_graph(
         ...     threshold=0.1
         ... )
     """
-    print(f"\n🔗 Creating S Matrix Graph Relationship Visualizations")
-    print(f"📊 Matrix shape: {s_matrix.shape}")
-    print(f"🔍 Threshold: {threshold}")
-    print(f"📐 Layout: {layout}")
+    _console = console or get_console()
+    _console.print_debug(f"Creating S Matrix Graph Relationship Visualizations", tag="S-MATRIX VIZ")
+    _console.print_debug(f"Matrix shape: {s_matrix.shape}", tag="S-MATRIX VIZ")
+    _console.print_debug(f"Threshold: {threshold}", tag="S-MATRIX VIZ")
+    _console.print_debug(f"Layout: {layout}", tag="S-MATRIX VIZ")
 
     # Convert to numpy array if needed
     if hasattr(s_matrix, 'toarray'):
@@ -92,7 +95,7 @@ def visualize_s_matrix_graph(
 
     # Create hierarchical layout version for comparison
     if layout != "hierarchical":
-        print(f"\n📊 Creating hierarchical layout for comparison...")
+        _console.print_debug(f"Creating hierarchical layout for comparison...", tag="S-MATRIX VIZ")
         hierarchical_path = _create_network_graph(
             s_matrix, output_path, f"{table_name}_hierarchical", threshold, "hierarchical", figsize
         )
@@ -100,7 +103,7 @@ def visualize_s_matrix_graph(
             result_paths['network_graph_hierarchical'] = hierarchical_path
 
     # Create custom matplotlib version with smart label placement
-    print(f"\n🎨 Creating custom matplotlib version...")
+    _console.print_debug(f"Creating custom matplotlib version...", tag="S-MATRIX VIZ")
     custom_path = _create_custom_matplotlib_graph(
         s_matrix, output_path, table_name, threshold, layout, figsize
     )
@@ -135,20 +138,22 @@ def _create_network_graph(
     table_name: str,
     threshold: float,
     layout: str,
-    figsize: Tuple[int, int]
+    figsize: Tuple[int, int],
+    console: Optional[ConsoleManager] = None
 ) -> Optional[str]:
     """Create static network graph using matplotlib and networkx."""
+    _console = console or get_console()
     try:
         import networkx as nx
     except ImportError:
-        print("⚠️  NetworkX not installed. Skipping network graph. Install with: pip install networkx")
+        _console.print_warning("NetworkX not installed. Skipping network graph. Install with: pip install networkx", tag="S-MATRIX VIZ")
         return None
 
     n_topics = s_matrix.shape[0]
 
     # Calculate total sum of S matrix for percentage calculation
     total_sum = np.sum(s_matrix)
-    print(f"📊 Total S matrix sum: {total_sum:.2f}")
+    _console.print_debug(f"Total S matrix sum: {total_sum:.2f}", tag="S-MATRIX VIZ")
 
     # Create directed graph
     G = nx.DiGraph()
@@ -169,10 +174,10 @@ def _create_network_graph(
                 edge_percentages[(col, row)] = percentage
                 edges_added += 1
 
-    print(f"📈 Network: {n_topics} nodes, {edges_added} edges (threshold: {threshold})")
+    _console.print_debug(f"Network: {n_topics} nodes, {edges_added} edges (threshold: {threshold})", tag="S-MATRIX VIZ")
 
     if edges_added == 0:
-        print(f"⚠️  No edges above threshold {threshold}. Try lowering the threshold.")
+        _console.print_warning(f"No edges above threshold {threshold}. Try lowering the threshold.", tag="S-MATRIX VIZ")
         return None
 
     # Create figure
@@ -191,14 +196,14 @@ def _create_network_graph(
         try:
             pos = nx.nx_agraph.graphviz_layout(G, prog='dot')
         except:
-            print("⚠️  Graphviz not available, using spring layout")
+            _console.print_warning("Graphviz not available, using spring layout", tag="S-MATRIX VIZ")
             pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
     elif layout == "tree":
         # Try graphviz tree layout (twopi - radial tree)
         try:
             pos = nx.nx_agraph.graphviz_layout(G, prog='twopi')
         except:
-            print("⚠️  Graphviz not available, using kamada_kawai layout")
+            _console.print_warning("Graphviz not available, using kamada_kawai layout", tag="S-MATRIX VIZ")
             pos = nx.kamada_kawai_layout(G)
     else:
         pos = nx.circular_layout(G)  # Fallback
@@ -348,7 +353,7 @@ def _create_network_graph(
             facecolor='white', edgecolor='none'
         )
         saved_path = str(file_path)
-        print(f"💾 Network graph saved: {saved_path}")
+        _console.print_debug(f"Network graph saved: {saved_path}", tag="S-MATRIX VIZ")
 
     plt.close()
 
@@ -368,14 +373,14 @@ def _create_custom_matplotlib_graph(
         import networkx as nx
         from matplotlib.patches import FancyArrowPatch
     except ImportError:
-        print("⚠️  NetworkX not installed. Skipping custom graph.")
+        _console.print_warning("NetworkX not installed. Skipping custom graph.", tag="S-MATRIX VIZ")
         return None
 
     n_topics = s_matrix.shape[0]
 
     # Calculate total sum of S matrix for percentage calculation
     total_sum = np.sum(s_matrix)
-    print(f"📊 Total S matrix sum: {total_sum:.2f}")
+    _console.print_debug(f"Total S matrix sum: {total_sum:.2f}", tag="S-MATRIX VIZ")
 
     # Create directed graph
     G = nx.DiGraph()
@@ -395,10 +400,10 @@ def _create_custom_matplotlib_graph(
                 edges_data.append((col, row, weight, percentage))
 
     if len(edges_data) == 0:
-        print(f"⚠️  No edges above threshold {threshold}. Try lowering the threshold.")
+        _console.print_warning(f"No edges above threshold {threshold}. Try lowering the threshold.", tag="S-MATRIX VIZ")
         return None
 
-    print(f"📈 Custom graph: {n_topics} nodes, {len(edges_data)} edges")
+    _console.print_debug(f"Custom graph: {n_topics} nodes, {len(edges_data)} edges", tag="S-MATRIX VIZ")
 
     # Create figure
     fig, ax = plt.subplots(figsize=figsize, facecolor='white')
@@ -565,7 +570,7 @@ def _create_custom_matplotlib_graph(
             facecolor='white', edgecolor='none'
         )
         saved_path = str(file_path)
-        print(f"💾 Custom graph saved: {saved_path}")
+        _console.print_debug(f"Custom graph saved: {saved_path}", tag="S-MATRIX VIZ")
 
     plt.close()
 
@@ -583,7 +588,7 @@ def _create_interactive_graph(
         import plotly.graph_objects as go
         import networkx as nx
     except ImportError:
-        print("⚠️  Plotly or NetworkX not installed. Skipping interactive graph. Install with: pip install plotly networkx")
+        _console.print_warning("Plotly or NetworkX not installed. Skipping interactive graph. Install with: pip install plotly networkx", tag="S-MATRIX VIZ")
         return None
 
     n_topics = s_matrix.shape[0]
@@ -608,7 +613,7 @@ def _create_interactive_graph(
                 edge_info.append((col, row, weight, percentage))
 
     if len(edge_info) == 0:
-        print(f"⚠️  No edges above threshold {threshold} for interactive graph.")
+        _console.print_warning(f"No edges above threshold {threshold} for interactive graph.", tag="S-MATRIX VIZ")
         return None
 
     # Layout
@@ -703,7 +708,7 @@ def _create_interactive_graph(
         file_path = output_path / filename
         fig.write_html(file_path)
         saved_path = str(file_path)
-        print(f"💾 Interactive graph saved: {saved_path}")
+        _console.print_debug(f"Interactive graph saved: {saved_path}", tag="S-MATRIX VIZ")
 
     return saved_path
 
@@ -780,7 +785,7 @@ def _create_s_matrix_heatmap(
             facecolor='white', edgecolor='none'
         )
         saved_path = str(file_path)
-        print(f"💾 Heatmap saved: {saved_path}")
+        _console.print_debug(f"Heatmap saved: {saved_path}", tag="S-MATRIX VIZ")
 
     plt.close()
 
@@ -810,18 +815,20 @@ def _print_s_matrix_statistics(s_matrix: np.ndarray, threshold: float):
             percentage = (value / total_sum) * 100 if total_sum > 0 else 0
             top_connections.append((col, row, value, percentage))
 
-    print(f"\n📊 S Matrix Statistics:")
-    print(f"  • Matrix size: {n_topics}×{n_topics}")
-    print(f"  • Total sum of all values: {total_sum:.2f}")
-    print(f"  • Total connections (>{threshold}): {total_connections}")
-    print(f"  • Connection density: {total_connections / (n_topics * (n_topics-1)) * 100:.1f}%")
-    print(f"  • Max connection strength: {np.max(s_matrix):.2f}")
-    print(f"  • Mean connection strength: {np.mean(s_matrix[non_zero_mask]):.2f}" if total_connections > 0 else "")
+    _console = get_console()
+    _console.print_debug(f"S Matrix Statistics:", tag="S-MATRIX VIZ")
+    _console.print_debug(f"  Matrix size: {n_topics}x{n_topics}", tag="S-MATRIX VIZ")
+    _console.print_debug(f"  Total sum of all values: {total_sum:.2f}", tag="S-MATRIX VIZ")
+    _console.print_debug(f"  Total connections (>{threshold}): {total_connections}", tag="S-MATRIX VIZ")
+    _console.print_debug(f"  Connection density: {total_connections / (n_topics * (n_topics-1)) * 100:.1f}%", tag="S-MATRIX VIZ")
+    _console.print_debug(f"  Max connection strength: {np.max(s_matrix):.2f}", tag="S-MATRIX VIZ")
+    if total_connections > 0:
+        _console.print_debug(f"  Mean connection strength: {np.mean(s_matrix[non_zero_mask]):.2f}", tag="S-MATRIX VIZ")
 
     if top_connections:
-        print(f"\n🔝 Top 5 Strongest Connections:")
+        _console.print_debug(f"Top 5 Strongest Connections:", tag="S-MATRIX VIZ")
         for i, (source, target, strength, percentage) in enumerate(top_connections, 1):
-            print(f"  {i}. T{source+1} → T{target+1}: {strength:.2f} ({percentage:.2f}% of total)")
+            _console.print_debug(f"  {i}. T{source+1} -> T{target+1}: {strength:.2f} ({percentage:.2f}% of total)", tag="S-MATRIX VIZ")
 
 
 def load_s_matrix_from_json(json_path: Union[str, Path], use_normalized: bool = True) -> np.ndarray:

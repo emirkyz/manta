@@ -1,4 +1,3 @@
-
 """
 Database management utilities for MANTA topic modeling.
 
@@ -12,6 +11,8 @@ from dataclasses import dataclass
 
 import pandas as pd
 from sqlalchemy import create_engine, Engine, MetaData, Table, Column, String, insert, text
+
+from ..console.console_manager import ConsoleManager, get_console
 
 
 @dataclass
@@ -55,24 +56,26 @@ class DatabaseManager:
         return program_output_dir, instance_path, output_dir
     
     @staticmethod
-    def create_database_engines(instance_path: Path) -> Tuple[Engine, Engine]:
+    def create_database_engines(instance_path: Path, console: Optional[ConsoleManager] = None) -> Tuple[Engine, Engine]:
         """
         Create SQLAlchemy database engines for topics and main data storage.
-        
+
         Args:
             instance_path: Path to the instance directory where databases are stored.
-            
+            console: Console manager for output
+
         Returns:
             Tuple of (topics_db_engine, main_db_engine)
         """
-        print("Using new database engines...")
+        _console = console or get_console()
+        _console.print_debug("Using new database engines...", tag="DATABASE")
         topics_db_engine = create_engine(
             f'sqlite:///{instance_path / "topics.db"}'
         )
         main_db_engine = create_engine(
             f'sqlite:///{instance_path / "scopus.db"}'
         )
-        
+
         return topics_db_engine, main_db_engine
     
     @classmethod
@@ -114,7 +117,8 @@ class DatabaseManager:
             existing_tables = pd.read_sql_query(tables_query, engine, params=(table_name,))
             return len(existing_tables) > 0
         except Exception as e:
-            print(f"Error checking table existence: {e}")
+            _console = get_console()
+            _console.print_error(f"Error checking table existence: {e}", tag="DATABASE")
             return False
     
     @staticmethod
@@ -137,11 +141,13 @@ class DatabaseManager:
             True if successful, False otherwise
         """
         try:
-            print(f"Saving DataFrame to database table: {table_name}")
+            _console = get_console()
+            _console.print_debug(f"Saving DataFrame to database table: {table_name}", tag="DATABASE")
             df.to_sql(table_name, engine, if_exists=if_exists, index=False)
             return True
         except Exception as e:
-            print(f"Error saving DataFrame to database: {e}")
+            _console = get_console()
+            _console.print_error(f"Error saving DataFrame to database: {e}", tag="DATABASE")
             return False
     
     @staticmethod
@@ -157,10 +163,12 @@ class DatabaseManager:
             DataFrame if successful, None otherwise
         """
         try:
-            print(f"Loading DataFrame from database table: {table_name}")
+            _console = get_console()
+            _console.print_debug(f"Loading DataFrame from database table: {table_name}", tag="DATABASE")
             return pd.read_sql_table(table_name, engine)
         except Exception as e:
-            print(f"Error loading DataFrame from database: {e}")
+            _console = get_console()
+            _console.print_error(f"Error loading DataFrame from database: {e}", tag="DATABASE")
             return None
     
     @staticmethod
@@ -180,12 +188,13 @@ class DatabaseManager:
         Returns:
             True if successful, False otherwise
         """
+        _console = get_console()
         if not topics_db_engine:
-            print("Warning: No database engine provided, skipping database save")
+            _console.print_warning("No database engine provided, skipping database save", tag="DATABASE")
             return False
-            
+
         try:
-            print(f"Saving topics to database for: {data_frame_name}")
+            _console.print_debug(f"Saving topics to database for: {data_frame_name}", tag="DATABASE")
             
             # Create metadata
             metadata = MetaData()
@@ -215,10 +224,10 @@ class DatabaseManager:
             with topics_db_engine.begin() as conn:
                 if rows:  # Only insert if we have data
                     conn.execute(insert(table), rows)
-                    
+
             return True
         except Exception as e:
-            print(f"Error saving topics to database: {e}")
+            _console.print_error(f"Error saving topics to database: {e}", tag="DATABASE")
             return False
     
     @classmethod
@@ -241,25 +250,26 @@ class DatabaseManager:
         Returns:
             DataFrame (either original or loaded from database)
         """
+        _console = get_console()
         if save_to_db:
-            print("Adding data to main database...")
-            
+            _console.print_debug("Adding data to main database...", tag="DATABASE")
+
             # Save to database (always replace if exists for simplicity)
             success = cls.save_dataframe_to_db(df, table_name, engine, if_exists="replace")
-            
+
             if success:
                 # Load back from database
                 loaded_df = cls.load_dataframe_from_db(table_name, engine)
                 if loaded_df is not None:
                     return loaded_df
                 else:
-                    print("Warning: Failed to load data back from database, using original DataFrame")
+                    _console.print_warning("Failed to load data back from database, using original DataFrame", tag="DATABASE")
                     return df
             else:
-                print("Warning: Failed to save to database, using original DataFrame")
+                _console.print_warning("Failed to save to database, using original DataFrame", tag="DATABASE")
                 return df
         else:
-            print("Not saving data to main database...")
+            _console.print_debug("Not saving data to main database...", tag="DATABASE")
             return pd.DataFrame(df)
     
     @staticmethod
@@ -278,5 +288,6 @@ class DatabaseManager:
         try:
             return pd.read_sql_query(query, engine, params=params)
         except Exception as e:
-            print(f"Error executing query: {e}")
+            _console = get_console()
+            _console.print_error(f"Error executing query: {e}", tag="DATABASE")
             return None

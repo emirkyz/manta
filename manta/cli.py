@@ -225,6 +225,33 @@ Examples:
     )
 
     analyze_parser.add_argument(
+        '--n-grams-auto',
+        action='store_true',
+        help='Automatically calculate n-gram count based on vocabulary size (formula: sqrt(vocab_size) * k)'
+    )
+
+    analyze_parser.add_argument(
+        '--n-grams-auto-k',
+        type=float,
+        default=0.5,
+        help='Scaling constant k for auto n-gram formula (default: 0.5). Higher values = more n-grams'
+    )
+
+    analyze_parser.add_argument(
+        '--keep-numbers',
+        action='store_true',
+        help='Preserve numbers during preprocessing to allow BPE merging (e.g., "covid19", "120mg"). '
+             'Unmerged standalone numbers are filtered after BPE.'
+    )
+
+    analyze_parser.add_argument(
+        '--no-pmi',
+        action='store_true',
+        help='Disable PMI scoring for BPE when --keep-numbers is used. By default, PMI scoring is '
+             'enabled to help number-word pairs compete fairly with more frequent word-word pairs.'
+    )
+
+    analyze_parser.add_argument(
         '--pagerank-column',
         help='Column name containing PageRank scores to use for TF-IDF weighting (boosts high-PageRank documents)'
     )
@@ -288,7 +315,10 @@ def build_options(args: argparse.Namespace) -> tuple[dict[str | Any, Any | None]
         "emoji_map": emoji_map,
         "word_pairs_out": args.word_pairs,
         "save_to_db": args.save_to_db,
-        "n_grams_to_discover": args.n_grams_to_discover,
+        "n_grams_to_discover": "auto" if args.n_grams_auto else args.n_grams_to_discover,
+        "ngram_auto_k": args.n_grams_auto_k,
+        "keep_numbers": args.keep_numbers,
+        "use_pmi": not args.no_pmi,  # PMI enabled by default, --no-pmi disables it
         "pagerank_column": args.pagerank_column
     }
     

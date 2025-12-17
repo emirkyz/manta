@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Optional, Union, List, Dict, Any, Tuple
 from scipy.stats import entropy
 from sklearn.manifold import MDS
+from ..console.console_manager import ConsoleManager, get_console
 
 
 def _get_word_cluster_for_doc_cluster(s_matrix: np.ndarray, doc_cluster_idx: int) -> int:
@@ -83,8 +84,9 @@ def create_manta_ldavis(w_matrix: np.ndarray,
     Returns:
         Path to saved HTML file or None if failed
     """
+    _console = get_console()
     try:
-        print("🎨 Creating MANTA LDAvis visualization...")
+        _console.print_debug("Creating MANTA LDAvis visualization...", tag="VISUALIZATION")
 
         # Input validation
         if w_matrix is None or h_matrix is None:
@@ -107,7 +109,7 @@ def create_manta_ldavis(w_matrix: np.ndarray,
         if w_shape[1] != h_shape[0]:
             raise ValueError(f"Matrix dimension mismatch: W has {w_shape[1]} topics, H has {h_shape[0]} topics")
 
-        print(f"📊 Processing {w_shape[0]:,} documents, {h_shape[0]} topics, {h_shape[1]:,} vocabulary terms")
+        _console.print_debug(f"Processing {w_shape[0]:,} documents, {h_shape[0]} topics, {h_shape[1]:,} vocabulary terms", tag="VISUALIZATION")
 
         # Prepare data for visualization
         vis_data = prepare_manta_data(
@@ -137,16 +139,16 @@ def create_manta_ldavis(w_matrix: np.ndarray,
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
 
-            print(f"💾 Interactive LDAvis visualization saved to: {file_path}")
+            _console.print_debug(f"Interactive LDAvis visualization saved to: {file_path}", tag="VISUALIZATION")
             return str(file_path)
 
         return html_content
 
     except ValueError as e:
-        print(f"❌ Input validation error: {e}")
+        _console.print_error(f"Input validation error: {e}", tag="VISUALIZATION")
         return None
     except Exception as e:
-        print(f"❌ Error creating MANTA LDAvis visualization: {e}")
+        _console.print_error(f"Error creating MANTA LDAvis visualization: {e}", tag="VISUALIZATION")
         import traceback
         traceback.print_exc()
         return None
@@ -181,7 +183,8 @@ def prepare_manta_data(w_matrix: np.ndarray,
     Returns:
         Dictionary containing all data needed for visualization
     """
-    print("🔄 Preparing data for LDAvis visualization...")
+    _console = get_console()
+    _console.print_debug("Preparing data for LDAvis visualization...", tag="VISUALIZATION")
 
     # Input validation
     if tokenizer is None and (vocab is None or len(vocab) == 0):
@@ -214,11 +217,11 @@ def prepare_manta_data(w_matrix: np.ndarray,
     topic_to_h_mapping = None
     if s_matrix is not None:
         topic_to_h_mapping = _create_topic_to_h_mapping(s_matrix, n_topics)
-        print("🔄 Created topic-to-H mapping using S matrix (no matrix reordering)")
+        _console.print_debug("Created topic-to-H mapping using S matrix (no matrix reordering)", tag="VISUALIZATION")
 
     # Create vocabulary from tokenizer if needed
     if vocab is None and tokenizer is not None:
-        print("Creating vocabulary from tokenizer...")
+        _console.print_debug("Creating vocabulary from tokenizer...", tag="VISUALIZATION")
         vocab = _create_vocab_from_tokenizer(tokenizer, n_vocab, emoji_map)
 
     if vocab is None or len(vocab) != n_vocab:

@@ -42,7 +42,11 @@ class TopicAnalysisConfig:
     filter_app: bool = False
     emoji_map: bool = False
     word_pairs_out: bool = False
-    n_grams_to_discover: Any = None
+    n_grams_to_discover: Any = None  # Can be int, "auto", or None
+    ngram_auto_k: float = 0.5  # Scaling constant for auto n-gram formula
+    keep_numbers: bool = False  # Preserve numbers for BPE merging
+    filter_standalone_numbers: bool = True  # Filter unmerged numbers after BPE
+    use_pmi: bool = True  # Use PMI scoring for BPE when keep_numbers is True
     save_to_db: bool = False
     data_filter_options: DataFilterOptions = field(default_factory=DataFilterOptions)
     output_name: Optional[str] = None
@@ -135,7 +139,11 @@ class TopicAnalysisConfig:
             "nmf_type": self.nmf_method,
             "separator": self.separator,
             "word_pairs_out": self.word_pairs_out,
-            "n_grams_to_discover" : self.n_grams_to_discover,
+            "n_grams_to_discover": self.n_grams_to_discover,
+            "ngram_auto_k": self.ngram_auto_k,
+            "keep_numbers": self.keep_numbers,
+            "filter_standalone_numbers": self.filter_standalone_numbers,
+            "use_pmi": self.use_pmi,
             "gen_cloud": self.generate_wordclouds,
             "save_excel": self.export_excel,
             "gen_topic_distribution": self.topic_distribution,
@@ -173,6 +181,10 @@ def create_config_from_params(
     words_per_topic: int = 15,
     word_pairs_out: bool = True,
     n_grams_to_discover: Any = None,
+    ngram_auto_k: float = 0.5,
+    keep_numbers: bool = False,
+    filter_standalone_numbers: bool = True,
+    use_pmi: bool = True,
     generate_wordclouds: bool = True,
     export_excel: bool = True,
     topic_distribution: bool = True,
@@ -213,6 +225,10 @@ def create_config_from_params(
         emoji_map=emoji_map,
         word_pairs_out=word_pairs_out,
         n_grams_to_discover=n_grams_to_discover,
+        ngram_auto_k=ngram_auto_k,
+        keep_numbers=keep_numbers,
+        filter_standalone_numbers=filter_standalone_numbers,
+        use_pmi=use_pmi,
         save_to_db=save_to_db,
         data_filter_options=dfo,
         output_name=output_name,

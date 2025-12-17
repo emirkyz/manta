@@ -3,7 +3,7 @@ import math
 import numpy as np
 from scipy import sparse as sp
 from scipy.sparse import linalg as sla
-
+from manta.utils.console.console_manager import ConsoleManager, get_console
 
 def select_rank_theoretical(in_mat: sp.csc_matrix) -> int:
     """
@@ -48,7 +48,7 @@ def nmf_initialization_nndsvd(in_mat: sp.csc_matrix, rank: int) -> tuple[np.ndar
     """
     if rank < 0:
         rank = select_rank_theoretical(in_mat)
-    print(f"Using Rank : {rank}")
+    get_console().print_debug(f"Rank selected: {rank}", tag="NMF")
     u, s, v = sla.svds(in_mat, k=rank)
     idx = np.argsort(s)[::-1]
     s = s[idx]

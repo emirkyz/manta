@@ -21,12 +21,15 @@ Example:
 
 import numpy as np
 from collections import Counter, defaultdict
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, TYPE_CHECKING
 import json
 import os
 import time
 from tqdm import tqdm
 import heapq
+
+if TYPE_CHECKING:
+    from ...utils.console.console_manager import ConsoleManager
 
 # Try to import numba for JIT compilation (optional dependency)
 try:
@@ -126,7 +129,8 @@ class WordPieceNGram:
     """
 
     def __init__(self, vocab_limit: int = 10000, min_likelihood_score: float = 0.0,
-                 smoothing: float = 1e-10, verbose: bool = False):
+                 smoothing: float = 1e-10, verbose: bool = False,
+                 console: Optional["ConsoleManager"] = None):
         """
         Initialize the WordPiece N-gram encoder.
 
@@ -135,7 +139,12 @@ class WordPieceNGram:
             min_likelihood_score: Minimum likelihood threshold for pair merging
             smoothing: Small constant to prevent division by zero (default: 1e-10)
             verbose: Whether to print detailed decoding information (default: False for speed)
+            console: Console manager for output. If None, uses global console.
         """
+        # Import here to avoid circular imports
+        from ...utils.console.console_manager import get_console
+        self._console = console or get_console()
+
         self.vocab_limit = vocab_limit
         self.min_likelihood_score = min_likelihood_score
         self.smoothing = smoothing
@@ -612,38 +621,38 @@ class WordPieceNGram:
             'total_iterations': 0
         }
 
-        print(f"Starting optimized WordPiece n-gram with vocab size: {self.current_vocab_size}")
-        print(f"Target vocab limit: {self.vocab_limit}")
-        print(f"Using dtype: {dtype.__name__} for memory efficiency")
-        print("Using likelihood-based scoring with inverted index and vectorized operations")
+        self._console.print_debug(f"Starting optimized WordPiece n-gram with vocab size: {self.current_vocab_size}", tag="WORDPIECE")
+        self._console.print_debug(f"Target vocab limit: {self.vocab_limit}", tag="WORDPIECE")
+        self._console.print_debug(f"Using dtype: {dtype.__name__} for memory efficiency", tag="WORDPIECE")
+        self._console.print_debug("Using likelihood-based scoring with inverted index and vectorized operations", tag="WORDPIECE")
 
         # Build inverted index once at start
-        print("Building inverted index...")
+        self._console.print_debug("Building inverted index...", tag="WORDPIECE")
         idx_start = time.time()
         self.inverted_index = self.build_inverted_index(working_data)
         timing_stats['inverted_index_time'] = time.time() - idx_start
-        print(f"Inverted index built with {len(self.inverted_index)} unique tokens")
+        self._console.print_debug(f"Inverted index built with {len(self.inverted_index)} unique tokens", tag="WORDPIECE")
 
         # Calculate initial word frequencies
-        print("Calculating word frequencies...")
+        self._console.print_debug("Calculating word frequencies...", tag="WORDPIECE")
         word_freq_start = time.time()
         self.word_frequencies = self.calculate_word_frequencies(working_data)
         timing_stats['word_freq_time'] = time.time() - word_freq_start
 
         # Build initial pair frequency table
-        print("Building pair frequency table...")
+        self._console.print_debug("Building pair frequency table...", tag="WORDPIECE")
         pair_freq_start = time.time()
         self.pair_frequencies = self.build_pair_frequency_table(working_data)
         timing_stats['pair_freq_time'] = time.time() - pair_freq_start
 
         # Calculate initial likelihood scores
-        print("Calculating likelihood scores...")
+        self._console.print_debug("Calculating likelihood scores...", tag="WORDPIECE")
         likelihood_start = time.time()
         self.likelihood_scores = self.calculate_all_likelihood_scores(
             self.pair_frequencies, self.word_frequencies
         )
         timing_stats['likelihood_calc_time'] = time.time() - likelihood_start
-        print(f"Initial likelihood scores calculated for {len(self.likelihood_scores)} pairs")
+        self._console.print_debug(f"Initial likelihood scores calculated for {len(self.likelihood_scores)} pairs", tag="WORDPIECE")
 
         # Create progress bar with rate display
         max_iterations = self.vocab_limit - self.current_vocab_size
@@ -657,7 +666,7 @@ class WordPieceNGram:
 
             if best_pair is None:
                 pbar.close()
-                print(f"\nNo more pairs meet minimum likelihood threshold. Stopping at vocab size: {self.current_vocab_size}")
+                self._console.print_debug(f"No more pairs meet minimum likelihood threshold. Stopping at vocab size: {self.current_vocab_size}", tag="WORDPIECE")
                 break
 
             # Assign new ID to this pair
@@ -748,7 +757,7 @@ class WordPieceNGram:
             # Safety check to prevent infinite loops
             if iteration > 50000:
                 pbar.close()
-                print("\nWarning: Maximum iterations reached. Stopping merge process.")
+                self._console.print_warning("Maximum iterations reached. Stopping merge process.", tag="WORDPIECE")
                 break
 
         pbar.close()
@@ -757,19 +766,19 @@ class WordPieceNGram:
         total_time = time.time() - start_time
         timing_stats['total_iterations'] = iteration
 
-        print(f"\nOptimized WordPiece n-gram completed. Final vocab size: {self.current_vocab_size}")
-        print(f"Created {len(self.merge_operations)} n-gram combinations")
-        print(f"\nPerformance Report:")
-        print(f"  Total time: {total_time:.2f}s")
-        print(f"  Inverted index build: {timing_stats['inverted_index_time']:.2f}s")
-        print(f"  Word frequency calculation: {timing_stats['word_freq_time']:.2f}s")
-        print(f"  Pair frequency calculation: {timing_stats['pair_freq_time']:.2f}s")
-        print(f"  Initial likelihood calculation: {timing_stats['likelihood_calc_time']:.2f}s")
-        print(f"  Merge operations: {timing_stats['merge_time']:.2f}s ({timing_stats['merge_time']/total_time*100:.1f}%)")
-        print(f"  Frequency/score updates: {timing_stats['update_time']:.2f}s ({timing_stats['update_time']/total_time*100:.1f}%)")
+        self._console.print_debug(f"Optimized WordPiece n-gram completed. Final vocab size: {self.current_vocab_size}", tag="WORDPIECE")
+        self._console.print_debug(f"Created {len(self.merge_operations)} n-gram combinations", tag="WORDPIECE")
+        self._console.print_debug("Performance Report:", tag="WORDPIECE")
+        self._console.print_debug(f"  Total time: {total_time:.2f}s", tag="WORDPIECE")
+        self._console.print_debug(f"  Inverted index build: {timing_stats['inverted_index_time']:.2f}s", tag="WORDPIECE")
+        self._console.print_debug(f"  Word frequency calculation: {timing_stats['word_freq_time']:.2f}s", tag="WORDPIECE")
+        self._console.print_debug(f"  Pair frequency calculation: {timing_stats['pair_freq_time']:.2f}s", tag="WORDPIECE")
+        self._console.print_debug(f"  Initial likelihood calculation: {timing_stats['likelihood_calc_time']:.2f}s", tag="WORDPIECE")
+        self._console.print_debug(f"  Merge operations: {timing_stats['merge_time']:.2f}s ({timing_stats['merge_time']/total_time*100:.1f}%)", tag="WORDPIECE")
+        self._console.print_debug(f"  Frequency/score updates: {timing_stats['update_time']:.2f}s ({timing_stats['update_time']/total_time*100:.1f}%)", tag="WORDPIECE")
         if iteration > 0:
-            print(f"  Average per iteration: {total_time/iteration*1000:.1f}ms")
-            print(f"  Iterations per second: {iteration/total_time:.1f}")
+            self._console.print_debug(f"  Average per iteration: {total_time/iteration*1000:.1f}ms", tag="WORDPIECE")
+            self._console.print_debug(f"  Iterations per second: {iteration/total_time:.1f}", tag="WORDPIECE")
 
         return working_data
 
@@ -793,9 +802,9 @@ class WordPieceNGram:
         dtype = self._get_optimal_dtype()
         working_data = [np.array(doc, dtype=dtype) for doc in counterized_data]
 
-        print(f"Starting WordPiece n-gram with vocab size: {self.current_vocab_size}")
-        print(f"Target vocab limit: {self.vocab_limit}")
-        print(f"Using dtype: {dtype.__name__} for memory efficiency")
+        self._console.print_debug(f"Starting WordPiece n-gram with vocab size: {self.current_vocab_size}", tag="WORDPIECE")
+        self._console.print_debug(f"Target vocab limit: {self.vocab_limit}", tag="WORDPIECE")
+        self._console.print_debug(f"Using dtype: {dtype.__name__} for memory efficiency", tag="WORDPIECE")
 
         # Create progress bar
         max_iterations = self.vocab_limit - self.current_vocab_size
@@ -818,7 +827,7 @@ class WordPieceNGram:
 
             if best_pair is None:
                 pbar.close()
-                print(f"\nNo more pairs meet minimum likelihood threshold. Stopping at vocab size: {self.current_vocab_size}")
+                self._console.print_debug(f"No more pairs meet minimum likelihood threshold. Stopping at vocab size: {self.current_vocab_size}", tag="WORDPIECE")
                 break
 
             # Assign new ID
@@ -862,12 +871,12 @@ class WordPieceNGram:
             # Safety check
             if iteration > 50000:
                 pbar.close()
-                print("\nWarning: Maximum iterations reached. Stopping merge process.")
+                self._console.print_warning("Maximum iterations reached. Stopping merge process.", tag="WORDPIECE")
                 break
 
         pbar.close()
-        print(f"\nWordPiece n-gram completed. Final vocab size: {self.current_vocab_size}")
-        print(f"Created {len(self.merge_operations)} n-gram combinations")
+        self._console.print_debug(f"WordPiece n-gram completed. Final vocab size: {self.current_vocab_size}", tag="WORDPIECE")
+        self._console.print_debug(f"Created {len(self.merge_operations)} n-gram combinations", tag="WORDPIECE")
 
         return working_data
 
@@ -967,5 +976,5 @@ class WordPieceNGram:
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(ngrams_data, f, ensure_ascii=False, indent=2)
 
-        print(f"N-grams saved to: {filepath}")
+        self._console.print_status(f"N-grams saved to: {filepath}", "success")
         return filepath

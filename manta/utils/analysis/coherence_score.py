@@ -3,6 +3,8 @@ import math
 from pathlib import Path
 from itertools import combinations
 from collections import defaultdict
+from operator import itemgetter
+from typing import Optional
 import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine
@@ -11,6 +13,7 @@ from gensim.corpora.dictionary import Dictionary
 import multiprocessing as mp
 
 from manta.utils.analysis.relevance_scorer import get_topic_top_terms
+from manta.utils.console.console_manager import ConsoleManager, get_console
 
 
 def fix_multiprocessing_fork():
@@ -26,41 +29,44 @@ def fix_multiprocessing_fork():
 # --- TopicDiversityScorer Class ---
 
 class TopicDiversityScorer:
-    def __init__(self, topic_word_scores, top_words=25):
+    def __init__(self, topic_word_scores, top_words=25, console: Optional[ConsoleManager] = None):
         """
         Initialize topic diversity calculator
 
         Args:
             topic_word_scores (dict): Dictionary containing topics and their word scores
             top_words (int): Number of top words to consider per topic for diversity calculation (default: 25)
+            console (ConsoleManager, optional): Console manager for output
         """
+        self._console = console or get_console()
+
         if not isinstance(topic_word_scores, dict):
             raise ValueError("topic_word_scores must be a dictionary")
-        
+
         if top_words <= 0:
             raise ValueError("top_words must be a positive integer")
-            
+
         self.topic_word_scores = topic_word_scores
         self.top_words = top_words
         self.topic_word_lists = {}
         self.all_words = set()
-        
+
         if topic_word_scores:
             self._prepare_topic_words()
         else:
-            print("Warning: No topic word scores provided for diversity calculation")
+            self._console.print_warning("No topic word scores provided for diversity calculation", tag="DIVERSITY")
     
     def _prepare_topic_words(self):
         """Prepare top words for each topic and build vocabulary"""
         for topic_id, word_scores in self.topic_word_scores.items():
             if not word_scores:
-                print(f"Warning: Topic {topic_id} has no words, skipping")
+                self._console.print_warning(f"Topic {topic_id} has no words, skipping", tag="DIVERSITY")
                 continue
-                
+
             # Sort words by score and get top N
             if isinstance(word_scores, dict):
                 if not word_scores:
-                    print(f"Warning: Topic {topic_id} has empty word scores dictionary")
+                    self._console.print_warning(f"Topic {topic_id} has empty word scores dictionary", tag="DIVERSITY")
                     continue
                     
                 sorted_words = sorted(word_scores.items(), key=lambda x: float(x[1]) if isinstance(x[1], (int, float, str)) else 0.0, reverse=True)
@@ -102,9 +108,9 @@ class TopicDiversityScorer:
         
         # Validate that we have topics with words
         if not self.topic_word_lists:
-            print("Warning: No valid topics with words found after preprocessing")
+            self._console.print_warning("No valid topics with words found after preprocessing", tag="DIVERSITY")
         elif len(self.topic_word_lists) == 1:
-            print("Warning: Only one topic found - diversity calculations may not be meaningful")
+            self._console.print_warning("Only one topic found - diversity calculations may not be meaningful", tag="DIVERSITY")
     
     def calculate_proportion_unique_words(self):
         """
@@ -118,7 +124,7 @@ class TopicDiversityScorer:
                    Score close to 0.0 means low diversity (topics share many words).
         """
         if not self.topic_word_lists:
-            print("Warning: No topic word lists available for PUW calculation")
+            self._console.print_warning("No topic word lists available for PUW calculation", tag="DIVERSITY")
             return 0.0
 
         # Count number of topics
@@ -128,11 +134,11 @@ class TopicDiversityScorer:
         unique_words = len(self.all_words)
 
         if num_topics == 0:
-            print("Warning: No topics found for PUW calculation")
+            self._console.print_warning("No topics found for PUW calculation", tag="DIVERSITY")
             return 0.0
 
         if unique_words == 0:
-            print("Warning: No unique words found for PUW calculation")
+            self._console.print_warning("No unique words found for PUW calculation", tag="DIVERSITY")
             return 0.0
 
         # Calculate expected total words (top_words per topic × number of topics)
@@ -156,7 +162,7 @@ class TopicDiversityScorer:
             float: Jaccard similarity (0-1)
         """
         if not isinstance(topic1_words, (list, set)) or not isinstance(topic2_words, (list, set)):
-            print("Warning: Invalid input types for Jaccard similarity calculation")
+            self._console.print_warning("Invalid input types for Jaccard similarity calculation", tag="DIVERSITY")
             return 0.0
             
         set1 = set(topic1_words) if topic1_words else set()
@@ -190,7 +196,7 @@ class TopicDiversityScorer:
             float: Cosine similarity (0-1)
         """
         if not isinstance(topic1_words, (list, set)) or not isinstance(topic2_words, (list, set)):
-            print("Warning: Invalid input types for cosine similarity calculation")
+            self._console.print_warning("Invalid input types for cosine similarity calculation", tag="DIVERSITY")
             return 0.0
             
         set1 = set(topic1_words) if topic1_words else set()
@@ -206,7 +212,7 @@ class TopicDiversityScorer:
         # Create binary vectors based on vocabulary
         vocab = list(self.all_words)
         if len(vocab) == 0:
-            print("Warning: No vocabulary available for cosine similarity calculation")
+            self._console.print_warning("No vocabulary available for cosine similarity calculation", tag="DIVERSITY")
             return 0.0
         
         # Optimized binary vector creation
@@ -248,43 +254,40 @@ class TopicDiversityScorer:
             raise ValueError("similarity_func must be callable")
             
         if not self.topic_word_lists:
-            print("Warning: No topic word lists available for pairwise similarity calculation")
+            self._console.print_warning("No topic word lists available for pairwise similarity calculation", tag="DIVERSITY")
             return {}
-        
+
         similarities = {}
         topic_ids = list(self.topic_word_lists.keys())
-        
+
         if len(topic_ids) < 2:
-            print("Warning: Need at least 2 topics for pairwise similarity calculation")
+            self._console.print_warning("Need at least 2 topics for pairwise similarity calculation", tag="DIVERSITY")
             return {}
-        
-        for i in range(len(topic_ids)):
-            for j in range(i + 1, len(topic_ids)):
-                topic1_id = topic_ids[i]
-                topic2_id = topic_ids[j]
-                
-                try:
-                    similarity = similarity_func(
-                        self.topic_word_lists[topic1_id],
-                        self.topic_word_lists[topic2_id]
-                    )
-                    
-                    # Validate similarity score - only check for truly invalid values
-                    if not isinstance(similarity, (int, float)) or math.isnan(similarity) or math.isinf(similarity):
-                        continue
-                        print(f"Warning: Invalid similarity score for {topic1_id} vs {topic2_id}: {similarity}")
-                        similarity = 0.0
-                    else:
-                        # Ensure similarity is in valid range [0, 1] - clamp silently for floating point precision
-                        similarity = max(0.0, min(1.0, float(similarity)))
-                    
-                    pair_name = f"{topic1_id}_vs_{topic2_id}"
-                    similarities[pair_name] = float(similarity)
-                    
-                except Exception as e:
-                    print(f"Error calculating similarity for {topic1_id} vs {topic2_id}: {str(e)}")
-                    pair_name = f"{topic1_id}_vs_{topic2_id}"
-                    similarities[pair_name] = 0.0
+
+        # Use combinations for cleaner pair iteration
+        for topic1_id, topic2_id in combinations(topic_ids, 2):
+            try:
+                similarity = similarity_func(
+                    self.topic_word_lists[topic1_id],
+                    self.topic_word_lists[topic2_id]
+                )
+
+                # Validate similarity score - only check for truly invalid values
+                if not isinstance(similarity, (int, float)) or math.isnan(similarity) or math.isinf(similarity):
+                    continue
+                    self._console.print_warning(f"Invalid similarity score for {topic1_id} vs {topic2_id}: {similarity}", tag="DIVERSITY")
+                    similarity = 0.0
+                else:
+                    # Ensure similarity is in valid range [0, 1] - clamp silently for floating point precision
+                    similarity = max(0.0, min(1.0, float(similarity)))
+
+                pair_name = f"{topic1_id}_vs_{topic2_id}"
+                similarities[pair_name] = float(similarity)
+
+            except Exception as e:
+                self._console.print_error(f"Error calculating similarity for {topic1_id} vs {topic2_id}: {str(e)}", tag="DIVERSITY")
+                pair_name = f"{topic1_id}_vs_{topic2_id}"
+                similarities[pair_name] = 0.0
         
         return similarities
     
@@ -299,11 +302,11 @@ class TopicDiversityScorer:
             float: Average diversity score (higher = more diverse)
         """
         similarities = self.calculate_pairwise_similarities(similarity_func)
-        
+
         if not similarities:
-            print("Warning: No similarities calculated for diversity calculation")
+            self._console.print_warning("No similarities calculated for diversity calculation", tag="DIVERSITY")
             return 0.0
-        
+
         # Convert similarities to diversities (1 - similarity)
         diversities = []
         for sim in similarities.values():
@@ -311,7 +314,7 @@ class TopicDiversityScorer:
                 diversity = 1.0 - sim
                 diversities.append(max(0.0, min(1.0, diversity)))  # Clamp to [0, 1]
             else:
-                print(f"Warning: Invalid similarity value encountered: {sim}")
+                self._console.print_warning(f"Invalid similarity value encountered: {sim}", tag="DIVERSITY")
                 diversities.append(0.0)
         
         if not diversities:
@@ -331,28 +334,28 @@ class TopicDiversityScorer:
             list: List of (pair_name, similarity_score) tuples
         """
         similarities = self.calculate_pairwise_similarities(similarity_func)
-        
-        # Sort by similarity (descending)
-        sorted_pairs = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
-        
+
+        # Sort by similarity (descending) - itemgetter is ~20% faster than lambda
+        sorted_pairs = sorted(similarities.items(), key=itemgetter(1), reverse=True)
+
         return sorted_pairs[:top_k]
-    
+
     def find_most_diverse_topics(self, similarity_func, top_k=3):
         """
         Find the most diverse (least similar) topic pairs
-        
+
         Args:
             similarity_func: Function to calculate similarity
             top_k (int): Number of top diverse pairs to return
-            
+
         Returns:
             list: List of (pair_name, diversity_score) tuples
         """
         similarities = self.calculate_pairwise_similarities(similarity_func)
-        
+
         # Convert to diversity and sort by diversity (descending)
         diversities = [(pair, 1.0 - sim) for pair, sim in similarities.items()]
-        sorted_pairs = sorted(diversities, key=lambda x: x[1], reverse=True)
+        sorted_pairs = sorted(diversities, key=itemgetter(1), reverse=True)
         
         return sorted_pairs[:top_k]
     
@@ -503,14 +506,11 @@ class UMassCoherence:
             for word in unique_words:
                 self.word_doc_freq[word].add(doc_id)
 
-            # Track co-occurrences
-            unique_words_list = list(unique_words)
-            for i in range(len(unique_words_list)):
-                for j in range(i + 1, len(unique_words_list)):
-                    word1, word2 = unique_words_list[i], unique_words_list[j]
-                    # Store co-occurrences symmetrically
-                    self.cooccur_freq[word1][word2] += 1
-                    self.cooccur_freq[word2][word1] += 1
+            # Track co-occurrences using combinations for cleaner iteration
+            for word1, word2 in combinations(unique_words, 2):
+                # Store co-occurrences symmetrically
+                self.cooccur_freq[word1][word2] += 1
+                self.cooccur_freq[word2][word1] += 1
 
     def calculate_umass_coherence(self, topic_words, top_n=10):
         """
@@ -525,8 +525,8 @@ class UMassCoherence:
         """
         # Get top N words
         if isinstance(topic_words, dict):
-            # Sort by score and get top N
-            sorted_words = sorted(topic_words.items(), key=lambda x: x[1], reverse=True)
+            # Sort by score and get top N - itemgetter is ~20% faster than lambda
+            sorted_words = sorted(topic_words.items(), key=itemgetter(1), reverse=True)
             top_words = []
             for word, score in sorted_words[:top_n]:
                 # Handle words with "/" separator (take first part)
@@ -659,7 +659,8 @@ def get_documents_from_db(table_name, column_name):
         documents = df[column_name].tolist()
         return documents
     except Exception as e:
-        print(f"Error reading from database: {str(e)}")
+        _console = get_console()
+        _console.print_error(f"Error reading from database: {str(e)}", tag="DATABASE")
         return None
 
 def c_uci(topics_json, table_name=None, column_name=None, documents=None, epsilon=1e-9):
@@ -696,7 +697,8 @@ def c_uci(topics_json, table_name=None, column_name=None, documents=None, epsilo
     
     total_topic_count = len(topics_json)
     if total_topic_count == 0:
-        print("Error: No topics found in the data.")
+        _console = get_console()
+        _console.print_error("No topics found in the data.", tag="COHERENCE")
         return None
 
     topic_coherences = {}
@@ -734,8 +736,9 @@ def c_uci(topics_json, table_name=None, column_name=None, documents=None, epsilo
     }
 
 
-def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None, topic_word_matrix=None, doc_topic_matrix=None, vocabulary=None, tokenizer=None, emoji_map=None,s_matrix = None):
-    print("Calculating coherence scores...")
+def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=None, column_name=None, cleaned_data=None, topic_word_matrix=None, doc_topic_matrix=None, vocabulary=None, tokenizer=None, emoji_map=None, s_matrix=None, console: Optional[ConsoleManager] = None):
+    _console = console or get_console()
+    _console.print_debug("Calculating coherence scores...", tag="COHERENCE")
     fix_multiprocessing_fork()
 
 
@@ -745,12 +748,12 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
         coherence_scores = u_mass(topic_word_scores, table_name=table_name, column_name=column_name, documents=cleaned_data)
 
         if coherence_scores is None:
-            print("Error: Could not calculate coherence scores.")
+            _console.print_error("Could not calculate coherence scores.", tag="COHERENCE")
             return None
 
-        print(f"U-Mass Average Coherence (Class-based): {coherence_scores['average_coherence']:.4f}")
+        _console.print_debug(f"U-Mass Average Coherence (Class-based): {coherence_scores['average_coherence']:.4f}", tag="COHERENCE")
         for topic, score in coherence_scores['topic_coherences'].items():
-            print(f"{topic}: {score:.4f}")
+            _console.print_debug(f"{topic}: {score:.4f}", tag="COHERENCE")
 
         results = {"class_based": coherence_scores}
     else:
@@ -758,7 +761,7 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
 
 
     # Calculate LDAvis-style relevance scores if matrices are available
-    print("Calculating LDAvis-style relevance scores...")
+    _console.print_debug("Calculating LDAvis-style relevance scores...", tag="COHERENCE")
 
     relevance_scores = calculate_relevance_scores_from_matrix(
         topic_word_matrix=topic_word_matrix,
@@ -766,25 +769,27 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
         vocabulary=vocabulary,
         tokenizer=tokenizer,
         emoji_map=emoji_map,
-        s_matrix=s_matrix
+        s_matrix=s_matrix,
+        console=_console
     )
     
     if relevance_scores is not None:
         results["relevance"] = relevance_scores
-        print(f"LDAvis-style relevance scores calculated for {len(relevance_scores)} topics")
+        _console.print_debug(f"LDAvis-style relevance scores calculated for {len(relevance_scores)} topics", tag="COHERENCE")
     else:
-        print("Warning: Could not calculate relevance scores.")
+        _console.print_warning("Could not calculate relevance scores.", tag="COHERENCE")
     # Calculate Diversity scores (saved to separate file: {table_name}_diversity_scores.json)
     diversity_scores = calculate_diversity_scores(
         topic_word_matrix=topic_word_matrix,
         vocabulary=vocabulary,
         top_words=25,
         output_dir=output_dir,
-        table_name=table_name
+        table_name=table_name,
+        console=_console
     )
 
     if diversity_scores is None:
-        print("Warning: Could not calculate diversity scores.")
+        _console.print_warning("Could not calculate diversity scores.", tag="DIVERSITY")
     
 
     # Add Gensim comparison if cleaned_data is available
@@ -801,16 +806,20 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
                 cleaned_data_token = [doc.split() for doc in cleaned_data]
             else:
                 raise ValueError("cleaned_data must be a list of strings or a list of lists")
-                
+
+            # Use relevance-boosted words for coherence if available, otherwise fall back to raw topic words
+            coherence_input = relevance_scores if relevance_scores else topic_word_scores
+
             # Prepare the data required by Gensim
-            topics_list, dictionary, corpus = prepare_gensim_data(topic_word_scores, cleaned_data_token)
+            topics_list, dictionary, corpus = prepare_gensim_data(coherence_input, cleaned_data_token)
 
             gensim_results = CoherenceModel(
                 topics=topics_list,
                 texts=cleaned_data_token,  # Use the tokenized documents directly, not the corpus
                 dictionary=dictionary,
                 coherence="c_v",
-                topn=15
+                topn=15,
+                processes=1
             )
             umass_gensim = gensim_results.get_coherence()
             umass_per_topic = gensim_results.get_coherence_per_topic()
@@ -823,19 +832,18 @@ def calculate_coherence_scores(topic_word_scores, output_dir=None, table_name=No
                 f"{coherence_method}_average": umass_gensim,
                 f"{coherence_method}_per_topic": topic_coherence_dict
             }
-            print(f"Gensim {coherence_method} Average: {umass_gensim:.4f}")
-            #print(f"Difference (Class - Gensim): {coherence_scores['average_coherence'] - umass_gensim:.4f}")
-            
+            _console.print_debug(f"Gensim {coherence_method} Average: {umass_gensim:.4f}", tag="COHERENCE")
+
         except Exception as e:
-            print(f"Warning: Could not calculate Gensim coherence: {str(e)}")
-        
+            _console.print_warning(f"Could not calculate Gensim coherence: {str(e)}", tag="COHERENCE")
+
     if output_dir and table_name:
         output_path = Path(output_dir)
-        coherence_file = output_path / f"{table_name}_coherence_scores.json"
+        coherence_file = output_path / f"{table_name}_relevance_top_words.json"
         output_path.mkdir(parents=True, exist_ok=True)
         with open(coherence_file, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=4, ensure_ascii=False)
-        print(f"Coherence scores saved to: {coherence_file}")
+        _console.print_debug(f"Coherence scores saved to: {coherence_file}", tag="COHERENCE")
 
     return results
 
@@ -879,11 +887,13 @@ def u_mass(topics_json, table_name=None, column_name=None, documents=None, epsil
         final_documents = [doc.split() for doc in final_documents]
     
     if len(topics_json) == 0:
-        print("Error: No topics found in the data.")
+        _console = get_console()
+        _console.print_error("No topics found in the data.", tag="COHERENCE")
         return None
-    
+
     if not final_documents:
-        print("Error: No documents available for coherence calculation.")
+        _console = get_console()
+        _console.print_error("No documents available for coherence calculation.", tag="COHERENCE")
         return None
     
     # Initialize UMassCoherence calculator
@@ -976,7 +986,8 @@ def calculate_reconstruction_error(original_matrix, W_matrix, H_matrix, S_matrix
         }
         
     except Exception as e:
-        print(f"Error calculating reconstruction error: {str(e)}")
+        _console = get_console()
+        _console.print_error(f"Error calculating reconstruction error: {str(e)}", tag="COHERENCE")
         return {
             "frobenius_norm_squared": None,
             "mean_squared_error": None,
@@ -987,29 +998,31 @@ def calculate_reconstruction_error(original_matrix, W_matrix, H_matrix, S_matrix
         }
 
 
-def extract_topic_words_from_matrix(topic_word_matrix, vocabulary, top_n=50):
+def extract_topic_words_from_matrix(topic_word_matrix, vocabulary, top_n=50, console: Optional[ConsoleManager] = None):
     """
     Extract top N words for each topic directly from the H matrix (topic-word matrix)
-    
+
     Args:
         topic_word_matrix (numpy.ndarray): Topic-word probability matrix (H matrix from NMF) - shape: (n_topics, n_words)
         vocabulary (list): List of words corresponding to matrix columns
         top_n (int): Number of top words to extract per topic
-        
+        console (ConsoleManager, optional): Console manager for output
+
     Returns:
         dict: Dictionary with topic_id as key and dict of {word: score} as value, or None if extraction fails
     """
+    _console = console or get_console()
     # Input validation
     if topic_word_matrix is None:
-        print("Error: topic_word_matrix is None")
+        _console.print_error("topic_word_matrix is None", tag="COHERENCE")
         return None
-        
+
     if vocabulary is None:
-        print("Error: vocabulary is None")
+        _console.print_error("vocabulary is None", tag="COHERENCE")
         return None
-    
+
     if not isinstance(top_n, int) or top_n <= 0:
-        print(f"Error: top_n must be a positive integer, got {top_n}")
+        _console.print_error(f"top_n must be a positive integer, got {top_n}", tag="COHERENCE")
         return None
     
     try:
@@ -1017,25 +1030,25 @@ def extract_topic_words_from_matrix(topic_word_matrix, vocabulary, top_n=50):
         if hasattr(topic_word_matrix, 'shape'):
             n_topics, n_words = topic_word_matrix.shape
         else:
-            print("Error: topic_word_matrix must have a shape attribute")
+            _console.print_error("topic_word_matrix must have a shape attribute", tag="COHERENCE")
             return None
-        
+
         if n_topics == 0 or n_words == 0:
-            print(f"Error: Invalid matrix dimensions: ({n_topics}, {n_words})")
+            _console.print_error(f"Invalid matrix dimensions: ({n_topics}, {n_words})", tag="COHERENCE")
             return None
-        
+
         # Validate vocabulary
         if not isinstance(vocabulary, (list, tuple)):
-            print("Error: vocabulary must be a list or tuple")
+            _console.print_error("vocabulary must be a list or tuple", tag="COHERENCE")
             return None
-            
+
         if len(vocabulary) == 0:
-            print("Error: vocabulary is empty")
+            _console.print_error("vocabulary is empty", tag="COHERENCE")
             return None
-        
+
         # Handle vocabulary size mismatch
         if len(vocabulary) != n_words:
-            print(f"Warning: Vocabulary size ({len(vocabulary)}) doesn't match matrix columns ({n_words})")
+            _console.print_warning(f"Vocabulary size ({len(vocabulary)}) doesn't match matrix columns ({n_words})", tag="COHERENCE")
             min_size = min(len(vocabulary), n_words)
             vocabulary = list(vocabulary)[:min_size]
             if hasattr(topic_word_matrix, 'toarray'):
@@ -1057,12 +1070,12 @@ def extract_topic_words_from_matrix(topic_word_matrix, vocabulary, top_n=50):
                 
                 # Validate topic scores
                 if len(topic_scores) != n_words:
-                    print(f"Warning: Topic {topic_idx} scores length ({len(topic_scores)}) doesn't match vocabulary size ({n_words})")
+                    _console.print_warning(f"Topic {topic_idx} scores length ({len(topic_scores)}) doesn't match vocabulary size ({n_words})", tag="COHERENCE")
                     continue
-                
+
                 # Get top N words for this topic
                 if np.all(topic_scores == 0):
-                    print(f"Warning: Topic {topic_idx} has all zero scores")
+                    _console.print_warning(f"Topic {topic_idx} has all zero scores", tag="COHERENCE")
                     # Still include it but with empty scores
                     topic_word_dict = {}
                 else:
@@ -1083,28 +1096,28 @@ def extract_topic_words_from_matrix(topic_word_matrix, vocabulary, top_n=50):
                 topic_word_scores[topic_id] = topic_word_dict
                 
             except Exception as e:
-                print(f"Error processing topic {topic_idx}: {str(e)}")
+                _console.print_error(f"Error processing topic {topic_idx}: {str(e)}", tag="COHERENCE")
                 # Continue with other topics
                 continue
-        
+
         if not topic_word_scores:
-            print("Error: No valid topics extracted from matrix")
+            _console.print_error("No valid topics extracted from matrix", tag="COHERENCE")
             return None
-        
-        print(f"Successfully extracted {len(topic_word_scores)} topics from matrix")
+
+        _console.print_debug(f"Successfully extracted {len(topic_word_scores)} topics from matrix", tag="COHERENCE")
         return topic_word_scores
-        
+
     except Exception as e:
-        print(f"Error in extract_topic_words_from_matrix: {str(e)}")
+        _console.print_error(f"Error in extract_topic_words_from_matrix: {str(e)}", tag="COHERENCE")
         import traceback
         traceback.print_exc()
         return None
 
 
-def calculate_diversity_scores(topics_json=None, topic_word_matrix=None, vocabulary=None, top_words=50, output_dir=None, table_name=None):
+def calculate_diversity_scores(topics_json=None, topic_word_matrix=None, vocabulary=None, top_words=50, output_dir=None, table_name=None, console: Optional[ConsoleManager] = None):
     """
     Calculate topic diversity scores from either topic word scores dictionary or H matrix
-    
+
     Args:
         topics_json (dict, optional): Dictionary containing topics and their word scores
         topic_word_matrix (numpy.ndarray, optional): H matrix - shape: (n_topics, n_words)
@@ -1112,36 +1125,38 @@ def calculate_diversity_scores(topics_json=None, topic_word_matrix=None, vocabul
         top_words (int): Number of top words to consider per topic (default: 50)
         output_dir (str, optional): Directory to save results
         table_name (str, optional): Name for output file
-        
+        console (ConsoleManager, optional): Console manager for output
+
     Returns:
         dict: Dictionary containing all diversity metrics, or None if calculation fails
     """
-    print("Calculating topic diversity scores...")
-    
+    _console = console or get_console()
+    _console.print_debug("Calculating topic diversity scores...", tag="DIVERSITY")
+
     # Determine input source
     if topics_json is not None:
-        print(f"Using provided topic word scores dictionary with {len(topics_json)} topics")
+        _console.print_debug(f"Using provided topic word scores dictionary with {len(topics_json)} topics", tag="DIVERSITY")
         topic_word_scores = topics_json
     elif topic_word_matrix is not None and vocabulary is not None:
-        print("Extracting topic word scores from H matrix")
+        _console.print_debug("Extracting topic word scores from H matrix", tag="DIVERSITY")
         topic_word_scores = calculate_diversity_scores_from_matrix(
-            topic_word_matrix, vocabulary, top_words
+            topic_word_matrix, vocabulary, top_words, console=_console
         )
         if topic_word_scores is None:
             return None
     else:
-        print("Error: Either topics_json or (topic_word_matrix + vocabulary) must be provided")
+        _console.print_error("Either topics_json or (topic_word_matrix + vocabulary) must be provided", tag="DIVERSITY")
         return None
     
     try:
         # Initialize TopicDiversityScorer
-        diversity_calc = TopicDiversityScorer(topic_word_scores, top_words=top_words)
-        
+        diversity_calc = TopicDiversityScorer(topic_word_scores, top_words=top_words, console=_console)
+
         # Calculate all diversity metrics
         diversity_results = diversity_calc.calculate_all_diversity_metrics()
-        
+
         if diversity_results is None:
-            print("Error: Diversity calculation returned None")
+            _console.print_error("Diversity calculation returned None", tag="DIVERSITY")
             return None
         
         # Add calculation metadata
@@ -1166,102 +1181,104 @@ def calculate_diversity_scores(topics_json=None, topic_word_matrix=None, vocabul
         puw_score = diversity_results['proportion_unique_words']
         jaccard_div = diversity_results['average_jaccard_diversity']
         cosine_div = diversity_results['average_cosine_diversity']
-        
-        print(f"Diversity Calculation Results:")
-        print(f"  Overall Diversity Score: {overall_score:.4f}")
-        print(f"  Proportion Unique Words: {puw_score:.4f}")
-        print(f"  Average Jaccard Diversity: {jaccard_div:.4f}")
-        print(f"  Average Cosine Diversity: {cosine_div:.4f}")
-        
+
+        _console.print_debug(f"Diversity Calculation Results:", tag="DIVERSITY")
+        _console.print_debug(f"  Overall Diversity Score: {overall_score:.4f}", tag="DIVERSITY")
+        _console.print_debug(f"  Proportion Unique Words: {puw_score:.4f}", tag="DIVERSITY")
+        _console.print_debug(f"  Average Jaccard Diversity: {jaccard_div:.4f}", tag="DIVERSITY")
+        _console.print_debug(f"  Average Cosine Diversity: {cosine_div:.4f}", tag="DIVERSITY")
+
         # Save results if output directory is specified
         if output_dir and table_name:
             output_path = Path(output_dir)
             diversity_file = output_path / f"{table_name}_diversity_scores.json"
             output_path.mkdir(parents=True, exist_ok=True)
-            
+
             with open(diversity_file, "w", encoding="utf-8") as f:
                 json.dump(diversity_results, f, indent=4, ensure_ascii=False)
-            print(f"Diversity scores saved to: {diversity_file}")
-        
+            _console.print_debug(f"Diversity scores saved to: {diversity_file}", tag="DIVERSITY")
+
         return diversity_results
-        
+
     except Exception as e:
-        print(f"Error during diversity calculation: {str(e)}")
+        _console.print_error(f"Error during diversity calculation: {str(e)}", tag="DIVERSITY")
         import traceback
         traceback.print_exc()
         return None
 
 
-def calculate_diversity_scores_from_matrix(topic_word_matrix, vocabulary, top_words=50):
+def calculate_diversity_scores_from_matrix(topic_word_matrix, vocabulary, top_words=50, console: Optional[ConsoleManager] = None):
     """
     Calculate topic diversity scores directly from H matrix (topic-word matrix)
-    
+
     Args:
         topic_word_matrix (numpy.ndarray): H matrix - shape: (n_topics, n_words)
         vocabulary (list): Vocabulary list corresponding to matrix columns
         top_words (int): Number of top words to consider per topic
-        
+        console (ConsoleManager, optional): Console manager for output
+
     Returns:
         dict: Dictionary containing all diversity metrics, or None if calculation fails
     """
+    _console = console or get_console()
     # Input validation
     if topic_word_matrix is None:
-        print("Error: topic_word_matrix is required for diversity calculation.")
+        _console.print_error("topic_word_matrix is required for diversity calculation.", tag="DIVERSITY")
         return None
-        
+
     if vocabulary is None:
-        print("Error: vocabulary is required for diversity calculation.")
+        _console.print_error("vocabulary is required for diversity calculation.", tag="DIVERSITY")
         return None
-    
+
     if not isinstance(top_words, int) or top_words <= 0:
-        print(f"Error: top_words must be a positive integer, got {top_words}")
+        _console.print_error(f"top_words must be a positive integer, got {top_words}", tag="DIVERSITY")
         return None
-    
+
     # Validate matrix dimensions
     try:
         if hasattr(topic_word_matrix, 'shape'):
             n_topics, n_words = topic_word_matrix.shape
             if n_topics == 0 or n_words == 0:
-                print(f"Error: Invalid matrix dimensions: {topic_word_matrix.shape}")
+                _console.print_error(f"Invalid matrix dimensions: {topic_word_matrix.shape}", tag="DIVERSITY")
                 return None
         else:
-            print("Error: topic_word_matrix must have a shape attribute")
+            _console.print_error("topic_word_matrix must have a shape attribute", tag="DIVERSITY")
             return None
     except Exception as e:
-        print(f"Error: Could not get matrix dimensions: {str(e)}")
+        _console.print_error(f"Could not get matrix dimensions: {str(e)}", tag="DIVERSITY")
         return None
-    
+
     # Validate vocabulary
     if not isinstance(vocabulary, (list, tuple)) or len(vocabulary) == 0:
-        print("Error: vocabulary must be a non-empty list or tuple")
+        _console.print_error("vocabulary must be a non-empty list or tuple", tag="DIVERSITY")
         return None
-    
+
     if len(vocabulary) != n_words:
-        print(f"Warning: Vocabulary size ({len(vocabulary)}) doesn't match matrix columns ({n_words})")
+        _console.print_warning(f"Vocabulary size ({len(vocabulary)}) doesn't match matrix columns ({n_words})", tag="DIVERSITY")
         # Truncate vocabulary to match matrix if needed
         vocabulary = list(vocabulary)[:n_words]
-    
-    print(f"Extracting topics from H matrix: {n_topics} topics, {n_words} words, top {top_words} words per topic")
+
+    _console.print_debug(f"Extracting topics from H matrix: {n_topics} topics, {n_words} words, top {top_words} words per topic", tag="DIVERSITY")
     
     try:
         # Extract words directly from H matrix
         topic_word_scores = extract_topic_words_from_matrix(
-            topic_word_matrix, vocabulary, top_n=top_words
+            topic_word_matrix, vocabulary, top_n=top_words, console=_console
         )
-        
+
         if topic_word_scores is None:
-            print("Error: extract_topic_words_from_matrix returned None")
+            _console.print_error("extract_topic_words_from_matrix returned None", tag="DIVERSITY")
             return None
-            
+
         if len(topic_word_scores) == 0:
-            print("Error: No topics extracted from H matrix")
+            _console.print_error("No topics extracted from H matrix", tag="DIVERSITY")
             return None
-        
-        print(f"Successfully extracted {len(topic_word_scores)} topics from matrix")
+
+        _console.print_debug(f"Successfully extracted {len(topic_word_scores)} topics from matrix", tag="DIVERSITY")
         return topic_word_scores
-        
+
     except Exception as e:
-        print(f"Error during topic extraction: {str(e)}")
+        _console.print_error(f"Error during topic extraction: {str(e)}", tag="DIVERSITY")
         import traceback
         traceback.print_exc()
         return None
@@ -1295,7 +1312,7 @@ def calculate_topic_diversity(H_matrix, vocabulary, top_words=50):
     )
 
 
-def calculate_relevance_scores_from_matrix(topic_word_matrix, doc_topic_matrix, vocabulary, tokenizer=None, emoji_map=None, s_matrix=None):
+def calculate_relevance_scores_from_matrix(topic_word_matrix, doc_topic_matrix, vocabulary, tokenizer=None, emoji_map=None, s_matrix=None, console: Optional[ConsoleManager] = None):
     """
     Calculate LDAvis-style relevance scores directly from NMF matrices
 
@@ -1306,19 +1323,21 @@ def calculate_relevance_scores_from_matrix(topic_word_matrix, doc_topic_matrix, 
         tokenizer: Optional tokenizer for vocabulary creation
         emoji_map: Optional emoji map for decoding
         s_matrix (numpy.ndarray): S matrix for NMTF - shape: (k1, k2). Optional, used for NMTF factorization.
+        console (ConsoleManager, optional): Console manager for output
 
     Returns:
         dict: Dictionary containing all relevance scores and metadata
     """
+    _console = console or get_console()
     if topic_word_matrix is None or doc_topic_matrix is None:
-        print("Error: Both topic_word_matrix and doc_topic_matrix are required for relevance calculation.")
+        _console.print_error("Both topic_word_matrix and doc_topic_matrix are required for relevance calculation.", tag="COHERENCE")
         return None
-    
+
     if vocabulary is None and tokenizer is None:
-        print("Error: Either vocabulary or tokenizer must be provided for relevance calculation.")
+        _console.print_error("Either vocabulary or tokenizer must be provided for relevance calculation.", tag="COHERENCE")
         return None
-    
-    print(f"Calculating LDAvis relevance directly from matrices using vocabulary size: {len(vocabulary) if vocabulary else 'from tokenizer'}")
+
+    _console.print_debug(f"Calculating LDAvis relevance directly from matrices using vocabulary size: {len(vocabulary) if vocabulary else 'from tokenizer'}", tag="COHERENCE")
     
     try:
         # Calculate relevance scores using the new scorer
@@ -1334,9 +1353,9 @@ def calculate_relevance_scores_from_matrix(topic_word_matrix, doc_topic_matrix, 
         )
 
         return relevance_results
-        
+
     except Exception as e:
-        print(f"Error calculating relevance scores: {str(e)}")
+        _console.print_error(f"Error calculating relevance scores: {str(e)}", tag="COHERENCE")
         import traceback
         traceback.print_exc()
         return None
@@ -1353,18 +1372,15 @@ def prepare_gensim_data(topics_json, documents):
     Returns:
         tuple: (topics_list, dictionary, corpus)
     """
-    # Prepare topics list
-    topics_list = []
-    for topic_id, word_scores in topics_json.items():
-        # if word is like this "word1 / word2" get the word1
-        top_words = []
-        for word, score in word_scores.items(): 
-            if "/" in word:
-                words = word.split("/")
-                top_words.append(words[0].strip())  # Take the first part before the slash
-            else:
-                top_words.append(word)
-        topics_list.append(top_words)
+    # Helper to extract first word from "word1 / word2" format
+    def get_first_word(word):
+        return word.split("/")[0].strip() if "/" in word else word
+
+    # Prepare topics list using list comprehension
+    topics_list = [
+        [get_first_word(word) for word in word_scores.keys()]
+        for word_scores in topics_json.values()
+    ]
 
     # Ensure documents are properly tokenized
     if not documents or len(documents) == 0:

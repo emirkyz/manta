@@ -14,7 +14,7 @@ from ..utils.analysis.topic_similarity import HybridTFIDFTopicSimilarity
 from ..utils.export.save_doc_score_pair import save_doc_score_pair
 from ..utils.export.save_word_score_pair import save_word_score_pair
 from ..utils.export.save_s_matrix import save_s_matrix
-from ..utils.console.console_manager import ConsoleManager
+from ..utils.console.console_manager import ConsoleManager, get_console
 from ..utils.visualization.topic_similarity_heatmap import plot_combined_similarity_analysis
 import json
 import numpy as np
@@ -45,10 +45,8 @@ class ModelingPipeline:
         Returns:
             Tuple of (topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result)
         """
-        if console:
-            console.print_status(f"Starting NMF processing ({options['nmf_type'].upper()})...", "processing")
-        else:
-            print("Starting NMF processing...")
+        _console = console or get_console()
+        _console.print_status(f"Starting NMF processing ({options['nmf_type'].upper()})...", "processing")
         
         # NMF processing
         nmf_output = run_nmf(
@@ -58,10 +56,7 @@ class ModelingPipeline:
             nmf_method=options["nmf_type"],
         )
 
-        if console:
-            console.print_status("Extracting topics from NMF results...", "processing")
-        else:
-            print("Generating topic groups...")
+        _console.print_status("Extracting topics from NMF results...", "processing")
             
         # Extract topics based on language
         if options["LANGUAGE"] == "TR":
@@ -96,10 +91,7 @@ class ModelingPipeline:
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
-        if console:
-            console.print_status("Saving topic results...", "processing")
-        else:
-            print("Saving topic results...")
+        _console.print_status("Saving topic results...", "processing")
             
         # Convert the topics_data format to the desired format
         topic_word_scores = save_word_score_pair(
@@ -123,8 +115,7 @@ class ModelingPipeline:
 
         # Save S matrix if present (for NMTF)
         if "S" in nmf_output:
-            if console:
-                console.print_status("Saving S matrix...", "processing")
+            _console.print_status("Saving S matrix...", "processing")
             save_s_matrix(
                 s_matrix=nmf_output["S"],
                 output_dir=table_output_dir,
@@ -133,10 +124,7 @@ class ModelingPipeline:
             )
 
             # Generate S matrix graph visualizations
-            if console:
-                console.print_status("Generating S matrix graph visualizations...", "processing")
-            else:
-                print("Generating S matrix graph visualizations...")
+            _console.print_status("Generating S matrix graph visualizations...", "processing")
 
             from ..utils.visualization.s_matrix_graph import visualize_s_matrix_graph
             visualize_s_matrix_graph(
@@ -149,10 +137,7 @@ class ModelingPipeline:
                 create_heatmap=True
             )
 
-        if console:
-            console.print_status("Calculating coherence scores...", "processing")
-        else:
-            print("Calculating coherence scores...")
+        _console.print_status("Calculating coherence scores...", "processing")
             
         # Calculate and save coherence scores
         coherence_scores = calculate_coherence_scores(
@@ -170,10 +155,7 @@ class ModelingPipeline:
 
         if False:
             # Calculate topic similarity using hybrid weighted TF-IDF
-            if console:
-                console.print_status("Computing topic similarity scores...", "processing")
-            else:
-                print("Computing topic similarity scores...")
+            _console.print_status("Computing topic similarity scores...", "processing")
 
             try:
                 # Create vocabulary dict if it's a list
@@ -231,16 +213,10 @@ class ModelingPipeline:
                 with open(output_file, 'w', encoding='utf-8') as f:
                     json.dump(similarity_results, f, indent=2, ensure_ascii=False)
 
-                if console:
-                    console.print_status(f"Topic similarity results saved to: {output_file}", "success")
-                else:
-                    print(f"Topic similarity results saved to: {output_file}")
+                _console.print_status(f"Topic similarity results saved to: {output_file}", "success")
 
                 # Generate visualizations
-                if console:
-                    console.print_status("Generating topic similarity visualizations...", "processing")
-                else:
-                    print("Generating topic similarity visualizations...")
+                _console.print_status("Generating topic similarity visualizations...", "processing")
 
                 viz_paths = plot_combined_similarity_analysis(
                     similarity_matrix=similarity_matrix,
@@ -253,17 +229,10 @@ class ModelingPipeline:
                     create_distribution=True
                 )
 
-                if console:
-                    console.print_status("Topic similarity analysis completed!", "success")
-                else:
-                    print("Topic similarity analysis completed!")
+                _console.print_status("Topic similarity analysis completed!", "success")
 
             except Exception as e:
-                error_msg = f"Warning: Could not compute topic similarity: {str(e)}"
-                if console:
-                    console.print_status(error_msg, "warning")
-                else:
-                    print(error_msg)
+                _console.print_warning(f"Could not compute topic similarity: {str(e)}", tag="SIMILARITY")
 
         # Calculate reconstruction error
 

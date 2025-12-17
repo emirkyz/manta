@@ -8,6 +8,9 @@ This module provides enhanced console output functionality including:
 - Analysis summaries
 """
 
-from .console_manager import ConsoleManager
+from .console_manager import ConsoleManager, get_console, set_console
 
-__all__ = ["ConsoleManager"]
+# Singleton instance for convenient access
+console = get_console()
+
+__all__ = ["ConsoleManager", "get_console", "set_console", "console"]

@@ -1,8 +1,11 @@
 import pandas as pd
 from pathlib import Path
+from typing import Optional
+
+from ..console.console_manager import ConsoleManager, get_console
 
 
-def convert_json_to_excel(word_json_data, doc_json_data, output_dir, data_frame_name,total_docs_count=None):
+def convert_json_to_excel(word_json_data, doc_json_data, output_dir, data_frame_name, total_docs_count=None, console: Optional[ConsoleManager] = None):
     """
     Converts JSON wordcloud and document data to Excel with multiple sheets:
     - Sheet 1: Summary/Title page (empty or with basic info)
@@ -73,8 +76,9 @@ def convert_json_to_excel(word_json_data, doc_json_data, output_dir, data_frame_
         
         df_docs = pd.DataFrame(doc_table_rows)
         df_docs.to_excel(writer, sheet_name='Documents per Topic', index=False)
-    
-    print(f"Excel file saved to: {excel_file}")
+
+    _console = console or get_console()
+    _console.print_debug(f"Excel file saved to: {excel_file}", tag="EXPORT")
     return excel_file
 
 
@@ -83,6 +87,7 @@ if __name__ == "__main__":
     # Example usage
     word_data = {"Topic 1": {"word1": 0.8, "word2": 0.6}, "Topic 2": {"word3": 0.9, "word4": 0.7}}
     doc_data = {"Topic 1": {"0": "Document text 1:0.85"}, "Topic 2": {"1": "Document text 2:0.90"}}
-    
+
     excel_file = convert_json_to_excel(word_data, doc_data, Path.cwd(), "example_analysis")
-    print(f"Excel file created: {excel_file}")
+    _console = get_console()
+    _console.print_debug(f"Excel file created: {excel_file}", tag="EXPORT")

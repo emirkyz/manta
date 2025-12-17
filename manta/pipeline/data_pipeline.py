@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-from ..utils.console.console_manager import ConsoleManager
+from ..utils.console.console_manager import ConsoleManager, get_console
 from ..utils.database.database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -121,10 +121,8 @@ class DataPipeline:
         Returns:
             Loaded DataFrame
         """
-        if console:
-            console.print_status("Reading input file...", "processing")
-        else:
-            print("Reading input file...")
+        _console = console or get_console()
+        _console.print_status("Reading input file...", "processing")
 
         if str(filepath).endswith(".csv"):
             # Read the CSV file with the specified separator
@@ -140,7 +138,7 @@ class DataPipeline:
 
             # Track initial data load
             initial_row_count = len(df)
-            print(f"\n[DATA LOADING] Initial rows from CSV: {initial_row_count}")
+            _console.print_debug(f"Initial rows from CSV: {initial_row_count}", tag="DATA LOADING")
 
             # Track year filter
             if "year" in df.columns:
@@ -149,15 +147,16 @@ class DataPipeline:
                 after_year_filter = len(df)
                 rows_removed = before_year_filter - after_year_filter
                 if rows_removed > 0:
-                    print(f"[YEAR FILTER] Removed {rows_removed} rows with year >= 2026")
-                    print(f"  Before: {before_year_filter} rows, After: {after_year_filter} rows")
+                    _console.print_debug(f"Removed {rows_removed} rows with year >= 2026", tag="YEAR FILTER")
+                    _console.print_debug(f"  Before: {before_year_filter} rows, After: {after_year_filter} rows", tag="YEAR FILTER")
             else:
-                df = df[df["year"] < 2026]
+                pass
+
         elif str(filepath).endswith(".xlsx") or str(filepath).endswith(".xls"):
             df = pd.read_excel(filepath)
 
         # Apply data filters if specified
-        df = DataPipeline._apply_data_filters(df, options, console)
+        df = DataPipeline._apply_data_filters(df, options, _console)
         return df
 
     @staticmethod
@@ -165,10 +164,11 @@ class DataPipeline:
         df: pd.DataFrame, options: Dict[str, Any], console: Optional[ConsoleManager] = None
     ) -> pd.DataFrame:
         """Apply data filters based on configuration options."""
+        _console = console or get_console()
         try:
             if options.get("filter_app", False):
                 initial_filter_count = len(df)
-                print(f"\n[DATA FILTERS] Starting with {initial_filter_count} rows")
+                _console.print_debug(f"Starting with {initial_filter_count} rows", tag="DATA FILTERS")
 
                 filter_options = options.get("data_filter_options", {})
                 if filter_options.get("filter_app_country", ""):
@@ -178,20 +178,15 @@ class DataPipeline:
                         df = df[df[country_col].str.upper() == filter_options["filter_app_country"]]
                         after_country = len(df)
                         removed = before_country - after_country
-                        print(f"[COUNTRY FILTER] Removed {removed} rows")
-                        print(f"  Filtered for country: {filter_options['filter_app_country']}")
-                        print(f"  Before: {before_country}, After: {after_country}")
-                        if console:
-                            console.print_status(
-                                f"Applied country filter: {filter_options['filter_app_country']}",
-                                "info",
-                            )
+                        _console.print_debug(f"Removed {removed} rows", tag="COUNTRY FILTER")
+                        _console.print_debug(f"  Filtered for country: {filter_options['filter_app_country']}", tag="COUNTRY FILTER")
+                        _console.print_debug(f"  Before: {before_country}, After: {after_country}", tag="COUNTRY FILTER")
+                        _console.print_status(
+                            f"Applied country filter: {filter_options['filter_app_country']}",
+                            "info",
+                        )
                     else:
-                        msg = f"Warning: Filter column '{country_col}' not found in data"
-                        if console:
-                            console.print_status(msg, "warning")
-                        else:
-                            print(msg)
+                        _console.print_warning(f"Filter column '{country_col}' not found in data")
 
                 if filter_options.get("filter_app_name", ""):
                     app_col = filter_options.get("filter_app_column", "")
@@ -200,36 +195,23 @@ class DataPipeline:
                         df = df[df[app_col] == filter_options["filter_app_name"]]
                         after_app = len(df)
                         removed = before_app - after_app
-                        print(f"[APP FILTER] Removed {removed} rows")
-                        print(f"  Filtered for app: {filter_options['filter_app_name']}")
-                        print(f"  Before: {before_app}, After: {after_app}")
-                        if console:
-                            console.print_status(
-                                f"Applied app filter: {filter_options['filter_app_name']}", "info"
-                            )
+                        _console.print_debug(f"Removed {removed} rows", tag="APP FILTER")
+                        _console.print_debug(f"  Filtered for app: {filter_options['filter_app_name']}", tag="APP FILTER")
+                        _console.print_debug(f"  Before: {before_app}, After: {after_app}", tag="APP FILTER")
+                        _console.print_status(
+                            f"Applied app filter: {filter_options['filter_app_name']}", "info"
+                        )
                     else:
-                        msg = f"Warning: Filter column '{app_col}' not found in data"
-                        if console:
-                            console.print_status(msg, "warning")
-                        else:
-                            print(msg)
+                        _console.print_warning(f"Filter column '{app_col}' not found in data")
 
                 # Summary of filtering
                 total_filtered = initial_filter_count - len(df)
                 if total_filtered > 0:
-                    print(f"[FILTERS SUMMARY] Total rows removed by filters: {total_filtered}")
+                    _console.print_debug(f"Total rows removed by filters: {total_filtered}", tag="FILTERS SUMMARY")
         except KeyError as e:
-            msg = f"Warning: Missing filter configuration: {e}"
-            if console:
-                console.print_status(msg, "warning")
-            else:
-                print(msg)
+            _console.print_warning(f"Missing filter configuration: {e}")
         except Exception as e:
-            msg = f"Warning: Error applying data filters: {e}"
-            if console:
-                console.print_status(msg, "warning")
-            else:
-                print(msg)
+            _console.print_warning(f"Error applying data filters: {e}")
 
         return df
 
@@ -256,8 +238,8 @@ class DataPipeline:
         Returns:
             Preprocessed DataFrame
         """
-        if console:
-            console.print_status("Preprocessing data...", "processing")
+        _console = console or get_console()
+        _console.print_status("Preprocessing data...", "processing")
 
         # Select only desired columns and validate they exist
         if desired_columns not in df.columns:
@@ -270,8 +252,9 @@ class DataPipeline:
         pagerank_col = options.get("pagerank_column")
         has_pagerank = pagerank_col and pagerank_col in df.columns
         if pagerank_col and pagerank_col not in df.columns:
-            print(
-                f"[WARNING] PageRank column '{pagerank_col}' not found in data. Skipping PageRank weighting."
+            _console.print_warning(
+                f"PageRank column '{pagerank_col}' not found in data. Skipping PageRank weighting.",
+                tag="PAGERANK"
             )
             options["pagerank_column"] = None
             has_pagerank = False
@@ -291,10 +274,9 @@ class DataPipeline:
 
         # Check if both 'year' and 'month' columns exist - combine them into MM-YYYY format
         if "year" in df.columns and "month" in df.columns:
-            if console:
-                console.print_status(
-                    "Combining 'year' and 'month' columns into datetime...", "processing"
-                )
+            _console.print_status(
+                "Combining 'year' and 'month' columns into datetime...", "processing"
+            )
 
             # Make a copy to avoid SettingWithCopyWarning
             df = df.copy()
@@ -383,10 +365,9 @@ class DataPipeline:
                 cols_to_keep.append(pagerank_col)
             df = df[cols_to_keep]
 
-            if console:
-                console.print_status(
-                    f"Created combined datetime column from year and month", "info"
-                )
+            _console.print_status(
+                f"Created combined datetime column from year and month", "info"
+            )
         else:
             # Original logic for other datetime columns
             for col in common_datetime_cols:
@@ -402,8 +383,7 @@ class DataPipeline:
                 df = df[cols_to_keep]
                 options["datetime_column"] = datetime_col_found  # Store for later use in pipeline
                 options["datetime_is_combined_year_month"] = False
-                if console:
-                    console.print_status(f"Preserved datetime column: {datetime_col_found}", "info")
+                _console.print_status(f"Preserved datetime column: {datetime_col_found}", "info")
             else:
                 cols_to_keep = [desired_columns]
                 if has_pagerank:
@@ -414,15 +394,15 @@ class DataPipeline:
 
         # Remove duplicates and null values
         initial_count = len(df)
-        print(f"\n[PREPROCESSING] Starting with {initial_count} rows")
+        _console.print_debug(f"Starting with {initial_count} rows", tag="PREPROCESSING")
 
         # Check for null values before removing
         null_counts = df.isnull().sum()
         rows_with_nulls = df.isnull().any(axis=1).sum()
         if rows_with_nulls > 0:
-            print(f"[NULL CHECK] Found {rows_with_nulls} rows with null values")
+            _console.print_debug(f"Found {rows_with_nulls} rows with null values", tag="NULL CHECK")
             for col, count in null_counts[null_counts > 0].items():
-                print(f"  Column '{col}': {count} null values")
+                _console.print_debug(f"  Column '{col}': {count} null values", tag="NULL CHECK")
 
         # Remove duplicates
         before_dedup = len(df)
@@ -430,8 +410,8 @@ class DataPipeline:
         after_dedup = len(df)
         duplicates_removed = before_dedup - after_dedup
         if duplicates_removed > 0:
-            print(f"[DUPLICATE REMOVAL] Removed {duplicates_removed} duplicate rows")
-            print(f"  Before: {before_dedup}, After: {after_dedup}")
+            _console.print_debug(f"Removed {duplicates_removed} duplicate rows", tag="DUPLICATE REMOVAL")
+            _console.print_debug(f"  Before: {before_dedup}, After: {after_dedup}", tag="DUPLICATE REMOVAL")
 
         # Remove null values
         before_dropna = len(df)
@@ -439,33 +419,27 @@ class DataPipeline:
         after_dropna = len(df)
         nulls_removed = before_dropna - after_dropna
         if nulls_removed > 0:
-            print(f"[NULL REMOVAL] Removed {nulls_removed} rows with null values")
-            print(f"  Before: {before_dropna}, After: {after_dropna}")
+            _console.print_debug(f"Removed {nulls_removed} rows with null values", tag="NULL REMOVAL")
+            _console.print_debug(f"  Before: {before_dropna}, After: {after_dropna}", tag="NULL REMOVAL")
 
         # Summary
         total_removed = initial_count - len(df)
         percent_removed = (total_removed / initial_count * 100) if initial_count > 0 else 0
-        print(f"\n[PREPROCESSING SUMMARY]")
-        print(f"  Initial rows: {initial_count}")
-        print(f"  Final rows: {len(df)}")
-        print(f"  Total removed: {total_removed} ({percent_removed:.1f}%)")
-        print(f"  Retention rate: {(len(df) / initial_count * 100):.1f}%")
+        _console.print_debug("Preprocessing complete:", tag="PREPROCESSING SUMMARY")
+        _console.print_debug(f"  Initial rows: {initial_count}", tag="PREPROCESSING SUMMARY")
+        _console.print_debug(f"  Final rows: {len(df)}", tag="PREPROCESSING SUMMARY")
+        _console.print_debug(f"  Total removed: {total_removed} ({percent_removed:.1f}%)", tag="PREPROCESSING SUMMARY")
+        _console.print_debug(f"  Retention rate: {(len(df) / initial_count * 100):.1f}%", tag="PREPROCESSING SUMMARY")
 
         if len(df) == 0:
             raise ValueError("No data remaining after removing duplicates and null values")
 
         if len(df) < initial_count * 0.1:
-            msg = f"Warning: Only {len(df)} rows remain from original {initial_count} after preprocessing"
-            if console:
-                console.print_status(msg, "warning")
-            else:
-                print(msg)
+            _console.print_warning(
+                f"Only {len(df)} rows remain from original {initial_count} after preprocessing"
+            )
 
-        msg = f"Preprocessed dataset has {len(df)} rows"
-        if console:
-            console.print_status(msg, "info")
-        else:
-            print(f"File has {len(df)} rows.")
+        _console.print_status(f"Preprocessed dataset has {len(df)} rows", "info")
 
         # Extract and normalize PageRank values if available
         if has_pagerank and pagerank_col in df.columns:
@@ -489,14 +463,13 @@ class DataPipeline:
             # Add 1 to get weights in [1, 2] range
             options["pagerank_weights"] = normalized + 1.0
 
-            print(f"[PAGERANK] Extracted {len(pagerank_values)} PageRank weights")
-            print(f"  Original range: [{pr_min:.6f}, {pr_max:.6f}]")
-            print(
-                f"  Weight range: [{options['pagerank_weights'].min():.4f}, {options['pagerank_weights'].max():.4f}]"
+            _console.print_debug(f"Extracted {len(pagerank_values)} PageRank weights", tag="PAGERANK")
+            _console.print_debug(f"  Original range: [{pr_min:.6f}, {pr_max:.6f}]", tag="PAGERANK")
+            _console.print_debug(
+                f"  Weight range: [{options['pagerank_weights'].min():.4f}, {options['pagerank_weights'].max():.4f}]",
+                tag="PAGERANK"
             )
-
-            if console:
-                console.print_status(f"PageRank weights extracted (range: 1.0-2.0)", "info")
+            _console.print_status(f"PageRank weights extracted (range: 1.0-2.0)", "info")
 
             # Drop the pagerank column from df (no longer needed)
             df = df.drop(columns=[pagerank_col])

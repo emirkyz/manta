@@ -552,7 +552,7 @@ result = run_topic_analysis(
 Output/
 └── {output_name}/
     ├── {output_name}_topics.xlsx              # Topic-word matrix
-    ├── {output_name}_coherence_scores.json    # Coherence metrics
+    ├── {output_name}_relevance_top_words.json  # Relevance-boosted top words & coherence metrics
     ├── {output_name}_document_dist.png        # Topic distribution plot
     ├── {output_name}_wordcloud_scores.json    # Word cloud data
     ├── {output_name}_top_docs.json            # Representative documents
@@ -569,7 +569,7 @@ Output/
 - **Word Scores**: Top words with their importance scores
 - **Document References**: Representative documents for each topic
 
-#### Coherence Scores (`{output_name}_coherence_scores.json`)
+#### Relevance Top Words (`{output_name}_relevance_top_words.json`)
 ```json
 {
     "gensim": {

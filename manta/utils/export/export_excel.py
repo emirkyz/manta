@@ -1,8 +1,12 @@
 import pandas as pd
 from pathlib import Path
 from collections import OrderedDict
+from typing import Optional
 
-def export_topics_to_excel(topics_data, output_dir, table_name):
+from ..console.console_manager import ConsoleManager, get_console
+
+
+def export_topics_to_excel(topics_data, output_dir, table_name, console: Optional[ConsoleManager] = None):
     """
     Export topics data to Excel with words sorted by topics:
     - First column contains words ordered by their topic appearance
@@ -44,6 +48,7 @@ def export_topics_to_excel(topics_data, output_dir, table_name):
     # Save to Excel
     excel_path = table_output_dir / f"{table_name}_topics.xlsx"
     df.to_excel(excel_path, index=False)
-    print(f"Topics exported to: {excel_path}")
-    
+    _console = console or get_console()
+    _console.print_debug(f"Topics exported to: {excel_path}", tag="EXPORT")
+
     return excel_path

@@ -505,7 +505,7 @@ seçenekler = {
 Output/
 └── {output_name}/
     ├── {output_name}_topics.xlsx              # Konu-kelime matrisi
-    ├── {output_name}_coherence_scores.json    # Tutarlılık metrikleri
+    ├── {output_name}_relevance_top_words.json  # Alaka düzeyine göre sıralanmış üst kelimeler & tutarlılık metrikleri
     ├── {output_name}_document_dist.png        # Konu dağılım grafiği
     ├── {output_name}_wordcloud_scores.json    # Kelime bulutu verisi
     ├── {output_name}_top_docs.json            # Temsili dokümanlar
@@ -522,7 +522,7 @@ Output/
 - **Kelime Skorları**: Önem skorlarıyla birlikte üst kelimeler
 - **Doküman Referansları**: Her konu için temsili dokümanlar
 
-#### Tutarlılık Skorları (`{output_name}_coherence_scores.json`)
+#### Alaka Düzeyi Üst Kelimeler (`{output_name}_relevance_top_words.json`)
 ```json
 {
     "gensim": {

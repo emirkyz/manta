@@ -2,12 +2,14 @@ from . import visualize_s_matrix_graph
 from ..analysis.word_cooccurrence import calc_word_cooccurrence
 from ..analysis.word_cooccurrence_analyzer import analyze_word_cooccurrence
 from ..export.save_s_matrix import _normalize_s_matrix_columns
+from ..console.console_manager import ConsoleManager, get_console
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def create_visualization(nmf_output, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir, datetime_series=None):
+def create_visualization(nmf_output, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir, datetime_series=None, console=None):
+    _console = console or get_console()
     # Normalize S matrix if present (for NMTF)
     if "S" in nmf_output and nmf_output["S"] is not None:
         logger.info("Normalizing S matrix for visualizations (L1 column normalization)")
@@ -32,7 +34,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         if use_optimized:
             try:
                 from .tsne_optimized import tsne_graph_output_optimized
-                print(f"🚀 Using optimized t-SNE for {n_docs:,} documents")
+                _console.print_debug(f"Using optimized t-SNE for {n_docs:,} documents", tag="VISUALIZATION")
                 tsne_plot_path = tsne_graph_output_optimized(
                     w=nmf_output["W"],
                     h=nmf_output["H"],
@@ -42,7 +44,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                     performance_mode="auto"
                 )
             except ImportError as e:
-                print(f"⚠️  Optimized t-SNE not available, falling back to standard: {e}")
+                _console.print_warning(f"Optimized t-SNE not available, falling back to standard: {e}", tag="VISUALIZATION")
                 from .tsne_graph_output import tsne_graph_output
                 tsne_plot_path = tsne_graph_output(
                     w=nmf_output["W"],
@@ -139,9 +141,9 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 min_score=0.0,
                 use_mm_yyyy_format=options.get('datetime_is_combined_year_month', False)
             )
-            print(f"Generated temporal topic distribution visualization")
+            _console.print_debug(f"Generated temporal topic distribution visualization", tag="VISUALIZATION")
         except Exception as e:
-            print(f"Warning: Failed to generate temporal visualization: {e}")
+            _console.print_warning(f"Failed to generate temporal visualization: {e}", tag="VISUALIZATION")
 
         # Generate violin plot showing topic distribution by year
         try:
@@ -203,10 +205,10 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
             fig_violin.savefig(violin_path, dpi=300, bbox_inches='tight')
             plt.close(fig_violin)
 
-            print(f"Generated topic distribution violin plot by year: {violin_path.name}")
+            _console.print_debug(f"Generated topic distribution violin plot by year: {violin_path.name}", tag="VISUALIZATION")
 
         except Exception as e:
-            print(f"Warning: Failed to generate violin plot: {e}")
+            _console.print_warning(f"Failed to generate violin plot: {e}", tag="VISUALIZATION")
 
     # generate interactive LDAvis-style visualization
     if False:
@@ -234,7 +236,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         cooccurrence_method = "sliding_window"   # Default to old method for backward compatibility
         
         if cooccurrence_method == "sliding_window":
-            print(f"Using sliding window co-occurrence analysis with options")
+            _console.print_debug(f"Using sliding window co-occurrence analysis with options", tag="VISUALIZATION")
             # Use new memory-efficient sliding window co-occurrence analyzer
             language = "turkish" if options["LANGUAGE"] == "TR" else "english"
             top_pairs = analyze_word_cooccurrence(

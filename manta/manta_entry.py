@@ -158,19 +158,19 @@ def load_or_process_data(
     )
 
     # Print final data statistics summary
-    print(f"\n{'='*60}")
-    print(f"FINAL DATA STATISTICS")
-    print(f"{'='*60}")
-    print(f"  DataFrame rows: {len(df)}")
-    print(f"  Text array length: {len(text_array)}")
-    print(f"  Non-empty texts: {sum(1 for t in text_array if t and t.strip())}")
-    print(f"  Vocabulary size: {len(vocab)}")
-    print(f"  TF-IDF matrix shape: {tdm.shape}")
-    print(f"    Documents (rows): {tdm.shape[0]}")
-    print(f"    Features (columns): {tdm.shape[1]}")
+    console.print_debug("=" * 60, tag="DATA STATISTICS")
+    console.print_debug("FINAL DATA STATISTICS", tag="DATA STATISTICS")
+    console.print_debug("=" * 60, tag="DATA STATISTICS")
+    console.print_debug(f"  DataFrame rows: {len(df)}", tag="DATA STATISTICS")
+    console.print_debug(f"  Text array length: {len(text_array)}", tag="DATA STATISTICS")
+    console.print_debug(f"  Non-empty texts: {sum(1 for t in text_array if t and t.strip())}", tag="DATA STATISTICS")
+    console.print_debug(f"  Vocabulary size: {len(vocab)}", tag="DATA STATISTICS")
+    console.print_debug(f"  TF-IDF matrix shape: {tdm.shape}", tag="DATA STATISTICS")
+    console.print_debug(f"    Documents (rows): {tdm.shape[0]}", tag="DATA STATISTICS")
+    console.print_debug(f"    Features (columns): {tdm.shape[1]}", tag="DATA STATISTICS")
     if datetime_series is not None:
-        print(f"  Datetime values: {len(datetime_series)}")
-    print(f"{'='*60}\n")
+        console.print_debug(f"  Datetime values: {len(datetime_series)}", tag="DATA STATISTICS")
+    console.print_debug("=" * 60, tag="DATA STATISTICS")
 
     # Create cached data object
     cached_data = CachedData(

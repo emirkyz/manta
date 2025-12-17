@@ -3,6 +3,9 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 import logging
+from typing import Optional
+
+from ..console.console_manager import ConsoleManager, get_console
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -94,7 +97,7 @@ def _format_matrix_compact(matrix, indent_level=1):
     return matrix_str
 
 
-def save_s_matrix(s_matrix, output_dir, table_name, data_frame_name=None):
+def save_s_matrix(s_matrix, output_dir, table_name, data_frame_name=None, console: Optional[ConsoleManager] = None):
     """
     Saves the NMTF S matrix to a JSON file with both original and normalized versions.
 
@@ -208,9 +211,11 @@ def save_s_matrix(s_matrix, output_dir, table_name, data_frame_name=None):
         with open(s_matrix_file_path, "w", encoding="utf-8") as f:
             f.write(json_str)
 
-        print(f"S matrix saved to: {s_matrix_file_path}")
+        _console = console or get_console()
+        _console.print_debug(f"S matrix saved to: {s_matrix_file_path}", tag="EXPORT")
     except Exception as e:
-        print(f"Error saving S matrix: {e}")
+        _console = console or get_console()
+        _console.print_error(f"Error saving S matrix: {e}", tag="EXPORT")
         raise
 
     # Return data structure for compatibility (with actual lists, not placeholders)
