@@ -8,7 +8,7 @@ import pandas as pd
 
 from .._functions.common_language.topic_extractor import topic_extract
 from .._functions.nmf import run_nmf
-from ..utils.analysis.coherence_score import calculate_coherence_scores
+from ..utils.analysis.gensim_coherence import calculate_gensim_cv_coherence
 from ..utils.analysis.topic_correlation import build_correlation_graph
 from ..utils.analysis.topic_similarity import HybridTFIDFTopicSimilarity
 from ..utils.export.save_doc_score_pair import save_doc_score_pair
@@ -138,20 +138,35 @@ class ModelingPipeline:
             )
 
         _console.print_status("Calculating coherence scores...", "processing")
-            
-        # Calculate and save coherence scores
-        coherence_scores = calculate_coherence_scores(
-            topic_word_scores,
-            tokenizer=options["tokenizer"],
-            output_dir=table_output_dir,
-            column_name=desired_columns,
-            cleaned_data=text_array,
-            table_name=table_name,
-            topic_word_matrix=nmf_output["H"],
-            doc_topic_matrix=nmf_output["W"],
+
+        # Calculate coherence scores using the clean, standalone function
+        coherence_results = calculate_gensim_cv_coherence(
+            h_matrix=nmf_output["H"],
+            w_matrix=nmf_output["W"],
             vocabulary=vocab,
-            s_matrix = nmf_output.get("S", None),
+            documents=text_array,
+            s_matrix=nmf_output.get("S", None),
+            lambda_val=0.6,
+            top_n_words=options["N_TOPICS"],
         )
+
+        # Format coherence scores for compatibility with existing code
+        coherence_scores = {
+            "relevance": coherence_results["topic_word_scores"],
+            "gensim": {
+                "c_v_average": coherence_results["c_v_average"],
+                "c_v_per_topic": coherence_results["c_v_per_topic"]
+            }
+        }
+
+        # Save coherence results to JSON (includes relevance top words)
+        if table_output_dir and table_name:
+            output_path = Path(table_output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            coherence_file = output_path / f"{table_name}_relevance_top_words.json"
+            with open(coherence_file, "w", encoding="utf-8") as f:
+                json.dump(coherence_scores, f, indent=4, ensure_ascii=False)
+            _console.print_debug(f"Coherence scores saved to: {coherence_file}", tag="COHERENCE")
 
         if False:
             # Calculate topic similarity using hybrid weighted TF-IDF

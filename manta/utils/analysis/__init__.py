@@ -5,11 +5,13 @@ This module provides functions for coherence scoring and word co-occurrence anal
 """
 
 from .coherence_score import calculate_coherence_scores
+from .gensim_coherence import calculate_gensim_cv_coherence
 from .word_cooccurrence import calc_word_cooccurrence
 from .dominant_topic import get_dominant_topics
 
 __all__ = [
     "calculate_coherence_scores",
+    "calculate_gensim_cv_coherence",
     "calc_word_cooccurrence",
     "get_dominant_topics"
 ]

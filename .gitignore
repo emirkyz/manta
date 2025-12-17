@@ -25,3 +25,5 @@ manta/utils/other
 local_dev
 misc
 tests
+manta_benchmark
+citiation_rank
