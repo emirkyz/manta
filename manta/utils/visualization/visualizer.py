@@ -114,6 +114,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         time_grouping = 'month' if options.get('datetime_is_combined_year_month', False) else 'year'
 
         try:
+            time_grouping = "quarter"
 
             fig, temporal_df = gen_temporal_topic_dist(
                 W=nmf_output["W"],
@@ -141,70 +142,29 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 min_score=0.0,
                 use_mm_yyyy_format=options.get('datetime_is_combined_year_month', False)
             )
+            
+            if options.get("gen_line_html",False):
+                from .create_interactive_temporal import generate_temporal_line_graph
+                generate_temporal_line_graph(
+                    CSV_PATH=table_output_dir / f"{table_name}_temporal_topic_dist_{time_grouping}.csv",
+                    OUTPUT_HTML=table_output_dir / f"{table_name}_temporal_topic_distribution.html"
+                )
+            
+            
             _console.print_debug(f"Generated temporal topic distribution visualization", tag="VISUALIZATION")
         except Exception as e:
             _console.print_warning(f"Failed to generate temporal visualization: {e}", tag="VISUALIZATION")
 
         # Generate violin plot showing topic distribution by year
         try:
-            import matplotlib.pyplot as plt
-            import seaborn as sns
-            import numpy as np
-            from ..analysis import get_dominant_topics
-
-            # Get dominant topics for each document
-            W_matrix = nmf_output["W"]
-            S_matrix = nmf_output.get("S", None)  # Get S matrix if NMTF
-            n_topics = W_matrix.shape[1]
-            dominant_topics = get_dominant_topics(W_matrix, min_score=0.0, s_matrix=S_matrix)
-
-            # Extract year from datetime series
-            years = datetime_series.dt.year
-
-            # Prepare data: create weighted year distribution for each topic based on document counts
-            violin_data = []
-            for doc_idx in range(len(W_matrix)):
-                year = int(years.iloc[doc_idx])
-                dominant_topic_idx = dominant_topics[doc_idx]
-
-                if dominant_topic_idx != -1:  # Only include valid topics
-                    topic_id = dominant_topic_idx + 1
-                    violin_data.append({
-                        'Topic': f'Topic {topic_id}',
-                        'Year': year
-                    })
-
-            violin_df = pd.DataFrame(violin_data)
-
-            # Get unique topics for plot sizing
-            n_topics_found = violin_df['Topic'].nunique()
-
-            # Create horizontal violin plot: one violin per topic showing year distribution
-            fig_violin, ax = plt.subplots(figsize=(12, max(8, n_topics_found * 0.8)))
-
-            sns.violinplot(
-                data=violin_df,
-                y='Topic',
-                x='Year',
-                orient='h',
-                inner='box',
-                palette='Set2',
-                ax=ax
+            from .violin_plot import gen_violin_plot
+            violin_path = gen_violin_plot(
+                W=nmf_output["W"],
+                S_matrix=nmf_output.get("S", None),
+                datetime_series=datetime_series,
+                table_output_dir=table_output_dir,
+                table_name=table_name
             )
-
-            ax.set_xlabel('Year', fontsize=12, fontweight='bold')
-            ax.set_ylabel('Topic ID', fontsize=12, fontweight='bold')
-            ax.set_title('Topic Distribution Across Years',
-                        fontsize=14, fontweight='bold', pad=20)
-            ax.grid(axis='x', alpha=0.3, linestyle='--')
-
-            plt.tight_layout()
-
-            # Save the plot
-            violin_path = table_output_dir / f"{table_name}_topic_distribution_by_year.png"
-            fig_violin.savefig(violin_path, dpi=300, bbox_inches='tight')
-            plt.close(fig_violin)
-
             _console.print_debug(f"Generated topic distribution violin plot by year: {violin_path.name}", tag="VISUALIZATION")
 
         except Exception as e:
@@ -222,6 +182,8 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
             table_name=table_name,
             tokenizer=options["tokenizer"] if options["LANGUAGE"] == "TR" else None,
         )
+
+    
 
     if options["gen_cloud"]:
         from .gen_cloud import generate_wordclouds

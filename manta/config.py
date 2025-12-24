@@ -172,6 +172,136 @@ class TopicAnalysisConfig:
         return options
 
 
+@dataclass
+class OptimizationConfig:
+    """Configuration for topic count optimization.
+
+    This configuration is used for finding the optimal number of topics
+    by evaluating coherence scores across a range of topic counts.
+    """
+
+    # Supported values (shared with TopicAnalysisConfig)
+    SUPPORTED_LANGUAGES = {'EN', 'TR'}
+    SUPPORTED_NMF_METHODS = {'nmf', 'nmtf', 'pnmf'}
+    SUPPORTED_TOKENIZER_TYPES = {'bpe', 'wordpiece'}
+
+    # Topic range settings
+    min_topics: int = 2
+    max_topics: int = 20
+    step: int = 1
+
+    # NMF settings
+    nmf_method: str = 'nmf'
+    words_per_topic: int = 15
+
+    # Text processing settings
+    language: str = 'EN'
+    tokenizer_type: str = 'bpe'
+    lemmatize: bool = True
+    separator: str = ','
+    n_grams_to_discover: Any = None  # int, "auto", or None to disable
+
+    # Coherence settings
+    lambda_val: float = 0.6  # For relevance scoring in coherence calculation
+
+    # Data filtering options
+    filter_app: bool = False
+    data_filter_options: DataFilterOptions = field(default_factory=DataFilterOptions)
+    pagerank_column: Optional[str] = None
+
+    # Output settings
+    save_plot: bool = True
+    save_csv: bool = True
+    save_json: bool = True
+    show_plot: bool = False
+
+    # Cache settings
+    use_cache: bool = True
+    force_reprocess: bool = False
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        self.validate()
+
+    def validate(self) -> None:
+        """Validate all optimization configuration options."""
+        # Validate topic range
+        if self.min_topics < 1:
+            raise ValueError(f"min_topics must be >= 1, got {self.min_topics}")
+        if self.max_topics < self.min_topics:
+            raise ValueError(
+                f"max_topics ({self.max_topics}) must be >= min_topics ({self.min_topics})"
+            )
+        if self.step < 1:
+            raise ValueError(f"step must be >= 1, got {self.step}")
+
+        # Validate NMF method
+        if self.nmf_method.lower() not in self.SUPPORTED_NMF_METHODS:
+            raise ValueError(
+                f"Unsupported NMF method: {self.nmf_method}. "
+                f"Must be one of {self.SUPPORTED_NMF_METHODS}"
+            )
+
+        # Validate language
+        if self.language.upper() not in self.SUPPORTED_LANGUAGES:
+            raise ValueError(
+                f"Unsupported language: {self.language}. "
+                f"Must be one of {self.SUPPORTED_LANGUAGES}"
+            )
+
+        # Validate tokenizer type
+        if self.tokenizer_type.lower() not in self.SUPPORTED_TOKENIZER_TYPES:
+            raise ValueError(
+                f"Unsupported tokenizer type: {self.tokenizer_type}. "
+                f"Must be one of {self.SUPPORTED_TOKENIZER_TYPES}"
+            )
+
+        # Validate words per topic
+        if self.words_per_topic <= 0:
+            raise ValueError(f"words_per_topic must be > 0, got {self.words_per_topic}")
+
+        # Validate lambda value
+        if not 0 <= self.lambda_val <= 1:
+            raise ValueError(f"lambda_val must be between 0 and 1, got {self.lambda_val}")
+
+        # Validate separator
+        if not self.separator:
+            raise ValueError("separator cannot be empty")
+
+    def get_topic_counts(self) -> List[int]:
+        """Return list of topic counts to evaluate."""
+        return list(range(self.min_topics, self.max_topics + 1, self.step))
+
+    def to_text_processing_options(self) -> Dict[str, Any]:
+        """Convert to options dict for TextPipeline compatibility."""
+        return {
+            "LANGUAGE": self.language.upper(),
+            "LEMMATIZE": self.lemmatize,
+            "tokenizer_type": self.tokenizer_type,
+            "tokenizer": None,
+            "separator": self.separator,
+            "N_TOPICS": self.words_per_topic,
+            "DESIRED_TOPIC_COUNT": self.min_topics,  # Placeholder, overridden during iteration
+            "nmf_type": self.nmf_method,
+            "n_grams_to_discover": self.n_grams_to_discover,
+            "filter_app": self.filter_app,
+            "data_filter_options": (
+                self.data_filter_options.__dict__
+                if hasattr(self.data_filter_options, '__dict__')
+                else self.data_filter_options
+            ),
+            "pagerank_column": self.pagerank_column,
+            "emoji_map": None,
+            "gen_cloud": False,  # Disable visualizations for optimization
+            "save_excel": False,
+            "word_pairs_out": False,
+            "gen_topic_distribution": False,
+            "save_to_db": False,
+            "use_cache": self.use_cache,
+            "force_reprocess": self.force_reprocess,
+        }
+
+
 def create_config_from_params(
     language: str = "EN",
     topic_count: int = 5,

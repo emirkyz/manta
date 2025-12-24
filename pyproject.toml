@@ -30,6 +30,7 @@ dependencies = [
     "duckdb>=1.4.2",
     "emoji~=2.14.1",
     "gensim==4.3.2",
+    "h5py>=3.10.0",
     "levenshtein==0.20.9",
     "matplotlib==3.10.1",
     "memory-profiler>=0.61.0",

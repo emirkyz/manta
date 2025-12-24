@@ -35,10 +35,18 @@ class ProcessingPaths:
 
     @property
     def metadata_file(self) -> Path:
-        """Path to cached metadata file (vocab, text_array, datetime).
+        """Path to cached metadata file (vocab, text_array, datetime) in HDF5 format.
 
         Uses preprocessing_name (without topic count) since preprocessing
         is independent of the number of topics.
+        """
+        return self.output_dir / f"{self.preprocessing_name}_tfidf_metadata.h5"
+
+    @property
+    def metadata_file_legacy(self) -> Path:
+        """Path to legacy NPZ metadata file (for backward compatibility).
+
+        Used to detect and load existing NPZ caches created before HDF5 migration.
         """
         return self.output_dir / f"{self.preprocessing_name}_tfidf_metadata.npz"
 
@@ -71,10 +79,14 @@ class ProcessingPaths:
     def cache_exists(self) -> bool:
         """Check if cached preprocessing files exist.
 
+        Supports both new HDF5 format and legacy NPZ format.
+
         Returns:
-            True if both TF-IDF matrix and metadata files exist
+            True if TF-IDF matrix exists and metadata (HDF5 or NPZ) exists
         """
-        return self.tfidf_matrix_file.exists() and self.metadata_file.exists()
+        has_matrix = self.tfidf_matrix_file.exists()
+        has_metadata = self.metadata_file.exists() or self.metadata_file_legacy.exists()
+        return has_matrix and has_metadata
 
 
 @dataclass

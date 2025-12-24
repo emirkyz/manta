@@ -1,11 +1,18 @@
 """Cache management for MANTA preprocessing data."""
 
+from pathlib import Path
+from typing import Optional
+
+import h5py
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
-from typing import Optional
+
 from .processing_utils import ProcessingPaths, CachedData, ModelComponents
 from ..utils.console.console_manager import ConsoleManager
+
+# Chunk size for memory-efficient HDF5 writes
+CHUNK_SIZE = 10000
 
 
 class CacheManager:
@@ -24,7 +31,8 @@ class CacheManager:
         """Load cached preprocessing results from disk.
 
         Loads the TF-IDF matrix and metadata (vocab, text_array, datetime_series)
-        from previously cached files.
+        from previously cached files. Supports both new HDF5 format and legacy
+        NPZ format for backward compatibility.
 
         Args:
             paths: ProcessingPaths object with file locations
@@ -46,55 +54,29 @@ class CacheManager:
         # Load sparse TF-IDF matrix
         tdm = sparse.load_npz(paths.tfidf_matrix_file)
 
-        if console:
-            console.print_status(
-                f"Loading metadata from {paths.metadata_file.name}...",
-                "processing"
+        # Determine which format to load (HDF5 or legacy NPZ)
+        if paths.metadata_file.exists():
+            # New HDF5 format
+            if console:
+                console.print_status(
+                    f"Loading metadata from {paths.metadata_file.name} (HDF5 format)...",
+                    "processing"
+                )
+            return CacheManager._load_from_hdf5(paths.metadata_file, tdm, console)
+
+        elif paths.metadata_file_legacy.exists():
+            # Legacy NPZ format (backward compatibility)
+            if console:
+                console.print_status(
+                    f"Loading metadata from {paths.metadata_file_legacy.name} (legacy NPZ format)...",
+                    "processing"
+                )
+            return CacheManager._load_from_npz(paths.metadata_file_legacy, tdm, console)
+
+        else:
+            raise FileNotFoundError(
+                f"No metadata cache found at {paths.metadata_file} or {paths.metadata_file_legacy}"
             )
-
-        # Load metadata
-        with np.load(paths.metadata_file, allow_pickle=True) as file:
-            vocab = list(file["vocab"])
-            text_array = list(file["text_array"])
-
-            # Handle datetime series if present
-            datetime_series = None
-            datetime_is_combined = False
-
-            # Try new format first (year and month arrays)
-            if "datetime_year" in file and "datetime_month" in file:
-                datetime_dict = {
-                    'year': file["datetime_year"],
-                    'month': file["datetime_month"]
-                }
-                datetime_series = CacheManager._deserialize_datetime(datetime_dict)
-                # Load the combined flag, defaulting to True for year/month format
-                # (backward compatibility: old caches without this flag were combined)
-                datetime_is_combined = bool(file["datetime_is_combined"]) if "datetime_is_combined" in file else True
-
-            # Fall back to legacy format for backward compatibility
-            elif "datetime_series" in file and file["datetime_series"] is not None:
-                datetime_series = CacheManager._deserialize_datetime(file["datetime_series"])
-                datetime_is_combined = False
-
-            # Load PageRank weights if present
-            pagerank_weights = None
-            if "pagerank_weights" in file:
-                pr_weights = file["pagerank_weights"]
-                if pr_weights is not None and len(pr_weights) > 0:
-                    pagerank_weights = pr_weights
-
-        if console:
-            console.print_status("Loaded pre-processed data.", "success")
-
-        return CachedData(
-            tdm=tdm,
-            vocab=vocab,
-            text_array=text_array,
-            datetime_series=datetime_series,
-            datetime_is_combined=datetime_is_combined,
-            pagerank_weights=pagerank_weights
-        )
 
     @staticmethod
     def save_cached_data(
@@ -102,10 +84,10 @@ class CacheManager:
         data: CachedData,
         console: Optional[ConsoleManager] = None
     ) -> None:
-        """Save preprocessing results to cache files.
+        """Save preprocessing results to cache files using HDF5 for memory efficiency.
 
-        Saves the TF-IDF matrix and metadata for future reuse, allowing
-        subsequent analyses to skip data loading and preprocessing.
+        Saves the TF-IDF matrix (NPZ) and metadata (HDF5) for future reuse.
+        Uses chunked HDF5 writes to reduce memory usage for large datasets.
 
         Args:
             paths: ProcessingPaths object with file locations
@@ -118,44 +100,22 @@ class CacheManager:
                 "processing"
             )
 
-        # Save sparse matrix
+        # Save sparse matrix (keep as NPZ - scipy.sparse handles this efficiently)
         sparse.save_npz(paths.tfidf_matrix_file, data.tdm)
 
         if console:
             console.print_status("TF-IDF matrix saved.", "success")
             console.print_status(
-                f"Saving metadata to {paths.metadata_file.name}...",
+                f"Saving metadata to {paths.metadata_file.name} (HDF5 format)...",
                 "processing"
             )
 
-        # Serialize datetime if present
-        datetime_dict = None
-        if data.datetime_series is not None:
-            datetime_dict = CacheManager._serialize_datetime(data.datetime_series)
+        # Remove old HDF5 file if exists (fresh start)
+        if paths.metadata_file.exists():
+            paths.metadata_file.unlink()
 
-        # Save metadata
-        # Prepare pagerank weights (empty array if None for consistent loading)
-        pr_weights = data.pagerank_weights if data.pagerank_weights is not None else np.array([])
-
-        if datetime_dict is not None:
-            # Save with year and month arrays
-            np.savez_compressed(
-                paths.metadata_file,
-                vocab=data.vocab,
-                text_array=data.text_array,
-                datetime_year=datetime_dict['year'],
-                datetime_month=datetime_dict['month'],
-                datetime_is_combined=data.datetime_is_combined,
-                pagerank_weights=pr_weights
-            )
-        else:
-            # Save without datetime
-            np.savez_compressed(
-                paths.metadata_file,
-                vocab=data.vocab,
-                text_array=data.text_array,
-                pagerank_weights=pr_weights
-            )
+        # Save metadata using HDF5 with chunked writes for memory efficiency
+        CacheManager._save_to_hdf5(paths.metadata_file, data, console)
 
         if console:
             console.print_status("Metadata saved.", "success")
@@ -272,6 +232,175 @@ class CacheManager:
 
         # Return as-is if neither pattern matches
         return datetime_series
+
+    # ========== HDF5 Save/Load Methods ==========
+
+    @staticmethod
+    def _save_to_hdf5(
+        path: Path,
+        data: CachedData,
+        console: Optional[ConsoleManager] = None
+    ) -> None:
+        """Save metadata to HDF5 file with chunked writing for memory efficiency.
+
+        Uses chunked writes for large arrays (especially text_array) to avoid
+        loading everything into memory at once.
+
+        Args:
+            path: Path to HDF5 file
+            data: CachedData object to save
+            console: Optional console manager for status messages
+        """
+        # Variable-length string type for vocab and documents
+        dt = h5py.special_dtype(vlen=str)
+
+        with h5py.File(str(path), 'w') as f:
+            # Save vocab (usually smaller, single write is fine)
+            f.create_dataset('vocab', data=data.vocab, dtype=dt, compression='gzip')
+
+            # Save documents with chunked writing (key memory optimization)
+            n_docs = len(data.text_array)
+            chunk_size = min(CHUNK_SIZE, n_docs) if n_docs > 0 else 1
+            docs_ds = f.create_dataset(
+                'documents',
+                shape=(n_docs,),
+                dtype=dt,
+                chunks=(chunk_size,),
+                compression='gzip'
+            )
+
+            # Write documents in chunks to avoid memory spike
+            for start in range(0, n_docs, CHUNK_SIZE):
+                end = min(start + CHUNK_SIZE, n_docs)
+                docs_ds[start:end] = data.text_array[start:end]
+
+            # Save datetime arrays if present
+            if data.datetime_series is not None:
+                datetime_dict = CacheManager._serialize_datetime(data.datetime_series)
+                dt_grp = f.create_group('datetime')
+                dt_grp.create_dataset('year', data=datetime_dict['year'], compression='gzip')
+                dt_grp.create_dataset('month', data=datetime_dict['month'], compression='gzip')
+
+            # Save pagerank weights if present
+            if data.pagerank_weights is not None and len(data.pagerank_weights) > 0:
+                f.create_dataset(
+                    'pagerank_weights',
+                    data=data.pagerank_weights,
+                    compression='gzip'
+                )
+
+            # Save metadata scalars as attributes
+            meta_grp = f.create_group('metadata')
+            meta_grp.attrs['datetime_is_combined'] = data.datetime_is_combined
+            meta_grp.attrs['format_version'] = 2
+
+    @staticmethod
+    def _load_from_hdf5(
+        path: Path,
+        tdm: sparse.csr_matrix,
+        console: Optional[ConsoleManager] = None
+    ) -> CachedData:
+        """Load metadata from HDF5 file.
+
+        Args:
+            path: Path to HDF5 file
+            tdm: Pre-loaded sparse TF-IDF matrix
+            console: Optional console manager for status messages
+
+        Returns:
+            CachedData object with loaded preprocessing results
+        """
+        with h5py.File(str(path), 'r') as f:
+            # Load vocab
+            vocab = [v.decode('utf-8') if isinstance(v, bytes) else v for v in f['vocab'][:]]
+
+            # Load documents
+            text_array = [d.decode('utf-8') if isinstance(d, bytes) else d for d in f['documents'][:]]
+
+            # Load datetime if present
+            datetime_series = None
+            datetime_is_combined = False
+            if 'datetime' in f:
+                datetime_dict = {
+                    'year': f['datetime/year'][:],
+                    'month': f['datetime/month'][:]
+                }
+                datetime_series = CacheManager._deserialize_datetime(datetime_dict)
+                datetime_is_combined = f['metadata'].attrs.get('datetime_is_combined', False)
+
+            # Load pagerank weights if present
+            pagerank_weights = None
+            if 'pagerank_weights' in f:
+                pagerank_weights = f['pagerank_weights'][:]
+
+        if console:
+            console.print_status("Loaded pre-processed data (HDF5 format).", "success")
+
+        return CachedData(
+            tdm=tdm,
+            vocab=vocab,
+            text_array=text_array,
+            datetime_series=datetime_series,
+            datetime_is_combined=datetime_is_combined,
+            pagerank_weights=pagerank_weights
+        )
+
+    @staticmethod
+    def _load_from_npz(
+        path: Path,
+        tdm: sparse.csr_matrix,
+        console: Optional[ConsoleManager] = None
+    ) -> CachedData:
+        """Load metadata from legacy NPZ file (backward compatibility).
+
+        Args:
+            path: Path to NPZ file
+            tdm: Pre-loaded sparse TF-IDF matrix
+            console: Optional console manager for status messages
+
+        Returns:
+            CachedData object with loaded preprocessing results
+        """
+        with np.load(path, allow_pickle=True) as file:
+            vocab = list(file["vocab"])
+            text_array = list(file["text_array"])
+
+            # Handle datetime series if present
+            datetime_series = None
+            datetime_is_combined = False
+
+            # Try new format first (year and month arrays)
+            if "datetime_year" in file and "datetime_month" in file:
+                datetime_dict = {
+                    'year': file["datetime_year"],
+                    'month': file["datetime_month"]
+                }
+                datetime_series = CacheManager._deserialize_datetime(datetime_dict)
+                datetime_is_combined = bool(file["datetime_is_combined"]) if "datetime_is_combined" in file else True
+
+            # Fall back to legacy format for backward compatibility
+            elif "datetime_series" in file and file["datetime_series"] is not None:
+                datetime_series = CacheManager._deserialize_datetime(file["datetime_series"])
+                datetime_is_combined = False
+
+            # Load PageRank weights if present
+            pagerank_weights = None
+            if "pagerank_weights" in file:
+                pr_weights = file["pagerank_weights"]
+                if pr_weights is not None and len(pr_weights) > 0:
+                    pagerank_weights = pr_weights
+
+        if console:
+            console.print_status("Loaded pre-processed data (legacy NPZ format).", "success")
+
+        return CachedData(
+            tdm=tdm,
+            vocab=vocab,
+            text_array=text_array,
+            datetime_series=datetime_series,
+            datetime_is_combined=datetime_is_combined,
+            pagerank_weights=pagerank_weights
+        )
 
     @staticmethod
     def save_model_components(
