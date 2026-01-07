@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konu İlişkileri Grafiği</title>
+
+    <!-- Apache ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+
+        .topic-selector {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .topic-selector label {
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+
+        #topicSelect {
+            padding: 10px 20px;
+            font-size: 1em;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            cursor: pointer;
+            min-width: 200px;
+            max-width: 400px;
+        }
+
+        #topicSelect option {
+            padding: 5px;
+        }
+
+        .selected-topics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .topic-tag {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .topic-tag .remove {
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.7;
+        }
+
+        .topic-tag .remove:hover {
+            opacity: 1;
+        }
+
+        .graph-container {
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #chart {
+            width: 100%;
+            height: 600px;
+        }
+
+        .report-section {
+            background: #f8f9fa;
+            padding: 40px;
+            border-top: 3px solid #667eea;
+        }
+
+        .report-title {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .report-content {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            line-height: 1.8;
+        }
+
+        .report-content h1,
+        .report-content h2,
+        .report-content h3 {
+            color: #333;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .report-content p {
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        .report-content ul,
+        .report-content ol {
+            margin-left: 30px;
+            margin-bottom: 15px;
+        }
+
+        .report-content li {
+            margin-bottom: 8px;
+            color: #555;
+        }
+
+        .report-content code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .report-content pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #667eea;
+        }
+
+        .error {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #e74c3c;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5em;
+            }
+
+            #chart {
+                height: 400px;
+            }
+
+            .graph-container {
+                padding: 20px;
+            }
+
+            .report-section {
+                padding: 20px;
+            }
+
+            .report-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Konu İlişkileri Grafiği</h1>
+            <div class="topic-selector">
+                <label for="topicSelect">Konuları Seçin:</label>
+                <select id="topicSelect" multiple size="1">
+                    <option value="">Yükleniyor...</option>
+                </select>
+            </div>
+            <div class="selected-topics" id="selectedTopics"></div>
+        </div>
+
+        <div class="graph-container">
+            <div id="chart"></div>
+        </div>
+
+        <div class="report-section">
+            <h2 class="report-title">Konu İlişkileri Raporu</h2>
+            <div class="report-content" id="reportContent">
+                <div class="loading">Rapor yükleniyor...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let chart = null;
+        let csvData = null;
+        let selectedTopics = [];
+        let allTopics = [];
+        let topicNames = {}; // Mapping from "Topic X" to "Konu X: Description"
+
+        // Initialize chart
+        function initChart() {
+            console.log('Initializing chart...');
+            const chartDom = document.getElementById('chart');
+
+            if (!chartDom) {
+                console.error('Chart container not found!');
+                return;
+            }
+
+            try {
+                chart = echarts.init(chartDom);
+                console.log('ECharts instance created:', chart);
+
+                const option = {
+                    title: {
+                        text: 'Veri yükleniyor...',
+                        left: 'center',
+                        top: 'center',
+                        textStyle: {
+                            fontSize: 20,
+                            color: '#999'
+                        }
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: []
+                    },
+                    yAxis: {
+                        type: 'value'
+                    },
+                    series: []
+                };
+
+                chart.setOption(option);
+                console.log('Chart initialized successfully');
+
+                // Make chart responsive
+                window.addEventListener('resize', function() {
+                    if (chart) {
+                        chart.resize();
+                    }
+                });
+            } catch (error) {
+                console.error('Error initializing chart:', error);
+                showError('Grafik başlatma hatası: ' + error.message);
+            }
+        }
+
+        // Load topic names from API
+        async function loadTopicNames() {
+            try {
+                const response = await fetch('/api/topic-names');
+                if (!response.ok) {
+                    throw new Error('Topic names API isteği başarısız oldu');
+                }
+                const result = await response.json();
+
+                console.log('Topic Names Response:', result);
+
+                if (!result.success) {
+                    throw new Error(result.error || 'Bilinmeyen hata');
+                }
+
+                topicNames = result.topics;
+                console.log('Topic Names loaded:', topicNames);
+            } catch (error) {
+                console.error('Topic Names Error:', error);
+                // Continue even if topic names fail to load
+            }
+        }
+
+        // Load and parse CSV from API
+        async function loadCSV() {
+            try {
+                const response = await fetch('/api/data');
+                if (!response.ok) {
+                    throw new Error('API isteği başarısız oldu');
+                }
+                const result = await response.json();
+
+                console.log('API Response:', result);
+
+                if (!result.success) {
+                    throw new Error(result.error || 'Bilinmeyen hata');
+                }
+
+                csvData = result.data;
+                console.log('CSV Data:', csvData);
+                processCSVData();
+            } catch (error) {
+                console.error('CSV Error:', error);
+                showError('CSV yükleme hatası: ' + error.message);
+            }
+        }
+
+        // Process CSV data
+        function processCSVData() {
+            console.log('Processing CSV data...');
+
+            if (!csvData || csvData.length === 0) {
+                showError('CSV verisi boş');
+                return;
+            }
+
+            // Get all column names except 'period'
+            const firstRow = csvData[0];
+            console.log('First row:', firstRow);
+
+            allTopics = Object.keys(firstRow).filter(key =>
+                key.toLowerCase() !== 'period' && key.trim() !== ''
+            );
+
+            console.log('All topics:', allTopics);
+
+            // Populate topic selector
+            const select = document.getElementById('topicSelect');
+            select.innerHTML = allTopics.map(topic =>
+                `<option value="${topic}">${topic}</option>`
+            ).join('');
+
+            // Select all topics by default
+            selectedTopics = [...allTopics];
+            console.log('Selected topics:', selectedTopics);
+
+            updateSelectedTopicTags();
+            updateChart();
+        }
+
+        // Update chart with selected topics
+        function updateChart() {
+            console.log('Updating chart...');
+
+            if (!chart) {
+                console.error('Chart not initialized');
+                return;
+            }
+
+            if (!csvData || csvData.length === 0) {
+                console.log('No CSV data available');
+                return;
+            }
+
+            if (selectedTopics.length === 0) {
+                const option = {
+                    title: {
+                        text: 'Lütfen en az bir konu seçin',
+                        left: 'center',
+                        top: 'center',
+                        textStyle: {
+                            fontSize: 20,
+                            color: '#999'
+                        }
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: []
+                    },
+                    yAxis: {
+                        type: 'value'
+                    },
+                    series: []
+                };
+                chart.setOption(option, true);
+                return;
+            }
+
+            // Extract periods
+            const periods = csvData.map(row => row.period || row.Period || '');
+            console.log('Periods:', periods);
+
+            // Create series for each selected topic
+            const series = selectedTopics.map(topic => {
+                const data = csvData.map(row => {
+                    const value = row[topic];
+                    return value !== undefined && value !== null ? Number(value) : 0;
+                });
+                console.log(`Data for ${topic}:`, data);
+                return {
+                    name: topic,
+                    type: 'line',
+                    smooth: true,
+                    emphasis: {
+                        focus: 'series'
+                    },
+                    lineStyle: {
+                        width: 3
+                    },
+                    data: data
+                };
+            });
+
+            console.log('Series:', series);
+
+            const option = {
+                title: {
+                    text: 'Konu Frekansları',
+                    left: 'center',
+                    top: 20,
+                    textStyle: {
+                        fontSize: 24,
+                        fontWeight: 'bold',
+                        color: '#333'
+                    }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        // Get the full topic name with description
+                        const topicKey = params.seriesName; // e.g., "Topic 1"
+                        const topicFullName = topicNames[topicKey] || topicKey;
+
+                        // Format: "Konu X: Description\nYear: Value"
+                        return `<strong>${topicFullName}</strong><br/>${params.name}: ${params.value}`;
+                    },
+                    textStyle: {
+                        fontSize: 14,
+                        color: '#000'
+                    },
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    borderColor: '#333',
+                    borderWidth: 2,
+                    padding: 12,
+                    shadowBlur: 10,
+                    shadowColor: 'rgba(0, 0, 0, 0.2)'
+                },
+                legend: {
+                    data: selectedTopics,
+                    top: 60,
+                    left: 'center',
+                    type: 'scroll'
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '10%',
+                    top: '120px',
+                    containLabel: true
+                },
+                toolbox: {
+                    feature: {
+                        saveAsImage: {
+                            title: 'Kaydet'
+                        },
+                        dataZoom: {
+                            title: {
+                                zoom: 'Yakınlaştır',
+                                back: 'Geri'
+                            }
+                        },
+                        restore: {
+                            title: 'Sıfırla'
+                        }
+                    }
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: periods,
+                    name: 'Periyot',
+                    nameLocation: 'middle',
+                    nameGap: 30,
+                    nameTextStyle: {
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: 'Frekans',
+                    nameLocation: 'middle',
+                    nameGap: 50,
+                    nameTextStyle: {
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                },
+                dataZoom: [
+                    {
+                        type: 'inside',
+                        start: 0,
+                        end: 100
+                    },
+                    {
+                        start: 0,
+                        end: 100
+                    }
+                ],
+                series: series
+            };
+
+            try {
+                chart.setOption(option, true);
+                console.log('Chart updated successfully');
+            } catch (error) {
+                console.error('Error setting chart option:', error);
+                showError('Grafik güncelleme hatası: ' + error.message);
+            }
+        }
+
+        // Update selected topic tags display
+        function updateSelectedTopicTags() {
+            const container = document.getElementById('selectedTopics');
+            if (selectedTopics.length === 0) {
+                container.innerHTML = '<div style="color: rgba(255,255,255,0.7);">Hiçbir konu seçilmedi</div>';
+                return;
+            }
+
+            container.innerHTML = selectedTopics.map(topic => `
+                <div class="topic-tag">
+                    <span>${topic}</span>
+                    <span class="remove" onclick="removeTopic('${topic}')">×</span>
+                </div>
+            `).join('');
+        }
+
+        // Remove topic from selection
+        function removeTopic(topic) {
+            selectedTopics = selectedTopics.filter(t => t !== topic);
+            updateSelectedTopicTags();
+            updateChart();
+
+            // Update select element
+            const select = document.getElementById('topicSelect');
+            Array.from(select.options).forEach(option => {
+                if (option.value === topic) {
+                    option.selected = false;
+                }
+            });
+        }
+
+        // Handle topic selection
+        document.addEventListener('DOMContentLoaded', function() {
+            const select = document.getElementById('topicSelect');
+
+            select.addEventListener('change', function() {
+                selectedTopics = Array.from(this.selectedOptions).map(option => option.value);
+                updateSelectedTopicTags();
+                updateChart();
+            });
+
+            // Allow clicking on select to toggle multiple
+            select.addEventListener('click', function() {
+                this.size = Math.min(allTopics.length, 10);
+            });
+
+            select.addEventListener('blur', function() {
+                this.size = 1;
+            });
+        });
+
+        // Load markdown report
+        async function loadMarkdown() {
+            try {
+                const response = await fetch('md/report.md');
+                if (!response.ok) {
+                    throw new Error('Markdown dosyası bulunamadı');
+                }
+                const markdown = await response.text();
+
+                // Use marked() function directly - compatible with multiple versions
+                const html = typeof marked.parse === 'function'
+                    ? marked.parse(markdown)
+                    : marked(markdown);
+
+                document.getElementById('reportContent').innerHTML = html;
+            } catch (error) {
+                console.error('Markdown Error:', error);
+                document.getElementById('reportContent').innerHTML =
+                    '<div class="error">Rapor yüklenemedi: ' + error.message + '</div>';
+            }
+        }
+
+        // Show error message
+        function showError(message) {
+            document.getElementById('chart').innerHTML =
+                '<div class="error">' + message + '</div>';
+        }
+
+        // Initialize everything
+        window.addEventListener('DOMContentLoaded', async function() {
+            console.log('Page loaded, initializing...');
+
+            // Initialize chart first
+            initChart();
+
+            // Wait a bit for chart to fully initialize, then load data
+            setTimeout(async function() {
+                console.log('Loading topic names, CSV and Markdown...');
+                await loadTopicNames(); // Load topic names first
+                loadCSV();
+                loadMarkdown();
+            }, 100);
+        });
+    </script>
+</body>
+</html>
