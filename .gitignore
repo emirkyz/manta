@@ -24,6 +24,6 @@ results
 manta/utils/other
 local_dev
 tools/misc
-results
+custom_datasets
 manta_benchmark
 citiation_rank
