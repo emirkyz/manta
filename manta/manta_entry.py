@@ -110,6 +110,11 @@ def load_or_process_data(
             try:
                 # Load from cache
                 cached_data = CacheManager.load_cached_data(paths, console)
+
+                # Restore the datetime_is_combined flag to options for visualization
+                if cached_data.datetime_is_combined:
+                    options['datetime_is_combined_year_month'] = True
+
                 console.record_stage_time("Data Loading (from cache)", data_start)
                 return cached_data
 
@@ -148,31 +153,37 @@ def load_or_process_data(
         )
 
     # Perform text processing to create TF-IDF matrix
-    tdm, vocab, counterized_data, text_array, options = TextPipeline.perform_text_processing(
+    tdm, vocab, counterized_data, text_array, original_text_array, options = TextPipeline.perform_text_processing(
         df, desired_columns, options, console
     )
 
+    if options.get("use_original_data",True):
+        original_text_array = text_array.copy()
+
     # Print final data statistics summary
-    print(f"\n{'='*60}")
-    print(f"FINAL DATA STATISTICS")
-    print(f"{'='*60}")
-    print(f"  DataFrame rows: {len(df)}")
-    print(f"  Text array length: {len(text_array)}")
-    print(f"  Non-empty texts: {sum(1 for t in text_array if t and t.strip())}")
-    print(f"  Vocabulary size: {len(vocab)}")
-    print(f"  TF-IDF matrix shape: {tdm.shape}")
-    print(f"    Documents (rows): {tdm.shape[0]}")
-    print(f"    Features (columns): {tdm.shape[1]}")
+    console.print_debug("=" * 60, tag="DATA STATISTICS")
+    console.print_debug("FINAL DATA STATISTICS", tag="DATA STATISTICS")
+    console.print_debug("=" * 60, tag="DATA STATISTICS")
+    console.print_debug(f"  DataFrame rows: {len(df)}", tag="DATA STATISTICS")
+    console.print_debug(f"  Text array length: {len(text_array)}", tag="DATA STATISTICS")
+    console.print_debug(f"  Non-empty texts: {sum(1 for t in text_array if t and t.strip())}", tag="DATA STATISTICS")
+    console.print_debug(f"  Vocabulary size: {len(vocab)}", tag="DATA STATISTICS")
+    console.print_debug(f"  TF-IDF matrix shape: {tdm.shape}", tag="DATA STATISTICS")
+    console.print_debug(f"    Documents (rows): {tdm.shape[0]}", tag="DATA STATISTICS")
+    console.print_debug(f"    Features (columns): {tdm.shape[1]}", tag="DATA STATISTICS")
     if datetime_series is not None:
-        print(f"  Datetime values: {len(datetime_series)}")
-    print(f"{'='*60}\n")
+        console.print_debug(f"  Datetime values: {len(datetime_series)}", tag="DATA STATISTICS")
+    console.print_debug("=" * 60, tag="DATA STATISTICS")
 
     # Create cached data object
     cached_data = CachedData(
         tdm=tdm,
         vocab=vocab,
         text_array=text_array,
-        datetime_series=datetime_series
+        original_text_array=original_text_array,
+        datetime_series=datetime_series,
+        datetime_is_combined=options.get('datetime_is_combined_year_month', False),
+        pagerank_weights=options.get('pagerank_weights')
     )
 
     # Save to cache for future use
@@ -262,7 +273,8 @@ def process_file(
         topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result = (
             ModelingPipeline.perform_topic_modeling(
                 cached_data.tdm, options, cached_data.vocab, cached_data.text_array,
-                db_config, table_name, table_output_dir, console, desired_columns
+                cached_data.original_text_array, db_config, table_name, table_output_dir,
+                console, desired_columns
             )
         )
         console.record_stage_time("NMF Topic Modeling", modeling_start)

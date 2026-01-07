@@ -458,7 +458,7 @@ def main():
         "topic_distribution": False,
     }
 
-    filepath = "../../veri_setleri/bbc_news.csv"
+    filepath = "../../datasets/bbc_news.csv"
     data_name = os.path.splitext(os.path.basename(filepath))[0]
     table_name = f"{data_name}_5-way_comparison_fixed"
     desired_columns = "text"

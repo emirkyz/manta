@@ -7,7 +7,7 @@ from ..common_language.ngram_tokenizer_wrapper import NgramTokenizerWrapper
 
 
 def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_type=None, emoji_map=None,
-                        enable_ngram_bpe=False, ngram_vocab_limit=10000, min_pair_frequency=2):
+                        enable_ngram_bpe=False, ngram_vocab_limit=10000, min_pair_frequency=2, pagerank_weights=None):
     """
     Process Turkish text data for topic modeling using NMF.
 
@@ -25,6 +25,8 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
         enable_ngram_bpe (bool): Whether to apply n-gram BPE on top of existing tokenization
         ngram_vocab_limit (int): Maximum vocabulary size for n-gram BPE
         min_pair_frequency (int): Minimum frequency threshold for pair merging
+        pagerank_weights (numpy.ndarray, optional): Per-document weights for TF-IDF boosting.
+            Array of shape (N,) with weights typically in range [1, 2].
 
     Returns:
         tuple: A tuple containing:
@@ -105,6 +107,6 @@ def process_turkish_file(df, desired_columns: str, tokenizer=None, tokenizer_typ
         print("Created n-gram aware tokenizer wrapper")
         tokenizer = wrapped_tokenizer
 
-    tdm = tf_idf_turkish(counterized_data, tokenizer)
+    tdm = tf_idf_turkish(counterized_data, tokenizer, pagerank_weights=pagerank_weights)
 
     return tdm, vocabulary, counterized_data, text_array, tokenizer, emoji_map

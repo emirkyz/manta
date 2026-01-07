@@ -1,11 +1,11 @@
 import math
 from datetime import datetime, timedelta
-from typing import Callable
+from typing import Callable, Optional
 
 import numpy as np
 import scipy.sparse as sp
 
-
+from ....utils.console.console_manager import ConsoleManager, get_console
 from .nmtf_init import nmtf_initialization_random, nmtf_initialization_nndsvd, nmtf_initialization_nndsvd_direct, \
     nmtf_initialization_nndsvd_symmetric, nmtf_initialization_nndsvd_adaptive, nmtf_initialization_nndsvd_legacy
 
@@ -29,7 +29,8 @@ def _calculate_rank_range_sparse(m: int, n: int, nnz: int) -> tuple[int, int]:
 def _nmtf(in_mat: sp.csr_matrix, log: bool = True, rank_factor: float = 1.0,
           norm_thresh: float = 1.0, zero_threshold: float = 0.0001,
           init_func: Callable = nmtf_initialization_random, konu_sayisi=10,
-          method: str = "multiplicative") -> tuple[sp.csr_matrix, sp.csr_matrix, sp.csr_matrix]:
+          method: str = "multiplicative", console: Optional[ConsoleManager] = None) -> tuple[sp.csr_matrix, sp.csr_matrix, sp.csr_matrix]:
+    _console = console or get_console()
     m, n = in_mat.shape
     # k_range = _calculate_rank_range_sparse(m, n, in_mat.nnz)
     # therotical_max_value = k_range[1]
@@ -39,11 +40,11 @@ def _nmtf(in_mat: sp.csr_matrix, log: bool = True, rank_factor: float = 1.0,
 
     start = datetime.now()
     if log:
-        print(f"Performing NMTF using {method} method...")
+        _console.print_debug(f"Performing NMTF using {method} method...", tag="NMTF")
 
     if method == "multiplicative":
         w, s, h = _core_nmtf_test(in_mat, w, s, h, start, log=log, norm_thresh=norm_thresh, zero_threshold=zero_threshold,
-                             norm_func=np.linalg.norm)
+                             norm_func=np.linalg.norm, console=_console)
     else:
         raise ValueError(f"Unknown method: {method}. Choose 'multiplicative', 'coordinate_descent', or 'projected_gradient'.")
 
@@ -58,7 +59,8 @@ def _nmtf(in_mat: sp.csr_matrix, log: bool = True, rank_factor: float = 1.0,
     return w, s, h
 
 
-def s_matrix_confusion(s_matrix):
+def s_matrix_confusion(s_matrix, console: Optional[ConsoleManager] = None):
+    _console = console or get_console()
     ind = []
     max_values = []
 
@@ -71,18 +73,17 @@ def s_matrix_confusion(s_matrix):
     ind_sorted = np.argsort(max_values)[::-1]
     ind = np.array(ind)[ind_sorted]
     max_values = np.array(max_values)[ind_sorted]
-    
+
     for index, value in enumerate(max_values):
-        print(f"Topic {index} has the connection with Topic {ind[index][1]}")
-        print(f"The connection strength is {value}")
-        print("--------------------------------")
-    
+        _console.print_debug(f"Topic {index} has connection with Topic {ind[index][1]}, strength: {value}", tag="S-MATRIX")
+
     return
 
 
 
 def _core_nmtf(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0, zero_threshold=0.0001,
-               norm_func: Callable = np.linalg.norm) -> tuple:
+               norm_func: Callable = np.linalg.norm, console: Optional[ConsoleManager] = None) -> tuple:
+    _console = console or get_console()
     i = 0
     epsilon = 1e-9
     while True:
@@ -98,11 +99,10 @@ def _core_nmtf(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0, zero_t
             duration_sec = round(duration.total_seconds())
             duration = timedelta(seconds=duration_sec)
             if duration_sec == 0:
-                print(f"{i + 1}. step L2 W: {w_norm:.5f} S: {s_norm:.5f} H: {h_norm:.5f}. Duration: {duration}.",
-                      end='\r')
+                _console.print_debug(f"{i + 1}. step L2 W: {w_norm:.5f} S: {s_norm:.5f} H: {h_norm:.5f}. Duration: {duration}.", tag="NMTF")
             else:
-                print(f"{i + 1}. step L2 W: {w_norm:.5f} S: {s_norm:.5f} H: {h_norm:.5f}. Duration: {duration}. "
-                      f"Speed: {round((i + 1) * 24 / duration_sec, 2):.2f} matrix multiplications/sec", end='\r')
+                _console.print_debug(f"{i + 1}. step L2 W: {w_norm:.5f} S: {s_norm:.5f} H: {h_norm:.5f}. Duration: {duration}. "
+                      f"Speed: {round((i + 1) * 24 / duration_sec, 2):.2f} matrix multiplications/sec", tag="NMTF")
         w = w1
         h = h1
         s = s1
@@ -110,7 +110,7 @@ def _core_nmtf(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0, zero_t
 
         if w_norm < norm_thresh and h_norm < norm_thresh and s_norm < norm_thresh:
             if log:
-                print('\n', 'Requested Norm Threshold achieved, giving up...')
+                _console.print_debug("Requested Norm Threshold achieved, giving up...", tag="NMTF")
             break
     w[w < zero_threshold] = 0
     h[h < zero_threshold] = 0
@@ -121,7 +121,9 @@ def _core_nmtf(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0, zero_t
 
 
 def _core_nmtf_test(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0,
-               zero_threshold=0.000001, norm_func: Callable = np.linalg.norm,) -> tuple:
+               zero_threshold=0.000001, norm_func: Callable = np.linalg.norm,
+               console: Optional[ConsoleManager] = None) -> tuple:
+    _console = console or get_console()
     i = 0
     epsilon = 1e-9  # Slightly larger epsilon for better numerical stability
     """
@@ -183,11 +185,10 @@ def _core_nmtf_test(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0,
             duration_sec = round(duration.total_seconds())
             duration = timedelta(seconds=duration_sec)
             if duration_sec == 0:
-                print(f"{i + 1}. step L2 W: {w_norm:.5f} S: {s_norm:.5f} H: {h_norm:.5f}. Duration: {duration}.",
-                      end='\r')
+                _console.print_debug(f"{i + 1}. step L2 W: {w_norm:.5f} S: {s_norm:.5f} H: {h_norm:.5f}. Duration: {duration}.", tag="NMTF")
             else:
-                print(f"{i + 1}. step L2 W: {w_norm:.5f} S: {s_norm:.5f} H: {h_norm:.5f}. Duration: {duration}. "
-                      f"Speed: {round((i + 1) * 24 / duration_sec, 2):.2f} matrix multiplications/sec", end='\r')
+                _console.print_debug(f"{i + 1}. step L2 W: {w_norm:.5f} S: {s_norm:.5f} H: {h_norm:.5f}. Duration: {duration}. "
+                      f"Speed: {round((i + 1) * 24 / duration_sec, 2):.2f} matrix multiplications/sec", tag="NMTF")
 
         # Update matrices
         w = w1
@@ -198,11 +199,11 @@ def _core_nmtf_test(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0,
         # Check convergence
         if w_norm < norm_thresh and h_norm < norm_thresh and s_norm < norm_thresh:
             if log:
-                print('\n', 'Requested Norm Threshold achieved, giving up...')
+                _console.print_debug("Requested Norm Threshold achieved, stopping...", tag="NMTF")
             break
         if i > 1000:
             if log:
-                print('\n', 'Maximum iteration count reached, giving up...')
+                _console.print_debug("Maximum iteration count reached, stopping...", tag="NMTF")
             break
 
     # Apply thresholding
@@ -210,8 +211,8 @@ def _core_nmtf_test(in_mat, w, s, h, start, log: bool = True, norm_thresh=1.0,
     h[h < zero_threshold] = 0
     s[s < zero_threshold] = 0
 
-    s_matrix_confusion(s)
-    print(s.shape)
+    s_matrix_confusion(s, console=_console)
+    _console.print_debug(f"S matrix shape: {s.shape}", tag="NMTF")
     return w, s, h
 
 

@@ -10,8 +10,8 @@ wheels/
 .venv
 /instance
 *.db
-/misc/Output
-/veri_setleri
+/tools/misc/Output
+/datasets
 *.csv
 .idea/dataSources.xml
 webapp/node_modules
@@ -20,8 +20,10 @@ webapp/client/node_modules
 docs
 
 *.tex
-tests/TopicAnalysis
+results
 manta/utils/other
 local_dev
-misc
-tests
+tools/misc
+custom_datasets
+manta_benchmark
+citiation_rank

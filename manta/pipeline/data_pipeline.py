@@ -2,13 +2,13 @@
 Data loading and preprocessing pipeline for MANTA topic analysis.
 """
 
-import os
-from typing import Dict, Any, Optional
 import logging
+import os
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
-from ..utils.console.console_manager import ConsoleManager
+from ..utils.console.console_manager import ConsoleManager, get_console
 from ..utils.database.database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -16,10 +16,14 @@ logger = logging.getLogger(__name__)
 
 class DataPipeline:
     """Handles data loading and preprocessing operations."""
-    
+
     @staticmethod
-    def validate_inputs(filepath: Optional[str], desired_columns: str, options: Dict[str, Any],
-                       dataframe: Optional[pd.DataFrame] = None) -> None:
+    def validate_inputs(
+        filepath: Optional[str],
+        desired_columns: str,
+        options: Dict[str, Any],
+        dataframe: Optional[pd.DataFrame] = None,
+    ) -> None:
         """
         Validate input parameters for processing.
 
@@ -67,7 +71,7 @@ class DataPipeline:
         filepath: Optional[str] = None,
         dataframe: Optional[pd.DataFrame] = None,
         options: Optional[Dict[str, Any]] = None,
-        console: Optional[ConsoleManager] = None
+        console: Optional[ConsoleManager] = None,
     ) -> pd.DataFrame:
         """
         Load data from either a file or a DataFrame.
@@ -99,11 +103,13 @@ class DataPipeline:
             console.print_status(f"Using provided DataFrame with {len(dataframe)} rows", "info")
 
         # Apply data filters if specified
-        df = DataPipeline._apply_data_filters(dataframe.copy(), options, console)
+        df = DataPipeline._apply_data_filters(dataframe, options, console)
         return df
 
     @staticmethod
-    def load_data_file(filepath: str, options: Dict[str, Any], console: Optional[ConsoleManager] = None) -> pd.DataFrame:
+    def load_data_file(
+        filepath: str, options: Dict[str, Any], console: Optional[ConsoleManager] = None
+    ) -> pd.DataFrame:
         """
         Load data from CSV or Excel file.
 
@@ -115,10 +121,8 @@ class DataPipeline:
         Returns:
             Loaded DataFrame
         """
-        if console:
-            console.print_status("Reading input file...", "processing")
-        else:
-            print("Reading input file...")
+        _console = console or get_console()
+        _console.print_status("Reading input file...", "processing")
 
         if str(filepath).endswith(".csv"):
             # Read the CSV file with the specified separator
@@ -128,39 +132,43 @@ class DataPipeline:
                 sep=options["separator"],
                 engine="python",
                 on_bad_lines="skip",
-                #nrows=1_000, #TODO: will be removed when we have a better way to handle large files
+                # nrows=1_000, #TODO: will be removed when we have a better way to handle large files
             )
-            #df = df.sample(n = 1_000)
+            # df = df.sample(n = 1_000)
 
             # Track initial data load
             initial_row_count = len(df)
-            print(f"\n[DATA LOADING] Initial rows from CSV: {initial_row_count}")
+            _console.print_debug(f"Initial rows from CSV: {initial_row_count}", tag="DATA LOADING")
 
             # Track year filter
             if "year" in df.columns:
                 before_year_filter = len(df)
-                df = df[df["year"]<2026]
+                df = df[df["year"] < 2026]
                 after_year_filter = len(df)
                 rows_removed = before_year_filter - after_year_filter
                 if rows_removed > 0:
-                    print(f"[YEAR FILTER] Removed {rows_removed} rows with year >= 2026")
-                    print(f"  Before: {before_year_filter} rows, After: {after_year_filter} rows")
+                    _console.print_debug(f"Removed {rows_removed} rows with year >= 2026", tag="YEAR FILTER")
+                    _console.print_debug(f"  Before: {before_year_filter} rows, After: {after_year_filter} rows", tag="YEAR FILTER")
             else:
-                df = df[df["year"]<2026]
+                pass
+
         elif str(filepath).endswith(".xlsx") or str(filepath).endswith(".xls"):
             df = pd.read_excel(filepath)
 
         # Apply data filters if specified
-        df = DataPipeline._apply_data_filters(df, options, console)
+        df = DataPipeline._apply_data_filters(df, options, _console)
         return df
 
     @staticmethod
-    def _apply_data_filters(df: pd.DataFrame, options: Dict[str, Any], console: Optional[ConsoleManager] = None) -> pd.DataFrame:
+    def _apply_data_filters(
+        df: pd.DataFrame, options: Dict[str, Any], console: Optional[ConsoleManager] = None
+    ) -> pd.DataFrame:
         """Apply data filters based on configuration options."""
+        _console = console or get_console()
         try:
             if options.get("filter_app", False):
                 initial_filter_count = len(df)
-                print(f"\n[DATA FILTERS] Starting with {initial_filter_count} rows")
+                _console.print_debug(f"Starting with {initial_filter_count} rows", tag="DATA FILTERS")
 
                 filter_options = options.get("data_filter_options", {})
                 if filter_options.get("filter_app_country", ""):
@@ -170,17 +178,15 @@ class DataPipeline:
                         df = df[df[country_col].str.upper() == filter_options["filter_app_country"]]
                         after_country = len(df)
                         removed = before_country - after_country
-                        print(f"[COUNTRY FILTER] Removed {removed} rows")
-                        print(f"  Filtered for country: {filter_options['filter_app_country']}")
-                        print(f"  Before: {before_country}, After: {after_country}")
-                        if console:
-                            console.print_status(f"Applied country filter: {filter_options['filter_app_country']}", "info")
+                        _console.print_debug(f"Removed {removed} rows", tag="COUNTRY FILTER")
+                        _console.print_debug(f"  Filtered for country: {filter_options['filter_app_country']}", tag="COUNTRY FILTER")
+                        _console.print_debug(f"  Before: {before_country}, After: {after_country}", tag="COUNTRY FILTER")
+                        _console.print_status(
+                            f"Applied country filter: {filter_options['filter_app_country']}",
+                            "info",
+                        )
                     else:
-                        msg = f"Warning: Filter column '{country_col}' not found in data"
-                        if console:
-                            console.print_status(msg, "warning")
-                        else:
-                            print(msg)
+                        _console.print_warning(f"Filter column '{country_col}' not found in data")
 
                 if filter_options.get("filter_app_name", ""):
                     app_col = filter_options.get("filter_app_column", "")
@@ -189,34 +195,23 @@ class DataPipeline:
                         df = df[df[app_col] == filter_options["filter_app_name"]]
                         after_app = len(df)
                         removed = before_app - after_app
-                        print(f"[APP FILTER] Removed {removed} rows")
-                        print(f"  Filtered for app: {filter_options['filter_app_name']}")
-                        print(f"  Before: {before_app}, After: {after_app}")
-                        if console:
-                            console.print_status(f"Applied app filter: {filter_options['filter_app_name']}", "info")
+                        _console.print_debug(f"Removed {removed} rows", tag="APP FILTER")
+                        _console.print_debug(f"  Filtered for app: {filter_options['filter_app_name']}", tag="APP FILTER")
+                        _console.print_debug(f"  Before: {before_app}, After: {after_app}", tag="APP FILTER")
+                        _console.print_status(
+                            f"Applied app filter: {filter_options['filter_app_name']}", "info"
+                        )
                     else:
-                        msg = f"Warning: Filter column '{app_col}' not found in data"
-                        if console:
-                            console.print_status(msg, "warning")
-                        else:
-                            print(msg)
+                        _console.print_warning(f"Filter column '{app_col}' not found in data")
 
                 # Summary of filtering
                 total_filtered = initial_filter_count - len(df)
                 if total_filtered > 0:
-                    print(f"[FILTERS SUMMARY] Total rows removed by filters: {total_filtered}")
+                    _console.print_debug(f"Total rows removed by filters: {total_filtered}", tag="FILTERS SUMMARY")
         except KeyError as e:
-            msg = f"Warning: Missing filter configuration: {e}"
-            if console:
-                console.print_status(msg, "warning")
-            else:
-                print(msg)
+            _console.print_warning(f"Missing filter configuration: {e}")
         except Exception as e:
-            msg = f"Warning: Error applying data filters: {e}"
-            if console:
-                console.print_status(msg, "warning")
-            else:
-                print(msg)
+            _console.print_warning(f"Error applying data filters: {e}")
 
         return df
 
@@ -227,7 +222,7 @@ class DataPipeline:
         options: Dict[str, Any],
         main_db_eng,
         table_name: str,
-        console: Optional[ConsoleManager] = None
+        console: Optional[ConsoleManager] = None,
     ) -> pd.DataFrame:
         """
         Preprocess the loaded DataFrame.
@@ -243,23 +238,45 @@ class DataPipeline:
         Returns:
             Preprocessed DataFrame
         """
-        if console:
-            console.print_status("Preprocessing data...", "processing")
+        _console = console or get_console()
+        _console.print_status("Preprocessing data...", "processing")
 
         # Select only desired columns and validate they exist
         if desired_columns not in df.columns:
             available_columns = ", ".join(df.columns.tolist())
-            raise KeyError(f"Column '{desired_columns}' not found in data. Available columns: {available_columns}")
+            raise KeyError(
+                f"Column '{desired_columns}' not found in data. Available columns: {available_columns}"
+            )
+
+        # Check for PageRank column to use for TF-IDF weighting
+        pagerank_col = options.get("pagerank_column")
+        has_pagerank = pagerank_col and pagerank_col in df.columns
+        if pagerank_col and pagerank_col not in df.columns:
+            _console.print_warning(
+                f"PageRank column '{pagerank_col}' not found in data. Skipping PageRank weighting.",
+                tag="PAGERANK"
+            )
+            options["pagerank_column"] = None
+            has_pagerank = False
 
         # Check for datetime columns to preserve for temporal analysis
-        common_datetime_cols = ['year', 'date', 'datetime', 'timestamp', 'time',
-                                'rev_submit_millis_since_epoch', 'created_at', 'updated_at']
+        common_datetime_cols = [
+            "year",
+            "date",
+            "datetime",
+            "timestamp",
+            "time",
+            "rev_submit_millis_since_epoch",
+            "created_at",
+            "updated_at",
+        ]
         datetime_col_found = None
 
         # Check if both 'year' and 'month' columns exist - combine them into MM-YYYY format
-        if 'year' in df.columns and 'month' in df.columns:
-            if console:
-                console.print_status("Combining 'year' and 'month' columns into datetime...", "processing")
+        if "year" in df.columns and "month" in df.columns:
+            _console.print_status(
+                "Combining 'year' and 'month' columns into datetime...", "processing"
+            )
 
             # Make a copy to avoid SettingWithCopyWarning
             df = df.copy()
@@ -279,23 +296,37 @@ class DataPipeline:
                 month_str = str(month_val).strip()
 
                 # Check for None values
-                if month_str is None or month_str == 'None':
-                    logger.warning(f"Invalid month value encountered: {month_val}. Defaulting to January.")
+                if month_str is None or month_str == "None":
+                    logger.warning(
+                        f"Invalid month value encountered: {month_val}. Defaulting to January."
+                    )
                     return 1
 
                 month_map = {
-                    'jan': 1, 'january': 1,
-                    'feb': 2, 'february': 2,
-                    'mar': 3, 'march': 3,
-                    'apr': 4, 'april': 4,
-                    'may': 5,
-                    'jun': 6, 'june': 6,
-                    'jul': 7, 'july': 7,
-                    'aug': 8, 'august': 8,
-                    'sep': 9, 'sept': 9, 'september': 9,
-                    'oct': 10, 'october': 10,
-                    'nov': 11, 'november': 11,
-                    'dec': 12, 'december': 12
+                    "jan": 1,
+                    "january": 1,
+                    "feb": 2,
+                    "february": 2,
+                    "mar": 3,
+                    "march": 3,
+                    "apr": 4,
+                    "april": 4,
+                    "may": 5,
+                    "jun": 6,
+                    "june": 6,
+                    "jul": 7,
+                    "july": 7,
+                    "aug": 8,
+                    "august": 8,
+                    "sep": 9,
+                    "sept": 9,
+                    "september": 9,
+                    "oct": 10,
+                    "october": 10,
+                    "nov": 11,
+                    "november": 11,
+                    "dec": 12,
+                    "december": 12,
                 }
 
                 # Try to parse as month name
@@ -311,26 +342,32 @@ class DataPipeline:
                     return 1  # Default to January if can't parse
 
             # Apply conversion to month column
-            df['month_numeric'] = df['month'].apply(convert_month_to_numeric)
+            df["month_numeric"] = df["month"].apply(convert_month_to_numeric)
 
             # Combine year and month into a datetime column (day=1 for proper sorting)
-            df['datetime_combined'] = pd.to_datetime(
-                df['year'].astype(str) + '-' +
-                df['month_numeric'].astype(str).str.zfill(2) + '-01',
-                format='%Y-%m-%d',
-                errors='coerce'
+            df["datetime_combined"] = pd.to_datetime(
+                df["year"].astype(int).astype(str)
+                + "-"
+                + df["month_numeric"].astype(int).astype(str).str.zfill(2)
+                + "-01",
+                format="%Y-%m-%d",
+                errors="coerce",
             )
 
             # Store that we combined year and month
-            datetime_col_found = 'datetime_combined'
-            options['datetime_column'] = datetime_col_found
-            options['datetime_is_combined_year_month'] = True
+            datetime_col_found = "datetime_combined"
+            options["datetime_column"] = datetime_col_found
+            options["datetime_is_combined_year_month"] = True
 
-            # Select columns to keep
-            df = df[[desired_columns, 'datetime_combined']]
+            # Select columns to keep (include pagerank if available)
+            cols_to_keep = [desired_columns, "datetime_combined"]
+            if has_pagerank:
+                cols_to_keep.append(pagerank_col)
+            df = df[cols_to_keep]
 
-            if console:
-                console.print_status(f"Created combined datetime column from year and month", "info")
+            _console.print_status(
+                f"Created combined datetime column from year and month", "info"
+            )
         else:
             # Original logic for other datetime columns
             for col in common_datetime_cols:
@@ -338,29 +375,34 @@ class DataPipeline:
                     datetime_col_found = col
                     break
 
-            # Select text column and datetime column if available
+            # Select text column and datetime column if available (include pagerank if available)
             if datetime_col_found:
-                df = df[[desired_columns, datetime_col_found]]
-                options['datetime_column'] = datetime_col_found  # Store for later use in pipeline
-                options['datetime_is_combined_year_month'] = False
-                if console:
-                    console.print_status(f"Preserved datetime column: {datetime_col_found}", "info")
+                cols_to_keep = [desired_columns, datetime_col_found]
+                if has_pagerank:
+                    cols_to_keep.append(pagerank_col)
+                df = df[cols_to_keep]
+                options["datetime_column"] = datetime_col_found  # Store for later use in pipeline
+                options["datetime_is_combined_year_month"] = False
+                _console.print_status(f"Preserved datetime column: {datetime_col_found}", "info")
             else:
-                df = df[[desired_columns]]
-                options['datetime_column'] = None
-                options['datetime_is_combined_year_month'] = False
-        
+                cols_to_keep = [desired_columns]
+                if has_pagerank:
+                    cols_to_keep.append(pagerank_col)
+                df = df[cols_to_keep]
+                options["datetime_column"] = None
+                options["datetime_is_combined_year_month"] = False
+
         # Remove duplicates and null values
         initial_count = len(df)
-        print(f"\n[PREPROCESSING] Starting with {initial_count} rows")
+        _console.print_debug(f"Starting with {initial_count} rows", tag="PREPROCESSING")
 
         # Check for null values before removing
         null_counts = df.isnull().sum()
         rows_with_nulls = df.isnull().any(axis=1).sum()
         if rows_with_nulls > 0:
-            print(f"[NULL CHECK] Found {rows_with_nulls} rows with null values")
+            _console.print_debug(f"Found {rows_with_nulls} rows with null values", tag="NULL CHECK")
             for col, count in null_counts[null_counts > 0].items():
-                print(f"  Column '{col}': {count} null values")
+                _console.print_debug(f"  Column '{col}': {count} null values", tag="NULL CHECK")
 
         # Remove duplicates
         before_dedup = len(df)
@@ -368,8 +410,8 @@ class DataPipeline:
         after_dedup = len(df)
         duplicates_removed = before_dedup - after_dedup
         if duplicates_removed > 0:
-            print(f"[DUPLICATE REMOVAL] Removed {duplicates_removed} duplicate rows")
-            print(f"  Before: {before_dedup}, After: {after_dedup}")
+            _console.print_debug(f"Removed {duplicates_removed} duplicate rows", tag="DUPLICATE REMOVAL")
+            _console.print_debug(f"  Before: {before_dedup}, After: {after_dedup}", tag="DUPLICATE REMOVAL")
 
         # Remove null values
         before_dropna = len(df)
@@ -377,37 +419,66 @@ class DataPipeline:
         after_dropna = len(df)
         nulls_removed = before_dropna - after_dropna
         if nulls_removed > 0:
-            print(f"[NULL REMOVAL] Removed {nulls_removed} rows with null values")
-            print(f"  Before: {before_dropna}, After: {after_dropna}")
+            _console.print_debug(f"Removed {nulls_removed} rows with null values", tag="NULL REMOVAL")
+            _console.print_debug(f"  Before: {before_dropna}, After: {after_dropna}", tag="NULL REMOVAL")
 
         # Summary
         total_removed = initial_count - len(df)
         percent_removed = (total_removed / initial_count * 100) if initial_count > 0 else 0
-        print(f"\n[PREPROCESSING SUMMARY]")
-        print(f"  Initial rows: {initial_count}")
-        print(f"  Final rows: {len(df)}")
-        print(f"  Total removed: {total_removed} ({percent_removed:.1f}%)")
-        print(f"  Retention rate: {(len(df)/initial_count*100):.1f}%")
+        _console.print_debug("Preprocessing complete:", tag="PREPROCESSING SUMMARY")
+        _console.print_debug(f"  Initial rows: {initial_count}", tag="PREPROCESSING SUMMARY")
+        _console.print_debug(f"  Final rows: {len(df)}", tag="PREPROCESSING SUMMARY")
+        _console.print_debug(f"  Total removed: {total_removed} ({percent_removed:.1f}%)", tag="PREPROCESSING SUMMARY")
+        _console.print_debug(f"  Retention rate: {(len(df) / initial_count * 100):.1f}%", tag="PREPROCESSING SUMMARY")
 
         if len(df) == 0:
             raise ValueError("No data remaining after removing duplicates and null values")
 
         if len(df) < initial_count * 0.1:
-            msg = f"Warning: Only {len(df)} rows remain from original {initial_count} after preprocessing"
-            if console:
-                console.print_status(msg, "warning")
-            else:
-                print(msg)
+            _console.print_warning(
+                f"Only {len(df)} rows remain from original {initial_count} after preprocessing"
+            )
 
-        msg = f"Preprocessed dataset has {len(df)} rows"
-        if console:
-            console.print_status(msg, "info")
+        _console.print_status(f"Preprocessed dataset has {len(df)} rows", "info")
+
+        # Extract and normalize PageRank values if available
+        if has_pagerank and pagerank_col in df.columns:
+            import numpy as np
+
+            pagerank_values = df[pagerank_col].values.astype(float)
+
+            # Handle any NaN values (replace with min value)
+            nan_mask = np.isnan(pagerank_values)
+            if nan_mask.any():
+                pagerank_values[nan_mask] = np.nanmin(pagerank_values)
+
+            # Normalize to [0, 1] range then add 1 to get [1, 2] range
+            pr_min, pr_max = pagerank_values.min(), pagerank_values.max()
+            if pr_max > pr_min:
+                normalized = (pagerank_values - pr_min) / (pr_max - pr_min)
+            else:
+                # All values are the same, set to 0.5 (middle of range)
+                normalized = np.full_like(pagerank_values, 0.5)
+
+            # Add 1 to get weights in [1, 2] range
+            options["pagerank_weights"] = normalized + 1.0
+
+            _console.print_debug(f"Extracted {len(pagerank_values)} PageRank weights", tag="PAGERANK")
+            _console.print_debug(f"  Original range: [{pr_min:.6f}, {pr_max:.6f}]", tag="PAGERANK")
+            _console.print_debug(
+                f"  Weight range: [{options['pagerank_weights'].min():.4f}, {options['pagerank_weights'].max():.4f}]",
+                tag="PAGERANK"
+            )
+            _console.print_status(f"PageRank weights extracted (range: 1.0-2.0)", "info")
+
+            # Drop the pagerank column from df (no longer needed)
+            df = df.drop(columns=[pagerank_col])
         else:
-            print(f"File has {len(df)} rows.")
+            options["pagerank_weights"] = None
 
         # Handle database persistence
         df = DatabaseManager.handle_dataframe_persistence(
             df, table_name, main_db_eng, save_to_db=options["save_to_db"]
         )
-        
+
         return df

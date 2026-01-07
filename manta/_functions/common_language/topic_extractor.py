@@ -4,6 +4,25 @@ from ...utils.analysis.distance_two_words import calc_levenstein_distance, calc_
 from ...utils.database.database_manager import DatabaseManager
 
 
+def _get_word_cluster_for_doc_cluster(s_matrix: np.ndarray, doc_cluster_idx: int) -> int:
+    """
+    For a given doc-cluster (W column), find the best matching word-cluster (H row).
+
+    S matrix structure: S[j, i] = coupling between W column i and H row j
+    - Column i corresponds to doc-cluster i (W[:, i])
+    - Row j corresponds to word-cluster j (H[j, :])
+
+    Args:
+        s_matrix: S matrix (k x k) where S[j, i] = coupling between W[:,i] and H[j,:]
+        doc_cluster_idx: Index of the document cluster (W column)
+
+    Returns:
+        Index of the best matching word cluster (H row)
+    """
+    # Find word-cluster (row j) with maximum coupling to this doc-cluster (column i)
+    return np.argmax(s_matrix[doc_cluster_idx, :])
+
+
 def _process_word_token(word_id, tokenizer, vocabulary, emoji_map):
     """
     Process a single word token, handling tokenizer vs sozluk and emoji decoding.
@@ -100,14 +119,14 @@ def _extract_topic_words(topic_word_vector, word_ids, tokenizer, vocabulary, emo
     return word_score_list
 
 
-def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
+def _extract_topic_documents(topic_doc_vector, doc_ids, original_documents, emoji_map):
     """
-    Extract and process documents for a single topic.
+    Extract and process documents for a single topic using original (unpreprocessed) text.
 
     Args:
         topic_doc_vector (numpy.ndarray): Document scores for this topic
         doc_ids (numpy.ndarray): Sorted document IDs by score
-        documents: Collection of documents (DataFrame or list)
+        original_documents: Collection of original documents (DataFrame or list) - raw text before preprocessing
         emoji_map: Emoji map for decoding (optional)
 
     Returns:
@@ -116,17 +135,17 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
     document_score_list = {}
 
     for doc_id in doc_ids:
-        if doc_id < len(documents):
+        if doc_id < len(original_documents):
             score = topic_doc_vector[doc_id]
 
             # Skip documents with zero or negative scores
             if score <= 0.0:
                 continue
 
-            if hasattr(documents, 'iloc'):
-                document_text = documents.iloc[doc_id]
+            if hasattr(original_documents, 'iloc'):
+                document_text = original_documents.iloc[doc_id]
             else:
-                document_text = documents[doc_id]
+                document_text = original_documents[doc_id]
 
             if emoji_map is not None:
                 if emoji_map.check_if_text_contains_tokenized_emoji_doc(document_text):
@@ -137,7 +156,7 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
     return document_score_list
 
 
-def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None, db_config=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, s_matrix=None):
+def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None, original_documents=None, db_config=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, s_matrix=None):
     """
     Performs topic analysis using Non-negative Matrix Factorization (NMF) results for both Turkish and English texts.
 
@@ -160,8 +179,10 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
                                     token IDs to words. Required for Turkish text processing.
         vocab (list, optional): English vocabulary list where indices correspond to feature indices in H matrix.
                                Required for English text processing.
-        documents (pandas.DataFrame or list, optional): Collection of document texts used in the analysis.
+        documents (pandas.DataFrame or list, optional): Collection of preprocessed document texts (for coherence calculation).
                                                        Can be pandas DataFrame or list of strings.
+        original_documents (pandas.DataFrame or list, optional): Collection of original (unpreprocessed) document texts for exports.
+                                                                Can be pandas DataFrame or list of strings. Must have same length as documents.
         db_config (DatabaseConfig, optional): Database configuration object containing database engines and output directories.
         data_frame_name (str, optional): Name of the dataset/table, used for database operations and file naming.
         word_per_topic (int, optional): Maximum number of top words to extract per topic. Default is 20.
@@ -223,39 +244,74 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
     if tokenizer is None and vocab is None:
         raise ValueError("Either tokenizer (for Turkish) or vocab (for English) must be provided")
 
-    # Apply NMTF transformation if S matrix is provided
-    # This transforms H to project words onto document-cluster space: H' = S @ H
-    if s_matrix is not None:
-        H = s_matrix @ H
+    # Validate document arrays alignment
+    if documents is not None and original_documents is not None:
+        if len(documents) != len(original_documents):
+            raise ValueError(
+                f"Document arrays must have the same length. "
+                f"documents: {len(documents)}, original_documents: {len(original_documents)}"
+            )
 
     word_result = {}
     document_result = {}
 
-    if topic_count == -1:
-        topic_count = H.shape[0]
+    if s_matrix is not None:
+        # NMTF mode: use sequential doc-cluster indices as topics
+        # Map each doc-cluster (W column) to its best word-cluster (H row) via S matrix
+        # S[j, i] = coupling between W column i and H row j
+        if topic_count == -1:
+            topic_count = W.shape[1]
 
-    # Process all topics sequentially (works for both NMF and NMTF after transformation)
-    for i in range(topic_count):
-        topic_word_vector = H[i, :]
-        topic_doc_vector = W[:, i]
+        for topic_idx in range(topic_count):
+            # Find best word-cluster (H row j) for this doc-cluster (W column i)
+            word_cluster_idx = _get_word_cluster_for_doc_cluster(s_matrix, topic_idx)
 
-        # Get sorted indices by score (highest first)
-        sorted_word_ids = np.flip(np.argsort(topic_word_vector))
-        sorted_doc_ids = np.flip(np.argsort(topic_doc_vector))
+            topic_word_vector = H[word_cluster_idx, :]
+            topic_doc_vector = W[:, topic_idx]
 
-        # Extract words for this topic
-        word_scores = _extract_topic_words(
-            topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
-        )
-        word_result[f"Topic {i+1:02d}"] = word_scores
+            # Get sorted indices by score (highest first)
+            sorted_word_ids = np.flip(np.argsort(topic_word_vector))
+            sorted_doc_ids = np.flip(np.argsort(topic_doc_vector))
 
-        # Extract documents for this topic (optional)
-        if include_documents and documents is not None:
-            top_doc_ids = sorted_doc_ids[:10]
-            doc_scores = _extract_topic_documents(
-                topic_doc_vector, top_doc_ids, documents, emoji_map
+            # Extract words for this topic
+            word_scores = _extract_topic_words(
+                topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
             )
-            document_result[f"Topic {i+1}"] = doc_scores
+            word_result[f"Topic {topic_idx+1:02d}"] = word_scores
+
+            # Extract documents for this topic (optional)
+            if include_documents and original_documents is not None:
+                top_doc_ids = sorted_doc_ids[:10]
+                doc_scores = _extract_topic_documents(
+                    topic_doc_vector, top_doc_ids, original_documents, emoji_map
+                )
+                document_result[f"Topic {topic_idx+1}"] = doc_scores
+    else:
+        # Standard NMF mode: iterate sequentially
+        if topic_count == -1:
+            topic_count = H.shape[0]
+
+        for i in range(topic_count):
+            topic_word_vector = H[i, :]
+            topic_doc_vector = W[:, i]
+
+            # Get sorted indices by score (highest first)
+            sorted_word_ids = np.flip(np.argsort(topic_word_vector))
+            sorted_doc_ids = np.flip(np.argsort(topic_doc_vector))
+
+            # Extract words for this topic
+            word_scores = _extract_topic_words(
+                topic_word_vector, sorted_word_ids, tokenizer, vocab, emoji_map, word_per_topic
+            )
+            word_result[f"Topic {i+1:02d}"] = word_scores
+
+            # Extract documents for this topic (optional)
+            if include_documents and original_documents is not None:
+                top_doc_ids = sorted_doc_ids[:10]
+                doc_scores = _extract_topic_documents(
+                    topic_doc_vector, top_doc_ids, original_documents, emoji_map
+                )
+                document_result[f"Topic {i+1}"] = doc_scores
 
     # Save to database if provided
     if db_config and db_config.topics_db_engine and data_frame_name:

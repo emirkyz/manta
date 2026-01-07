@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional, Union, List
 import time
 from ...utils.analysis import get_dominant_topics
+from ..console.console_manager import ConsoleManager, get_console
 
 # Try to import openTSNE for better performance
 try:
@@ -60,43 +61,41 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
         - Time-series support with multiple subplot layouts
         - High-resolution output suitable for publications
     """
-    # Input validation with beautiful formatting
-    print(f"\n🎨 Starting Optimized t-SNE Visualization")
-    print(f"📊 Input Data:")
-    print(f"  • Documents: {w.shape[0] if w is not None else 'None'}")
-    print(f"  • Topics: {h.shape[0] if h is not None else 'None'}")
+    # Input validation with console output
+    _console = get_console()
+    _console.print_debug("Starting Optimized t-SNE Visualization", tag="VISUALIZATION")
+    _console.print_debug(f"Input Data: Documents={w.shape[0] if w is not None else 'None'}, Topics={h.shape[0] if h is not None else 'None'}", tag="VISUALIZATION")
     if time_data is not None:
-        print(f"  • Time-series mode: {len(time_ranges) if time_ranges else 'Auto-detect'} periods")
-    print(f"  • Output: {table_name}")
+        _console.print_debug(f"Time-series mode: {len(time_ranges) if time_ranges else 'Auto-detect'} periods", tag="VISUALIZATION")
+    _console.print_debug(f"Output: {table_name}", tag="VISUALIZATION")
 
     # Check for openTSNE availability
     if use_opentsne and OPENTSNE_AVAILABLE:
-        print(f"⚡ Using openTSNE with {n_jobs if n_jobs > 0 else 'all'} CPU cores for acceleration")
+        _console.print_debug(f"Using openTSNE with {n_jobs if n_jobs > 0 else 'all'} CPU cores for acceleration", tag="VISUALIZATION")
     elif use_opentsne and not OPENTSNE_AVAILABLE:
-        print(f"⚠️  openTSNE not available, falling back to sklearn (slower)")
-        print(f"   Install with: pip install openTSNE")
+        _console.print_warning("openTSNE not available, falling back to sklearn (slower). Install with: pip install openTSNE", tag="VISUALIZATION")
     else:
-        print(f"🐌 Using sklearn TSNE (single-threaded)")
+        _console.print_debug("Using sklearn TSNE (single-threaded)", tag="VISUALIZATION")
 
     if w is None or h is None:
-        print("⚠️  Error: Invalid input matrices for t-SNE visualization")
+        _console.print_warning("Invalid input matrices for t-SNE visualization", tag="VISUALIZATION")
         return None
 
     if w.shape[0] < 2:
-        print("⚠️  Error: Need at least 2 documents for t-SNE visualization")
+        _console.print_warning("Need at least 2 documents for t-SNE visualization", tag="VISUALIZATION")
         return None
 
-    print(f"\n🔮 Generating t-SNE embedding for {w.shape[0]:,} documents and {h.shape[0]} topics...")
+    _console.print_debug(f"Generating t-SNE embedding for {w.shape[0]:,} documents and {h.shape[0]} topics...", tag="VISUALIZATION")
 
     # Convert W to dense array only if necessary
     if hasattr(w, 'toarray'):
         # It's a sparse matrix, convert to dense
         w_dense = w.toarray()
-        print(f"🔄 Converted sparse matrix to dense: {w.shape} → {w_dense.shape}")
+        _console.print_debug(f"Converted sparse matrix to dense: {w.shape} -> {w_dense.shape}", tag="VISUALIZATION")
     else:
         # Use np.asarray to avoid copying if already an array
         w_dense = np.asarray(w)
-        print(f"✅ Using matrix as-is: {w_dense.shape}")
+        _console.print_debug(f"Using matrix as-is: {w_dense.shape}", tag="VISUALIZATION")
 
     # Apply t-SNE to document-topic matrix (W) with optimized parameters
     n_docs = w_dense.shape[0]
@@ -112,11 +111,10 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
 
     if use_opentsne and OPENTSNE_AVAILABLE:
         # Use openTSNE for better performance
-        print(f"⚙️  openTSNE parameters: perplexity={adaptive_perplexity}, method={method}, "
-              f"iterations={n_iter}, n_jobs={n_jobs}")
+        _console.print_debug(f"openTSNE parameters: perplexity={adaptive_perplexity}, method={method}, iterations={n_iter}, n_jobs={n_jobs}", tag="VISUALIZATION")
 
         # Initialize with PCA for faster convergence
-        print(f"🔧 Initializing with PCA...")
+        _console.print_debug("Initializing with PCA...", tag="VISUALIZATION")
         init_embedding = pca(w_dense, random_state=42)
 
         # Create openTSNE object
@@ -133,13 +131,12 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
             learning_rate="auto"
         )
 
-        print(f"🚀 Running openTSNE optimization...")
+        _console.print_debug("Running openTSNE optimization...", tag="VISUALIZATION")
         tsne_embedding = tsne.fit(w_dense)
 
     else:
         # Fallback to sklearn
-        print(f"⚙️  sklearn TSNE parameters: perplexity={adaptive_perplexity}, method={method}, "
-              f"iterations={n_iter}")
+        _console.print_debug(f"sklearn TSNE parameters: perplexity={adaptive_perplexity}, method={method}, iterations={n_iter}", tag="VISUALIZATION")
 
         tsne = TSNE(
             random_state=42,
@@ -155,7 +152,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
 
     # End timing
     elapsed_time = time.time() - start_time
-    print(f"✅ t-SNE completed in {elapsed_time:.2f} seconds ({elapsed_time/60:.2f} minutes)")
+    _console.print_debug(f"t-SNE completed in {elapsed_time:.2f} seconds ({elapsed_time/60:.2f} minutes)", tag="VISUALIZATION")
 
     # Convert to DataFrame
     tsne_embedding = pd.DataFrame(tsne_embedding, columns=['x', 'y'])
@@ -169,7 +166,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     excluded_count = (~valid_mask).sum()
 
     if excluded_count > 0:
-        print(f"Excluded {excluded_count} documents with all zero topic scores from t-SNE visualization")
+        _console.print_debug(f"Excluded {excluded_count} documents with all zero topic scores from t-SNE visualization", tag="VISUALIZATION")
 
     tsne_embedding = tsne_embedding[valid_mask].reset_index(drop=True)
 
@@ -213,7 +210,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
 
     alpha = 1
 
-    print(f"✨ Visualization settings: {n_points} points, size={point_size:.1f}, alpha={alpha:.2f}")
+    _console.print_debug(f"Visualization settings: {n_points} points, size={point_size:.1f}, alpha={alpha:.2f}", tag="VISUALIZATION")
 
     # Use maximally distinct colors like digital city maps
     import matplotlib.cm as cm
@@ -222,7 +219,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
 
     # Generate distinct colors for topics
     distinct_colors = _generate_distinct_colors(n_unique_topics)
-    print(f"🎨 Generated {len(distinct_colors)} maximally distinct colors for topics")
+    _console.print_debug(f"Generated {len(distinct_colors)} maximally distinct colors for topics", tag="VISUALIZATION")
 
     # Create a custom colormap from distinct colors
     from matplotlib.colors import ListedColormap
@@ -244,7 +241,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
               title='Topics', title_fontsize=11)
 
     # Set modern title and labels with better typography
-    title_text = f'📊 Topic Distribution Visualization (Optimized)\n{table_name.replace("_", " ").title()}'
+    title_text = f'Topic Distribution Visualization (Optimized)\n{table_name.replace("_", " ").title()}'
     ax.set_title(title_text, fontsize=18, fontweight='bold', pad=25,
                  color='#2E3440', family='sans-serif')
     ax.set_xlabel('t-SNE Component 1', fontsize=13, color='#4C566A', fontweight='medium')
@@ -286,20 +283,16 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
                     metadata={'Title': f't-SNE Visualization: {table_name}',
                               'Description': 'Generated by MANTA Topic Modeling (Optimized)'})
         saved_path = str(file_path)
-        print(f"💾 High-quality plot saved: {saved_path}")
+        _console.print_debug(f"High-quality plot saved: {saved_path}", tag="VISUALIZATION")
 
     plt.show()
 
-    # Print beautiful summary statistics with emojis and formatting
-    print(f"\n📊 t-SNE Visualization Summary:")
-    print(f"⏱️  Computation time: {elapsed_time:.2f}s ({elapsed_time/60:.2f} minutes)")
-    print(f"📝 Total documents: {len(data):,}")
-    print(f"🎨 Number of topics: {len(unique_topics)}")
-    print(f"🔍 Topic Distribution:")
+    # Print summary statistics
+    _console.print_debug(f"t-SNE Visualization Summary: {len(data):,} documents, {len(unique_topics)} topics, time={elapsed_time:.2f}s", tag="VISUALIZATION")
     for topic_id in unique_topics:
         topic_count = len(data[data['hue'] == topic_id])
         percentage = (topic_count / len(data)) * 100
-        print(f"  • Topic {topic_id + 1}: {topic_count:,} documents ({percentage:.1f}%)")
+        _console.print_debug(f"  Topic {topic_id + 1}: {topic_count:,} documents ({percentage:.1f}%)", tag="VISUALIZATION")
 
     return saved_path
 
@@ -326,12 +319,13 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
     import matplotlib.cm as cm
     from datetime import datetime
 
-    print(f"🕰️ Creating time-series visualization with {len(time_ranges)} periods...")
+    _console = get_console()
+    _console.print_debug(f"Creating time-series visualization with {len(time_ranges)} periods...", tag="VISUALIZATION")
 
     # Parse time data if needed
     parsed_time_data = _parse_time_data(time_data)
     if parsed_time_data is None:
-        print("⚠️  Could not parse time data, falling back to standard visualization")
+        _console.print_warning("Could not parse time data, falling back to standard visualization", tag="VISUALIZATION")
         return None
 
     # Create subplot layout (2x3 for 6 periods, 3x2 for 6 periods, etc.)
@@ -361,7 +355,7 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
 
     # Generate distinct colors for topics
     distinct_colors = _generate_distinct_colors(n_unique_topics)
-    print(f"🎨 Time-series: Generated {len(distinct_colors)} maximally distinct colors")
+    _console.print_debug(f"Time-series: Generated {len(distinct_colors)} maximally distinct colors", tag="VISUALIZATION")
 
     # Create a custom colormap from distinct colors
     from matplotlib.colors import ListedColormap
@@ -445,7 +439,7 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
 
     # Add main title with modern typography
     title_type = "Cumulative" if cumulative else "Period-by-Period"
-    main_title = f'🕰️ Topic Evolution Over Time ({title_type})\n{table_name.replace("_", " ").title()}'
+    main_title = f'Topic Evolution Over Time ({title_type})\n{table_name.replace("_", " ").title()}'
     fig.suptitle(main_title, fontsize=18, fontweight='bold', y=0.96, color='#2E3440')
 
     plt.tight_layout()
@@ -466,15 +460,12 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
                     metadata={'Title': f'Time-series t-SNE: {table_name}',
                               'Description': 'Generated by MANTA Topic Modeling (Optimized)'})
         saved_path = str(file_path)
-        print(f"💾 Time-series plot saved: {saved_path}")
+        _console.print_debug(f"Time-series plot saved: {saved_path}", tag="VISUALIZATION")
 
     plt.show()
 
-    # Print beautiful time-series summary
-    print(f"\n🕰️ Time-Series t-SNE Summary:")
-    print(f"📅 Time periods: {len(time_ranges)}")
-    print(f"🔄 Mode: {'Cumulative' if cumulative else 'Period-by-period'}")
-    print(f"📈 Document Distribution:")
+    # Print time-series summary
+    _console.print_debug(f"Time-Series t-SNE Summary: {len(time_ranges)} periods, Mode: {'Cumulative' if cumulative else 'Period-by-period'}", tag="VISUALIZATION")
     for i, time_point in enumerate(time_ranges):
         if cumulative:
             mask = parsed_time_data <= time_point
@@ -483,7 +474,7 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
             mask = parsed_time_data == time_point
             prefix = "In"
         count = mask.sum()
-        print(f"  • {prefix} {time_point}: {count:,} documents")
+        _console.print_debug(f"  {prefix} {time_point}: {count:,} documents", tag="VISUALIZATION")
 
     return saved_path
 
@@ -535,11 +526,13 @@ def _parse_time_data(time_data: pd.Series) -> Optional[pd.Series]:
             except:
                 pass
 
-        print(f"⚠️  Could not parse time data of type {time_data.dtype}")
+        _console = get_console()
+        _console.print_warning(f"Could not parse time data of type {time_data.dtype}", tag="VISUALIZATION")
         return None
 
     except Exception as e:
-        print(f"⚠️  Error parsing time data: {e}")
+        _console = get_console()
+        _console.print_warning(f"Error parsing time data: {e}", tag="VISUALIZATION")
         return None
 
 
@@ -560,8 +553,9 @@ def _apply_density_based_reduction(tsne_data: pd.DataFrame, density_threshold: f
     if len(tsne_data) <= 500:  # Don't reduce small datasets
         return tsne_data
 
+    _console = get_console()
     try:
-        print(f"✨ Optimizing visualization with {len(tsne_data):,} points...")
+        _console.print_debug(f"Optimizing visualization with {len(tsne_data):,} points...", tag="VISUALIZATION")
 
         # Work on each topic separately to maintain topic representation
         reduced_dfs = []
@@ -638,16 +632,16 @@ def _apply_density_based_reduction(tsne_data: pd.DataFrame, density_threshold: f
             reduced_dfs.append(reduced_topic)
 
             reduction_ratio = len(reduced_topic) / len(topic_data)
-            print(f"  • Topic {hue}: {len(topic_data):,} → {len(reduced_topic):,} points ({reduction_ratio:.1%})")
+            _console.print_debug(f"  Topic {hue}: {len(topic_data):,} -> {len(reduced_topic):,} points ({reduction_ratio:.1%})", tag="VISUALIZATION")
 
         result = pd.concat(reduced_dfs, ignore_index=True)
         total_reduction = len(result) / len(tsne_data)
-        print(f"✅ Optimization complete: {len(tsne_data):,} → {len(result):,} points ({total_reduction:.1%} retained)")
+        _console.print_debug(f"Optimization complete: {len(tsne_data):,} -> {len(result):,} points ({total_reduction:.1%} retained)", tag="VISUALIZATION")
 
         return result
 
     except Exception as e:
-        print(f"⚠️  Warning: Optimization failed, using all points: {e}")
+        _console.print_warning(f"Optimization failed, using all points: {e}", tag="VISUALIZATION")
         return tsne_data
 
 

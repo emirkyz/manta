@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Topic Distribution by Year - Interactive Violin Plot</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        #controls {
+            width: 300px;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+
+        #controls h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        #topic-checkboxes {
+            margin: 15px 0;
+            max-height: calc(100vh - 250px);
+            overflow-y: auto;
+        }
+
+        #topic-checkboxes label {
+            display: block;
+            padding: 8px 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border-radius: 4px;
+        }
+
+        #topic-checkboxes label:hover {
+            background-color: #ecf0f1;
+        }
+
+        #topic-checkboxes input[type="checkbox"] {
+            margin-right: 8px;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        #plot-container {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #plot-header {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        #plot-header h1 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        #plot-info {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        #violin-plot {
+            flex: 1;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+
+        .no-selection-message {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #95a5a6;
+            font-size: 18px;
+        }
+
+        .info-box {
+            background-color: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .info-box p {
+            font-size: 13px;
+            color: #34495e;
+            margin: 5px 0;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #bdc3c7;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #95a5a6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="controls">
+            <h2>Topic Selection</h2>
+
+            <div class="info-box">
+                <p><strong>Total Topics:</strong> <span id="total-topics">0</span></p>
+                <p><strong>Selected:</strong> <span id="selected-count">0</span></p>
+            </div>
+
+            <div id="topic-checkboxes">
+                <!-- Checkboxes will be generated here by JavaScript -->
+            </div>
+
+            <div class="button-group">
+                <button onclick="selectAll()">Select All</button>
+                <button onclick="deselectAll()">Clear All</button>
+            </div>
+        </div>
+
+        <div id="plot-container">
+            <div id="plot-header">
+                <h1>Topic Distribution Across Years</h1>
+                <p id="plot-info">Interactive violin plot showing the temporal distribution of topics. Select topics from the sidebar to visualize their year distributions.</p>
+            </div>
+            <div id="violin-plot">
+                <div class="no-selection-message">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- EMBEDDED_DATA -->
+    <!-- Data will be injected here by the Python script -->
+
+    <script>
+        // Global state
+        let currentData = null;
+
+        // Initialize the page
+        function initializeControls() {
+            if (typeof VIOLIN_DATA === 'undefined') {
+                document.getElementById('violin-plot').innerHTML =
+                    '<div class="no-selection-message">Error: Data not loaded</div>';
+                return;
+            }
+
+            currentData = VIOLIN_DATA;
+            const checkboxContainer = document.getElementById('topic-checkboxes');
+            const topics = Object.keys(currentData.topics).sort((a, b) => parseInt(a) - parseInt(b));
+
+            // Update metadata display
+            document.getElementById('total-topics').textContent = topics.length;
+            document.getElementById('selected-count').textContent = topics.length;
+
+            // Create checkboxes for each topic
+            topics.forEach(topicId => {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = topicId;
+                checkbox.checked = true;
+                checkbox.onchange = updatePlot;
+                checkbox.id = `topic-checkbox-${topicId}`;
+
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(` Topic ${topicId} (${currentData.topics[topicId].length} docs)`));
+                checkboxContainer.appendChild(label);
+            });
+
+            updatePlot();
+        }
+
+        // Update the plot based on selected topics
+        function updatePlot() {
+            const selectedTopics = Array.from(
+                document.querySelectorAll('#topic-checkboxes input:checked')
+            ).map(cb => cb.value).sort((a, b) => parseInt(a) - parseInt(b));
+
+            // Update selected count
+            document.getElementById('selected-count').textContent = selectedTopics.length;
+
+            if (selectedTopics.length === 0) {
+                document.getElementById('violin-plot').innerHTML =
+                    '<div class="no-selection-message">Please select at least one topic from the sidebar</div>';
+                return;
+            }
+
+            // Create Plotly traces for selected topics (horizontal orientation)
+            const traces = selectedTopics.map(topicId => {
+                const topicData = currentData.topics[topicId];
+                const years = topicData.years;
+                const periods = topicData.periods;
+
+                return {
+                    type: 'violin',
+                    x: years,
+                    y: Array(years.length).fill(`Topic ${topicId}`),
+                    name: `Topic ${topicId}`,
+                    orientation: 'h',
+                    box: {
+                        visible: true
+                    },
+                    meanline: {
+                        visible: true
+                    },
+                    points: false,
+                    scalemode: 'width',
+                    width: 0.6,
+                    hoverinfo: 'y+x',
+                    hovertemplate: '<b>%{y}</b><br>' +
+                                   'Year: %{x:.0f}<br>' +
+                                   '<extra></extra>'
+                };
+            });
+
+            // Calculate dynamic height based on number of topics (minimum 50px per topic)
+            const plotHeight = Math.max(600, selectedTopics.length * 50);
+
+            const layout = {
+                title: {
+                    text: `Topic Distribution Across Years (${selectedTopics.length} topics selected)`,
+                    font: {
+                        size: 18,
+                        color: '#2c3e50'
+                    }
+                },
+                xaxis: {
+                    title: {
+                        text: 'Year',
+                        font: {
+                            size: 14,
+                            color: '#2c3e50'
+                        }
+                    },
+                    gridcolor: '#e5e5e5',
+                    range: [currentData.metadata.min_year - 1, currentData.metadata.max_year + 1],
+                    tickformat: 'd',
+                    hoverformat: 'd',
+                    dtick: 1,
+                    tickmode: 'linear'
+                },
+                yaxis: {
+                    title: {
+                        text: 'Topic ID',
+                        font: {
+                            size: 14,
+                            color: '#2c3e50'
+                        }
+                    },
+                    categoryorder: 'array',
+                    categoryarray: selectedTopics.map(id => `Topic ${id}`).reverse()
+                },
+                showlegend: false,
+                plot_bgcolor: '#ffffff',
+                paper_bgcolor: '#ffffff',
+                height: plotHeight,
+                margin: {
+                    l: 100,
+                    r: 30,
+                    t: 80,
+                    b: 60
+                },
+                hovermode: 'closest'
+            };
+
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                toImageButtonOptions: {
+                    format: 'png',
+                    filename: 'topic_violin_plot',
+                    height: Math.max(800, selectedTopics.length * 50),
+                    width: 900,
+                    scale: 2
+                }
+            };
+
+            Plotly.newPlot('violin-plot', traces, layout, config);
+        }
+
+        // Select all topics
+        function selectAll() {
+            document.querySelectorAll('#topic-checkboxes input[type="checkbox"]').forEach(
+                cb => cb.checked = true
+            );
+            updatePlot();
+        }
+
+        // Deselect all topics
+        function deselectAll() {
+            document.querySelectorAll('#topic-checkboxes input[type="checkbox"]').forEach(
+                cb => cb.checked = false
+            );
+            updatePlot();
+        }
+
+        // Initialize when page loads
+        window.onload = function() {
+            initializeControls();
+        };
+    </script>
+</body>
+</html>

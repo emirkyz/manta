@@ -14,9 +14,43 @@ import numpy as np
 import pandas as pd
 import json
 from pathlib import Path
-from typing import Optional, Union, List, Dict, Any
+from typing import Optional, Union, List, Dict, Any, Tuple
 from scipy.stats import entropy
 from sklearn.manifold import MDS
+from ..console.console_manager import ConsoleManager, get_console
+
+
+def _get_word_cluster_for_doc_cluster(s_matrix: np.ndarray, doc_cluster_idx: int) -> int:
+    """
+    For a given doc-cluster (W column), find the best matching word-cluster (H row).
+
+    S matrix structure: S[j, i] = coupling between W column i and H row j
+    - Column i corresponds to doc-cluster i (W[:, i])
+    - Row j corresponds to word-cluster j (H[j, :])
+
+    Args:
+        s_matrix: S matrix (k x k) where S[j, i] = coupling between W[:,i] and H[j,:]
+        doc_cluster_idx: Index of the document cluster (W column)
+
+    Returns:
+        Index of the best matching word cluster (H row)
+    """
+    # Find word-cluster (row j) with maximum coupling to this doc-cluster (column i)
+    return np.argmax(s_matrix[doc_cluster_idx, :])
+
+
+def _create_topic_to_h_mapping(s_matrix: np.ndarray, n_topics: int) -> List[int]:
+    """
+    Create mapping from topic indices (W columns) to H row indices using S matrix.
+
+    Args:
+        s_matrix: S matrix (k x k) where S[j, i] = coupling between W[:,i] and H[j,:]
+        n_topics: Number of topics (W columns)
+
+    Returns:
+        List where index i contains the H row index for topic i
+    """
+    return [_get_word_cluster_for_doc_cluster(s_matrix, i) for i in range(n_topics)]
 
 
 def create_manta_ldavis(w_matrix: np.ndarray,
@@ -34,7 +68,7 @@ def create_manta_ldavis(w_matrix: np.ndarray,
                         emoji_map = None) -> Optional[str]:
     """
     Create an interactive LDAvis-style visualization for MANTA NMF results.
-    
+
     Args:
         w_matrix: Document-topic matrix (n_docs x n_topics)
         h_matrix: Topic-word matrix (n_topics x n_vocab)
@@ -46,36 +80,37 @@ def create_manta_ldavis(w_matrix: np.ndarray,
         lambda_step: Step size for lambda slider
         plot_opts: Additional plotting options
         sort_topics: Whether to sort topics by size
-        
+
     Returns:
         Path to saved HTML file or None if failed
     """
+    _console = get_console()
     try:
-        print("🎨 Creating MANTA LDAvis visualization...")
-        
+        _console.print_debug("Creating MANTA LDAvis visualization...", tag="VISUALIZATION")
+
         # Input validation
         if w_matrix is None or h_matrix is None:
             raise ValueError("Both W and H matrices must be provided")
-        
+
         # Ensure matrices have compatible dimensions
         if hasattr(w_matrix, 'toarray'):
             w_shape = w_matrix.shape
         else:
             w_shape = np.asarray(w_matrix).shape
-            
+
         if hasattr(h_matrix, 'toarray'):
             h_shape = h_matrix.shape
         else:
             h_shape = np.asarray(h_matrix).shape
-            
+
         if len(w_shape) != 2 or len(h_shape) != 2:
             raise ValueError("W and H matrices must be 2-dimensional")
-            
+
         if w_shape[1] != h_shape[0]:
             raise ValueError(f"Matrix dimension mismatch: W has {w_shape[1]} topics, H has {h_shape[0]} topics")
-        
-        print(f"📊 Processing {w_shape[0]:,} documents, {h_shape[0]} topics, {h_shape[1]:,} vocabulary terms")
-        
+
+        _console.print_debug(f"Processing {w_shape[0]:,} documents, {h_shape[0]} topics, {h_shape[1]:,} vocabulary terms", tag="VISUALIZATION")
+
         # Prepare data for visualization
         vis_data = prepare_manta_data(
             w_matrix=w_matrix,
@@ -89,31 +124,31 @@ def create_manta_ldavis(w_matrix: np.ndarray,
             emoji_map=emoji_map,
             s_matrix=s_matrix
         )
-        
+
         # Generate HTML visualization
         html_content = generate_html_visualization(vis_data, plot_opts or {})
-        
+
         # Save to file
         if output_dir:
             output_path = Path(output_dir)
             output_path.mkdir(parents=True, exist_ok=True)
-            
+
             filename = f"{table_name}_interactive_ldavis.html"
             file_path = output_path / filename
-            
+
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
-            
-            print(f"💾 Interactive LDAvis visualization saved to: {file_path}")
+
+            _console.print_debug(f"Interactive LDAvis visualization saved to: {file_path}", tag="VISUALIZATION")
             return str(file_path)
-        
+
         return html_content
-        
+
     except ValueError as e:
-        print(f"❌ Input validation error: {e}")
+        _console.print_error(f"Input validation error: {e}", tag="VISUALIZATION")
         return None
     except Exception as e:
-        print(f"❌ Error creating MANTA LDAvis visualization: {e}")
+        _console.print_error(f"Error creating MANTA LDAvis visualization: {e}", tag="VISUALIZATION")
         import traceback
         traceback.print_exc()
         return None
@@ -148,59 +183,64 @@ def prepare_manta_data(w_matrix: np.ndarray,
     Returns:
         Dictionary containing all data needed for visualization
     """
-    print("🔄 Preparing data for LDAvis visualization...")
-    
+    _console = get_console()
+    _console.print_debug("Preparing data for LDAvis visualization...", tag="VISUALIZATION")
+
     # Input validation
     if tokenizer is None and (vocab is None or len(vocab) == 0):
         raise ValueError("Either tokenizer or vocabulary must be provided")
-    
+
     # Additional validation for numerical stability
     if np.any(np.isnan(w_matrix)) or np.any(np.isnan(h_matrix)):
         raise ValueError("Input matrices contain NaN values")
-        
+
     if np.any(np.isinf(w_matrix)) or np.any(np.isinf(h_matrix)):
         raise ValueError("Input matrices contain infinite values")
-    
+
     # Ensure matrices are dense numpy arrays
     if hasattr(w_matrix, 'toarray'):
         w_matrix = w_matrix.toarray()
     if hasattr(h_matrix, 'toarray'):
         h_matrix = h_matrix.toarray()
-    
+
     w_matrix = np.asarray(w_matrix)
     h_matrix = np.asarray(h_matrix)
-    
+
     n_docs, n_topics = w_matrix.shape
     n_topics_h, n_vocab = h_matrix.shape
-    
+
     assert n_topics == n_topics_h, f"Matrix dimension mismatch: W has {n_topics} topics, H has {n_topics_h}"
-    
+
+    # For NMTF models: use W and H directly without reordering
+    # Topic ordering is sequential (Topic i = W column i)
+    # S matrix is used to map topics to H rows when computing word statistics
+    topic_to_h_mapping = None
+    if s_matrix is not None:
+        topic_to_h_mapping = _create_topic_to_h_mapping(s_matrix, n_topics)
+        _console.print_debug("Created topic-to-H mapping using S matrix (no matrix reordering)", tag="VISUALIZATION")
+
     # Create vocabulary from tokenizer if needed
     if vocab is None and tokenizer is not None:
-        print("Creating vocabulary from tokenizer...")
+        _console.print_debug("Creating vocabulary from tokenizer...", tag="VISUALIZATION")
         vocab = _create_vocab_from_tokenizer(tokenizer, n_vocab, emoji_map)
-    
+
     if vocab is None or len(vocab) != n_vocab:
         raise ValueError(f"Vocabulary size mismatch: H has {n_vocab} terms, vocab has {len(vocab) if vocab else 0}")
-    
+
     # Normalize matrices
     w_matrix_norm = w_matrix / (w_matrix.sum(axis=1, keepdims=True) + 1e-10)
     h_matrix_norm = h_matrix / (h_matrix.sum(axis=1, keepdims=True) + 1e-10)
 
     # Calculate topic sizes (total probability mass)
-    if s_matrix is not None:
-        # NMTF mode: Calculate topic sizes using dominant topic assignments
-        from ...utils.analysis import get_dominant_topics
-        dominant_topics = get_dominant_topics(w_matrix, min_score=0.0, s_matrix=s_matrix)
-        valid_mask = dominant_topics != -1
-        n_topics_effective = len(np.unique(dominant_topics[valid_mask]))
-        topic_sizes = np.zeros(n_topics_effective)
-        for topic_idx in range(n_topics_effective):
-            topic_sizes[topic_idx] = np.sum(dominant_topics == topic_idx)
-    else:
-        # Standard NMF mode: Sum of document-topic weights
-        topic_sizes = w_matrix.sum(axis=0)
-    
+    # Note: For NMTF, w_matrix has already been reordered by topic pairing above
+    from ...utils.analysis import get_dominant_topics
+    dominant_topics = get_dominant_topics(w_matrix, min_score=0.0)
+    valid_mask = dominant_topics != -1
+    n_topics_effective = n_topics  # Use the actual number of topics
+    topic_sizes = np.zeros(n_topics_effective)
+    for topic_idx in range(n_topics_effective):
+        topic_sizes[topic_idx] = np.sum(dominant_topics == topic_idx)
+
     # Calculate term frequencies if not provided
     # Use both H matrix and W matrix to get proper corpus-wide term frequencies
     if term_frequency is None:
@@ -209,41 +249,44 @@ def prepare_manta_data(w_matrix: np.ndarray,
         topic_weights = w_matrix.sum(axis=0)  # Total weight per topic
         # Weighted term frequency: sum over topics of (topic_weight * word_prob_in_topic)
         term_frequency = np.sum(h_matrix * topic_weights.reshape(-1, 1), axis=0)
-    
-    # Calculate document lengths if not provided  
+
+    # Calculate document lengths if not provided
     if doc_lengths is None:
         doc_lengths = [100] * n_docs  # Default assumption
-    
+
     # Calculate inter-topic distances using Jensen-Shannon divergence
-    topic_distances = calculate_topic_distances(h_matrix_norm)
-    
+    # For NMTF, use the topic-to-H mapping to compute distances between mapped H rows
+    topic_distances = calculate_topic_distances(h_matrix_norm, topic_to_h_mapping)
+
     # Project topics to 2D using MDS
     topic_coordinates = project_topics_to_2d(topic_distances)
-    
+
     # Calculate term-topic frequencies
-    term_topic_freq = calculate_term_topic_frequencies(h_matrix, w_matrix)
-    
+    # For NMTF, use the mapping to get the correct H rows for each topic
+    term_topic_freq = calculate_term_topic_frequencies(h_matrix, w_matrix, topic_to_h_mapping)
+
     # Prepare topic info
+    # For NMTF, use the mapping to access the correct H rows
     topic_info = prepare_topic_info(
-        h_matrix_norm, vocab, topic_sizes, term_frequency, 
-        term_topic_freq, lambda_step
+        h_matrix_norm, vocab, topic_sizes, term_frequency,
+        term_topic_freq, lambda_step, topic_to_h_mapping
     )
-    
+
     # Sort topics by size if requested
     if sort_topics:
         sort_idx = np.argsort(topic_sizes)[::-1]  # Descending order
-        
+
         # Reorder coordinates and sizes
         topic_coordinates = topic_coordinates[sort_idx]
         topic_sizes = topic_sizes[sort_idx]
-        
+
         # Fix topic_info reordering - need to remap topic categories properly
         topic_info_reordered = []
-        
+
         # Keep 'Default' category unchanged
         default_info = topic_info[topic_info['Category'] == 'Default'].copy()
         topic_info_reordered.append(default_info)
-        
+
         # Reorder topic-specific entries and renumber them
         for new_idx, orig_idx in enumerate(sort_idx):
             orig_category = f'Topic{orig_idx + 1}'
@@ -251,9 +294,9 @@ def prepare_manta_data(w_matrix: np.ndarray,
             # Renumber the category to maintain 1-based indexing in display order
             topic_entries['Category'] = f'Topic{new_idx + 1}'
             topic_info_reordered.append(topic_entries)
-        
+
         topic_info = pd.concat(topic_info_reordered, ignore_index=True)
-    
+
     # Prepare the final data structure
     vis_data = {
         'topic_coordinates': topic_coordinates.tolist(),
@@ -272,151 +315,184 @@ def prepare_manta_data(w_matrix: np.ndarray,
         'vocab': vocab,
         'term_frequency': term_frequency.tolist() if hasattr(term_frequency, 'tolist') else list(term_frequency)
     }
-    
+
     return vis_data
 
 
-def calculate_topic_distances(topic_matrix: np.ndarray) -> np.ndarray:
+def calculate_topic_distances(topic_matrix: np.ndarray,
+                              topic_to_h_mapping: Optional[List[int]] = None) -> np.ndarray:
     """
     Calculate inter-topic distances using Jensen-Shannon divergence.
-    
+
     Uses an optimized vectorized approach and proper normalization for better
     interpretability of topic relationships.
-    
+
+    For NMTF, uses topic_to_h_mapping to compute distances between the correct
+    H rows for each topic (where Topic i maps to H[topic_to_h_mapping[i]]).
+
     Args:
         topic_matrix: Normalized topic-word matrix (n_topics x n_vocab)
-        
+        topic_to_h_mapping: Optional mapping from topic index to H row index (for NMTF)
+
     Returns:
         Symmetric distance matrix (n_topics x n_topics)
     """
-    n_topics = topic_matrix.shape[0]
-    
+    # Determine number of topics
+    if topic_to_h_mapping is not None:
+        n_topics = len(topic_to_h_mapping)
+    else:
+        n_topics = topic_matrix.shape[0]
+
     # Add small epsilon to avoid log(0) and ensure numerical stability
     epsilon = 1e-12
     topic_matrix_safe = topic_matrix + epsilon
-    
+
     # Renormalize after adding epsilon
     topic_matrix_safe = topic_matrix_safe / topic_matrix_safe.sum(axis=1, keepdims=True)
-    
+
     # Initialize symmetric distance matrix
     distances = np.zeros((n_topics, n_topics))
-    
+
     # Calculate Jensen-Shannon divergence for upper triangle only (optimization)
     for i in range(n_topics):
         for j in range(i + 1, n_topics):
-            p = topic_matrix_safe[i]
-            q = topic_matrix_safe[j]
+            # Get the correct H row indices
+            h_row_i = topic_to_h_mapping[i] if topic_to_h_mapping is not None else i
+            h_row_j = topic_to_h_mapping[j] if topic_to_h_mapping is not None else j
+
+            p = topic_matrix_safe[h_row_i]
+            q = topic_matrix_safe[h_row_j]
             m = 0.5 * (p + q)
-            
+
             # Calculate JS divergence with proper base-2 logarithm for interpretability
             js_div = 0.5 * entropy(p, m, base=2) + 0.5 * entropy(q, m, base=2)
-            
+
             # JS distance is sqrt of JS divergence, bounded between 0 and 1
             js_distance = np.sqrt(np.clip(js_div, 0, 1))
-            
+
             # Fill both upper and lower triangle (symmetric matrix)
             distances[i, j] = js_distance
             distances[j, i] = js_distance
-    
+
     return distances
 
 
 def project_topics_to_2d(distance_matrix: np.ndarray) -> np.ndarray:
     """
     Project topics to 2D space using multidimensional scaling with overlap prevention.
-    
+
     Args:
         distance_matrix: Topic distance matrix
-        
+
     Returns:
         2D coordinates for topics (n_topics x 2)
     """
     # Use MDS to project to 2D
     mds = MDS(n_components=2, dissimilarity='precomputed', random_state=42)
     coordinates = mds.fit_transform(distance_matrix)
-    
+
     # Apply force-directed layout to prevent overlapping
     coordinates = _apply_force_layout(coordinates, distance_matrix)
-    
+
     return coordinates
 
 
-def _apply_force_layout(coordinates: np.ndarray, distance_matrix: np.ndarray, 
+def _apply_force_layout(coordinates: np.ndarray, distance_matrix: np.ndarray,
                        iterations: int = 100, repulsion_strength: float = 1.0) -> np.ndarray:
     """
     Apply force-directed layout to prevent overlapping circles.
-    
+
     Args:
         coordinates: Initial 2D coordinates
         distance_matrix: Distance matrix for topics
         iterations: Number of iterations to run
         repulsion_strength: Strength of repulsion force
-        
+
     Returns:
         Adjusted coordinates with minimal overlap
     """
     coords = coordinates.copy()
     n_topics = len(coords)
-    
+
     for _ in range(iterations):
         forces = np.zeros_like(coords)
-        
+
         for i in range(n_topics):
             for j in range(n_topics):
                 if i != j:
                     # Calculate distance between topics
                     diff = coords[i] - coords[j]
                     dist = np.linalg.norm(diff)
-                    
+
                     # Apply repulsion force if too close
                     min_distance = 0.3  # Minimum distance to maintain
                     if dist < min_distance and dist > 0:
                         force_magnitude = repulsion_strength * (min_distance - dist) / dist
                         forces[i] += force_magnitude * diff
-        
+
         # Apply forces with damping
         coords += forces * 0.1
-    
+
     return coords
 
 
-def calculate_term_topic_frequencies(h_matrix: np.ndarray, w_matrix: np.ndarray) -> np.ndarray:
+def calculate_term_topic_frequencies(h_matrix: np.ndarray, w_matrix: np.ndarray,
+                                      topic_to_h_mapping: Optional[List[int]] = None) -> np.ndarray:
     """
     Calculate term frequencies within each topic.
-    
+
+    For NMTF, uses topic_to_h_mapping to get the correct H row for each topic.
+
     Args:
         h_matrix: Topic-word matrix
         w_matrix: Document-topic matrix
-        
+        topic_to_h_mapping: Optional mapping from topic index to H row index (for NMTF)
+
     Returns:
-        Term-topic frequency matrix
+        Term-topic frequency matrix (n_topics x n_vocab)
     """
+    n_topics = w_matrix.shape[1]
+    n_vocab = h_matrix.shape[1]
+
     # Multiply H by topic weights from W to get actual term-topic frequencies
     topic_weights = w_matrix.sum(axis=0)  # Total weight per topic
-    term_topic_freq = h_matrix * topic_weights.reshape(-1, 1)
-    
+
+    if topic_to_h_mapping is not None:
+        # For NMTF: use the mapping to get the correct H rows
+        term_topic_freq = np.zeros((n_topics, n_vocab))
+        for topic_idx in range(n_topics):
+            h_row_idx = topic_to_h_mapping[topic_idx]
+            term_topic_freq[topic_idx] = h_matrix[h_row_idx] * topic_weights[topic_idx]
+    else:
+        # Standard NMF: H row i corresponds to topic i
+        term_topic_freq = h_matrix * topic_weights.reshape(-1, 1)
+
     return term_topic_freq
 
 
 def prepare_topic_info(h_matrix: np.ndarray, vocab: List[str], topic_sizes: np.ndarray,
                        term_frequency: np.ndarray, term_topic_freq: np.ndarray,
-                       lambda_step: float = 0.01) -> pd.DataFrame:
+                       lambda_step: float = 0.01,
+                       topic_to_h_mapping: Optional[List[int]] = None) -> pd.DataFrame:
     """
     Prepare topic information DataFrame for visualization.
-    
+
+    For NMTF, uses topic_to_h_mapping to access the correct H row for each topic.
+
     Args:
         h_matrix: Normalized topic-word matrix
         vocab: Vocabulary list
         topic_sizes: Topic size array
         term_frequency: Global term frequency
-        term_topic_freq: Term-topic frequency matrix
+        term_topic_freq: Term-topic frequency matrix (already mapped for NMTF)
         lambda_step: Lambda step size
-        
+        topic_to_h_mapping: Optional mapping from topic index to H row index (for NMTF)
+
     Returns:
         DataFrame with topic information
     """
     topic_info_list = []
-    
+
     # Add overall term frequencies
     for i, term in enumerate(vocab):
         topic_info_list.append({
@@ -427,26 +503,32 @@ def prepare_topic_info(h_matrix: np.ndarray, vocab: List[str], topic_sizes: np.n
             'loglift': 0.0,
             'logprob': np.log(term_frequency[i] / term_frequency.sum())
         })
-    
+
+    # Determine number of topics
+    n_topics = len(topic_to_h_mapping) if topic_to_h_mapping is not None else h_matrix.shape[0]
+
     # Add term frequencies for each topic using CORRECT probability normalization
-    for topic_idx in range(h_matrix.shape[0]):
-        # Extract the topic-word vector for this topic
-        topic_word_vector = h_matrix[topic_idx]
+    for topic_idx in range(n_topics):
+        # Get the correct H row index for this topic
+        h_row_idx = topic_to_h_mapping[topic_idx] if topic_to_h_mapping is not None else topic_idx
+
+        # Extract the topic-word vector from the correct H row
+        topic_word_vector = h_matrix[h_row_idx]
         topic_term_freq = term_topic_freq[topic_idx]
-        
+
         # CORRECT NORMALIZATION: Same as calculate_term_relevance function
         # Normalize to get proper probabilities (this is the key fix)
         topic_word_prob = topic_word_vector / (topic_word_vector.sum() + 1e-10)
         overall_word_prob = term_frequency / (term_frequency.sum() + 1e-10)
-        
+
         # Calculate lift: ratio of word probability in topic to overall probability
         lift = topic_word_prob / (overall_word_prob + 1e-10)
         lift = np.clip(lift, 1e-10, None)  # Prevent negative or zero lift
-        
+
         # CORRECT LOG CALCULATION: Use normalized probabilities
         logprob = np.log(topic_word_prob + 1e-10)
         loglift = np.log(lift)
-        
+
         # Include ALL terms (not just top 100) for consistency with calculate_term_relevance
         # Filter will be applied later during visualization
         for word_idx in range(len(vocab)):
@@ -460,46 +542,50 @@ def prepare_topic_info(h_matrix: np.ndarray, vocab: List[str], topic_sizes: np.n
                     'loglift': float(loglift[word_idx]),
                     'logprob': float(logprob[word_idx])
                 })
-    
+
     return pd.DataFrame(topic_info_list)
 
 
-def prepare_token_table(h_matrix: np.ndarray, vocab: List[str], 
+def prepare_token_table(h_matrix: np.ndarray, vocab: List[str],
                         term_topic_freq: np.ndarray) -> pd.DataFrame:
     """
     Prepare token table for the visualization.
-    
+
     Args:
         h_matrix: Normalized topic-word matrix
-        vocab: Vocabulary list  
-        term_topic_freq: Term-topic frequency matrix
-        
+        vocab: Vocabulary list
+        term_topic_freq: Term-topic frequency matrix (already mapped for NMTF)
+
     Returns:
         DataFrame with token information
     """
     token_list = []
-    
+
+    # Use term_topic_freq shape since it reflects the actual number of topics
+    # (after mapping for NMTF)
+    n_topics = term_topic_freq.shape[0]
+
     for term_idx, term in enumerate(vocab):
-        for topic_idx in range(h_matrix.shape[0]):
+        for topic_idx in range(n_topics):
             if term_topic_freq[topic_idx, term_idx] > 0:
                 token_list.append({
                     'Term': term,
                     'Topic': topic_idx + 1,
                     'Freq': float(term_topic_freq[topic_idx, term_idx])
                 })
-    
+
     return pd.DataFrame(token_list)
 
 
-def generate_html_visualization(vis_data: Dict[str, Any], 
+def generate_html_visualization(vis_data: Dict[str, Any],
                                 plot_opts: Dict[str, Any] = None) -> str:
     """
     Generate HTML content for the interactive visualization.
-    
+
     Args:
         vis_data: Prepared visualization data
         plot_opts: Additional plotting options
-        
+
     Returns:
         HTML content string
     """
@@ -519,7 +605,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 min-height: 100vh;
                 color: #2d3748;
             }
-            
+
             .header {
                 text-align: center;
                 margin-bottom: 32px;
@@ -529,28 +615,28 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 border: 1px solid #e2e8f0;
             }
-            
+
             .header h1 {
                 color: #1a202c;
                 margin: 0 0 12px 0;
                 font-size: 2.2em;
                 font-weight: 600;
             }
-            
+
             .header p {
                 color: #64748b;
                 margin: 0;
                 font-size: 1.0em;
                 font-weight: 400;
             }
-            
+
             .container {
                 display: flex;
                 gap: 24px;
                 max-width: 1600px;
                 margin: 0 auto;
             }
-            
+
             .left-panel, .right-panel {
                 flex: 1;
                 background: white;
@@ -559,7 +645,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 border: 1px solid #e2e8f0;
             }
-            
+
             .panel-title {
                 font-size: 1.4em;
                 font-weight: 600;
@@ -567,7 +653,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 margin-bottom: 20px;
                 text-align: center;
             }
-            
+
             .controls {
                 margin-bottom: 24px;
                 text-align: center;
@@ -576,7 +662,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 border-radius: 6px;
                 border: 1px solid #e2e8f0;
             }
-            
+
             .lambda-slider {
                 width: 300px;
                 height: 4px;
@@ -586,7 +672,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 outline: none;
                 -webkit-appearance: none;
             }
-            
+
             .lambda-slider::-webkit-slider-thumb {
                 -webkit-appearance: none;
                 width: 16px;
@@ -596,51 +682,51 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 cursor: pointer;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.2);
             }
-            
+
             .lambda-label {
                 font-size: 14px;
                 color: #64748b;
                 margin-bottom: 10px;
                 font-weight: 500;
             }
-            
+
             .topic-circle {
                 cursor: pointer;
                 stroke: #ffffff;
                 stroke-width: 2px;
                 transition: stroke-width 0.2s ease;
             }
-            
+
             .topic-circle:hover {
                 stroke: #374151;
                 stroke-width: 3px;
             }
-            
+
             .topic-circle.selected {
                 stroke: #dc2626;
                 stroke-width: 3px;
             }
-            
+
             .topic-label {
                 text-shadow: 0 1px 2px rgba(0,0,0,0.3);
                 font-weight: 700;
                 font-size: 13px;
             }
-            
+
             .term-bar {
                 cursor: pointer;
                 transition: opacity 0.2s ease;
             }
-            
+
             .term-bar:hover {
                 opacity: 0.8;
             }
-            
+
             .axis {
                 font-size: 12px;
                 color: #4a5568;
             }
-            
+
             .axis path,
             .axis line {
                 fill: none;
@@ -648,7 +734,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 stroke-width: 1px;
                 shape-rendering: crispEdges;
             }
-            
+
             .tooltip {
                 position: absolute;
                 text-align: left;
@@ -665,7 +751,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 max-width: 200px;
                 line-height: 1.4;
             }
-            
+
             .legend {
                 font-size: 13px;
                 margin-top: 24px;
@@ -674,7 +760,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 border-radius: 12px;
                 border: 1px solid rgba(226, 232, 240, 0.8);
             }
-            
+
             .legend-item {
                 margin-bottom: 8px;
                 padding: 4px 8px;
@@ -683,11 +769,11 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 display: flex;
                 align-items: center;
             }
-            
+
             .legend-item:hover {
                 background: rgba(255, 255, 255, 0.6);
             }
-            
+
             .legend-color {
                 width: 16px;
                 height: 16px;
@@ -695,35 +781,35 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 border-radius: 4px;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.2);
             }
-            
+
             /* Responsive design */
             @media (max-width: 1200px) {
                 .container {
                     flex-direction: column;
                 }
-                
+
                 .lambda-slider {
                     width: 250px;
                 }
             }
-            
+
             @media (max-width: 768px) {
                 body {
                     padding: 16px;
                 }
-                
+
                 .header {
                     padding: 24px 16px;
                 }
-                
+
                 .header h1 {
                     font-size: 2em;
                 }
-                
+
                 .left-panel, .right-panel {
                     padding: 20px;
                 }
-                
+
                 .lambda-slider {
                     width: 200px;
                 }
@@ -735,7 +821,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
             <h1>MANTA Interactive Topic Visualization</h1>
             <p>Explore topic relationships and term distributions in your document corpus</p>
         </div>
-        
+
         <div class="container">
             <div class="left-panel">
                 <div class="panel-title">Intertopic Distance Map</div>
@@ -745,12 +831,12 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 <div id="topic-chart"></div>
                 <div class="legend" id="topic-legend"></div>
             </div>
-            
+
             <div class="right-panel">
                 <div class="panel-title">Top Terms</div>
                 <div class="controls">
                     <div class="lambda-label">Relevance (λ = <span id="lambda-value">0.6</span>)</div>
-                    <input type="range" id="lambda-slider" class="lambda-slider" 
+                    <input type="range" id="lambda-slider" class="lambda-slider"
                            min="0" max="1" step="0.01" value="0.6">
                     <div style="font-size: 11px; color: #64748b; margin-top: 8px; text-align: center;">
                         λ=0: Most frequent in topic | λ=1: Most topic-specific | λ=0.6: Balanced
@@ -774,73 +860,73 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                 <div id="term-chart"></div>
             </div>
         </div>
-        
+
         <!-- Tooltip -->
         <div class="tooltip" id="tooltip"></div>
-        
+
         <script>
             // Visualization data
             const visData = """ + json.dumps(vis_data, indent=2) + """;
-            
+
             // Global state
             let selectedTopic = null;
             let currentLambda = 0.6;
-            
+
             // Subtle professional color scale
             const colorScale = d3.scaleOrdinal([
                 "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
                 "#f43f5e", "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16",
                 "#22c55e", "#10b981", "#14b8a6", "#06b6d4"
             ]);
-            
+
             // Initialize visualization
             initTopicChart();
             initTermChart();
             initControls();
             updateTermChart(); // Show default terms
-            
+
             function initTopicChart() {
                 const margin = {top: 30, right: 30, bottom: 50, left: 50};
                 const width = 600 - margin.left - margin.right;
                 const height = 500 - margin.top - margin.bottom;
-                
+
                 const svg = d3.select("#topic-chart")
                     .append("svg")
                     .attr("width", width + margin.left + margin.right)
                     .attr("height", height + margin.top + margin.bottom);
-                
+
                 const g = svg.append("g")
                     .attr("transform", `translate(${margin.left},${margin.top})`);
-                
+
                 // Extract coordinates and sizes
                 const coordinates = visData.topic_coordinates;
                 const sizes = visData.topic_sizes;
                 const maxSize = Math.max(...sizes);
-                
+
                 // Scales with better padding
                 const xExtent = d3.extent(coordinates, d => d[0]);
                 const yExtent = d3.extent(coordinates, d => d[1]);
-                
+
                 // Add padding to the domains to prevent clipping
                 const xPadding = (xExtent[1] - xExtent[0]) * 0.1;
                 const yPadding = (yExtent[1] - yExtent[0]) * 0.1;
-                
+
                 const xScale = d3.scaleLinear()
                     .domain([xExtent[0] - xPadding, xExtent[1] + xPadding])
                     .range([0, width]);
-                
+
                 const yScale = d3.scaleLinear()
                     .domain([yExtent[0] - yPadding, yExtent[1] + yPadding])
                     .range([height, 0]);
-                
+
                 const radiusScale = d3.scaleSqrt()
                     .domain([0, maxSize])
                     .range([10, 30]); // Better balance for visibility and positioning
-                
+
                 // Add grid lines for better positioning reference
                 const xTicks = xScale.ticks(8);
                 const yTicks = yScale.ticks(6);
-                
+
                 // Vertical grid lines
                 g.selectAll(".grid-line-v")
                     .data(xTicks)
@@ -853,7 +939,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                     .attr("y2", height)
                     .attr("stroke", "#f1f5f9")
                     .attr("stroke-width", 1);
-                
+
                 // Horizontal grid lines
                 g.selectAll(".grid-line-h")
                     .data(yTicks)
@@ -866,17 +952,17 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                     .attr("y2", d => yScale(d))
                     .attr("stroke", "#f1f5f9")
                     .attr("stroke-width", 1);
-                
+
                 // Add axes
                 g.append("g")
                     .attr("class", "axis")
                     .attr("transform", `translate(0,${height})`)
                     .call(d3.axisBottom(xScale).ticks(8));
-                
+
                 g.append("g")
                     .attr("class", "axis")
                     .call(d3.axisLeft(yScale).ticks(6));
-                
+
                 // Add axis labels
                 g.append("text")
                     .attr("class", "axis-label")
@@ -885,7 +971,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                     .attr("y", height + 35)
                     .style("font-size", "14px")
                     .text("PC1");
-                
+
                 g.append("text")
                     .attr("class", "axis-label")
                     .attr("text-anchor", "middle")
@@ -894,7 +980,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                     .attr("y", -30)
                     .style("font-size", "14px")
                     .text("PC2");
-                
+
                 // Add topic circles
                 const circles = g.selectAll(".topic-circle")
                     .data(coordinates)
@@ -923,7 +1009,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                         showTooltip(event, tooltipText);
                     })
                     .on("mouseout", hideTooltip);
-                
+
                 // Add topic labels
                 g.selectAll(".topic-label")
                     .data(coordinates)
@@ -939,29 +1025,29 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                     .style("fill", "white")
                     .text((d, i) => i + 1)
                     .style("pointer-events", "none");
-                
+
                 // Create legend
                 createTopicLegend();
             }
-            
+
             function initTermChart() {
                 const margin = {top: 30, right: 60, bottom: 50, left: 180};
                 const width = 600 - margin.left - margin.right;
                 const height = 500 - margin.top - margin.bottom;
-                
+
                 const svg = d3.select("#term-chart")
                     .append("svg")
                     .attr("width", width + margin.left + margin.right)
                     .attr("height", height + margin.top + margin.bottom);
-                
+
                 const g = svg.append("g")
                     .attr("transform", `translate(${margin.left},${margin.top})`);
-                
+
                 // Store references for updating
                 window.termChartG = g;
                 window.termChartDimensions = {width, height, margin};
             }
-            
+
             function initControls() {
                 const slider = d3.select("#lambda-slider");
                 slider.on("input", function() {
@@ -970,28 +1056,28 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                     updateTermChart();
                 });
             }
-            
+
             function selectTopic(topicIndex) {
                 selectedTopic = topicIndex;
-                
+
                 // Update visual selection
                 d3.selectAll(".topic-circle")
                     .classed("selected", (d, i) => i === topicIndex);
-                
+
                 updateTermChart();
             }
-            
+
             function updateTermChart() {
                 const g = window.termChartG;
                 const {width, height} = window.termChartDimensions;
-                
+
                 // Clear existing bars
                 g.selectAll("*").remove();
-                
+
                 // Get terms to display
                 const terms = getTopTerms(selectedTopic, currentLambda);
-                
-                
+
+
                 if (terms.length === 0) {
                     g.append("text")
                         .attr("x", width / 2)
@@ -1002,17 +1088,17 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                         .text("No terms to display");
                     return;
                 }
-                
+
                 // Scales with better spacing
                 const yScale = d3.scaleBand()
                     .domain(terms.map(d => d.Term))
                     .range([0, height])
                     .padding(0.2); // More spacing between bars
-                
+
                 const xScale = d3.scaleLinear()
                     .domain([0, d3.max(terms, d => Math.max(d.Total, d.Freq))])
                     .range([0, width]);
-                
+
                 // Add background bars (total frequency) with tooltips
                 g.selectAll(".total-bar")
                     .data(terms)
@@ -1035,16 +1121,16 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                         showTooltip(event, tooltipText);
                     })
                     .on("mouseout", hideTooltip);
-                
+
                 // Add topic-specific bars (if topic selected) with enhanced tooltips
                 if (selectedTopic !== null) {
                     // Filter terms that have meaningful frequency values
                     const topicTerms = terms.filter(d => d.Freq && d.Freq > 0);
-                    
+
                     if (topicTerms.length > 0) {
                         const topicBars = g.selectAll(".topic-bar")
                             .data(topicTerms, d => d.Term); // Use key function for proper data binding
-                        
+
                         topicBars.enter()
                             .append("rect")
                             .attr("class", "topic-bar term-bar")
@@ -1059,7 +1145,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                                 const topicPercentage = ((d.Freq / d.Total) * 100).toFixed(1);
                                 const relevanceScore = (currentLambda * d.logprob + (1 - currentLambda) * d.loglift).toFixed(3);
                                 const isTopicSpecific = d.Freq / d.Total > 0.3; // More than 30% of occurrences in this topic
-                                
+
                                 const tooltipText = `
                                     <strong>"${d.Term}"</strong> in Topic ${selectedTopic + 1}<br>
                                     <span style="color: #3b82f6;">🔵 Topic Frequency:</span> ${d.Freq.toLocaleString()}<br>
@@ -1073,7 +1159,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                             .on("mouseout", hideTooltip);
                     }
                 }
-                
+
                 // Add term labels with click-to-copy functionality
                 g.selectAll(".term-label")
                     .data(terms)
@@ -1091,7 +1177,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                         if (selectedTopic !== null) {
                             const liftValue = Math.exp(d.loglift).toFixed(2);
                             const probValue = Math.exp(d.logprob).toFixed(4);
-                            
+
                             const tooltipText = `
                                 <strong>Click to copy: "${d.Term}"</strong><br>
                                 <span style="color: #8b5cf6;">🔍 Probability in topic:</span> ${probValue}<br>
@@ -1118,17 +1204,17 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                             setTimeout(() => hideTooltip(), 1000);
                         });
                     });
-                
+
                 // Add x-axis
                 g.append("g")
                     .attr("class", "axis")
                     .attr("transform", `translate(0,${height})`)
                     .call(d3.axisBottom(xScale));
             }
-            
+
             function getTopTerms(topicIndex, lambda) {
                 const R = Math.min(30, visData.vocab.length);
-                
+
                 if (topicIndex === null) {
                     // Show overall most frequent terms
                     const defaultTerms = visData.topic_info
@@ -1148,11 +1234,11 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                         })
                         .sort((a, b) => b.relevance - a.relevance)
                         .slice(0, R);
-                    
+
                     return topicTerms;
                 }
             }
-            
+
             function createTopicLegend() {
                 const legend = d3.select("#topic-legend");
                 const legendItems = legend.selectAll(".legend-item")
@@ -1160,15 +1246,15 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                     .enter()
                     .append("div")
                     .attr("class", "legend-item");
-                
+
                 legendItems.append("span")
                     .attr("class", "legend-color")
                     .style("background-color", (d, i) => colorScale(i));
-                
+
                 legendItems.append("span")
                     .text((d, i) => `Topic ${i + 1} (${Math.round(d)} docs)`);
             }
-            
+
             function showTooltip(event, html) {
                 const tooltip = d3.select("#tooltip");
                 tooltip.transition()
@@ -1178,7 +1264,7 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                     .style("left", (event.pageX + 10) + "px")
                     .style("top", (event.pageY - 28) + "px");
             }
-            
+
             function hideTooltip() {
                 d3.select("#tooltip").transition()
                     .duration(500)
@@ -1188,44 +1274,42 @@ def generate_html_visualization(vis_data: Dict[str, Any],
     </body>
     </html>
     """
-    
+
     return html_template
 
 
 def _create_vocab_from_tokenizer(tokenizer, n_vocab: int, emoji_map = None) -> List[str]:
     """
     Create vocabulary list from tokenizer, handling emoji decoding and filtering.
-    
+
     Args:
         tokenizer: Turkish tokenizer object
         n_vocab: Size of vocabulary needed
         emoji_map: Emoji map for decoding (optional)
-        
+
     Returns:
         List of vocabulary words
     """
     vocab = []
-    
+
     for word_id in range(n_vocab):
         try:
             word = tokenizer.id_to_token(word_id)
-            
+
             # Handle emoji decoding
             if emoji_map is not None and word is not None:
                 if emoji_map.check_if_text_contains_tokenized_emoji(word):
                     word = emoji_map.decode_text(word)
-            
+
             # Use the word as-is (don't filter out ## tokens for LDAvis display)
             # LDAvis is meant to show all tokens that the model uses
             if word is not None:
                 vocab.append(word)
             else:
                 vocab.append(f"[UNK_{word_id}]")  # Fallback for unknown tokens
-                
+
         except Exception as e:
             # Fallback for any errors
             vocab.append(f"[ERROR_{word_id}]")
-    
+
     return vocab
-
-

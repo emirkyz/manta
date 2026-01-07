@@ -1,31 +1,36 @@
 from collections import Counter
 
-from scipy.sparse import lil_matrix, csr_matrix
+from scipy.sparse import csr_matrix, lil_matrix
 from tokenizers import Tokenizer
 
-from .tfidf_tf_functions import *
-from .tfidf_idf_functions import *
 from .tfidf_bm25_turkish import bm25_generator
+from .tfidf_idf_functions import *
+from .tfidf_tf_functions import *
 
 
-def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
+def tf_idf_turkish(
+    veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75, pagerank_weights=None
+):
     """
     This function generates a TF-IDF or BM25 matrix for a given list of text data.
     1) Convert the text data to a sparse matrix.
     2) Calculate the TF-IDF or BM25 score for the sparse matrix.
     3) Return the TF-IDF or BM25 matrix.
-    
+
     Args:
         veri (list): A list of text data.
         tokenizer (Tokenizer): A trained tokenizer.
         use_bm25 (bool): If True, use BM25 instead of TF-IDF (default: False).
         k1 (float): BM25 term frequency saturation parameter (default: 1.2) [1.2-2.0].
         b (float): BM25 length normalization parameter (default: 0.75)[0, 0.75, 1].
+        pagerank_weights (numpy.ndarray, optional): Per-document weights for TF-IDF boosting.
+            Array of shape (N,) with weights typically in range [1, 2]. If provided,
+            each document's TF-IDF row is multiplied by its corresponding weight.
 
     Returns:
         csr_matrix: A sparse TF-IDF or BM25 matrix.
     """
-    
+
     document_counts = len(veri)
     word_count = tokenizer.get_vocab_size()
 
@@ -38,11 +43,9 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
         values = [b[1] for b in temporary]
         matris[i, columns] = values
 
-    matris = matris.tocsr()
-
     input_matrix = matris.tocsc(copy=True)
     input_matrix.data = np.ones_like(input_matrix.data)
-    #df = np.array((df_input_matrix > 0).sum(axis=0)).flatten()
+    # df = np.array((df_input_matrix > 0).sum(axis=0)).flatten()
     df = np.add.reduceat(input_matrix.data, input_matrix.indptr[:-1])
 
     use_bm25 = False
@@ -54,11 +57,12 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
         idf = idf_p(df, document_counts)
         tf_idf = tf_L(input_matrix).multiply(idf).tocsr()
         tf_idf.eliminate_zeros()
-        
+
         # Calculate document lengths for pivoted normalization
     use_pivoted_norm = True
     slope = 0.2
     if use_pivoted_norm and not use_bm25:
+        matris = matris.tocsr()
         # Calculate document lengths (number of terms in each document)
         doc_lengths = np.add.reduceat(matris.data, matris.indptr[:-1])
         avg_doc_length = np.mean(doc_lengths)
@@ -73,23 +77,29 @@ def tf_idf_turkish(veri, tokenizer: Tokenizer, use_bm25=False, k1=1.2, b=0.75):
             nnz_per_row = np.diff(tf_idf.indptr)
             tf_idf.data = tf_idf.data / np.repeat(pivoted_norms, nnz_per_row)
 
+    # Apply PageRank weights if provided
+    if pagerank_weights is not None:
+        print(f"Applying PageRank weights to TF-IDF matrix...")
+        nnz_per_row = np.diff(tf_idf.indptr)
+        tf_idf.data = tf_idf.data * np.repeat(pagerank_weights, nnz_per_row)
+        print(
+            f"PageRank weighting applied (weight range: {pagerank_weights.min():.4f} - {pagerank_weights.max():.4f})"
+        )
 
-    '''    
+    """
     norm_rows = np.sqrt(np.add.reduceat(np.log(tf_idf.data) * np.log(tf_idf.data), tf_idf.indptr[:-1]))
     nnz_per_row = np.diff(tf_idf.indptr)
     tf_idf.data /= np.repeat(norm_rows, nnz_per_row)
-    '''
+    """
     vocab = list(tokenizer.get_vocab().keys())
     N = len(veri)
     required_memory = N * len(vocab) * 3 * 8 / 1024 / 1024 / 1024
     print("Required memory : ", required_memory, "GB")
-    temp = tf_idf.tocoo()
-    sparse_matrix_required_memory = temp.nnz * 3 * 8 / 1024 / 1024 / 1024
+    sparse_matrix_required_memory = tf_idf.nnz * 3 * 8 / 1024 / 1024 / 1024
     method_name = "BM25" if use_bm25 else "TF-IDF"
     print(f"{method_name} required memory : ", sparse_matrix_required_memory, "GB")
     count_of_nonzero = tf_idf.count_nonzero()
     percentage_of_nonzero = count_of_nonzero / (N * len(vocab))
     print("Percentage of nonzero elements : ", percentage_of_nonzero)
 
-
-    return tf_idf 
+    return tf_idf

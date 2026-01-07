@@ -1,5 +1,5 @@
 import pandas as pd
-file_path = "../veri_setleri/findings.csv"
+file_path = "../datasets/findings.csv"
 
 data = pd.read_csv(file_path, sep=",")
 

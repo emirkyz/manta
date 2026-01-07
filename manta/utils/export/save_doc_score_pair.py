@@ -1,8 +1,11 @@
 import json
 from pathlib import Path
+from typing import Optional
+
+from ..console.console_manager import ConsoleManager, get_console
 
 
-def save_doc_score_pair(doc_result,base_dir, output_dir, table_name, data_frame_name=None):
+def save_doc_score_pair(doc_result, base_dir, output_dir, table_name, data_frame_name=None, console: Optional[ConsoleManager] = None):
     """
     Processes and saves topic analysis results to files and database.
     
@@ -51,20 +54,21 @@ def save_doc_score_pair(doc_result,base_dir, output_dir, table_name, data_frame_
         - JSON files use UTF-8 encoding
     """
     
+    _console = console or get_console()
     # Convert the topics_data format to the desired format
     if data_frame_name:
-        if output_dir: #output_dir is provided
+        if output_dir:  # output_dir is provided
             table_output_dir = Path(output_dir)
         else:
             # create output dir in the current working directory
             table_output_dir = Path.cwd() / "Output" / data_frame_name
             table_output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Save document scores to table-specific subdirectory
         document_file_path = table_output_dir / f"{data_frame_name}_top_docs.json"
         with open(document_file_path, "w", encoding="utf-8") as f:
             json.dump(doc_result, f, ensure_ascii=False)
-        print(f"Document scores saved to {document_file_path}")
+        _console.print_debug(f"Document scores saved to {document_file_path}", tag="EXPORT")
     # Save topics to database
 
     return doc_result

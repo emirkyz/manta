@@ -115,9 +115,10 @@ def predict_topics(text, model_file="topic_model_components.npz", top_n=3, norma
 if __name__ == '__main__':
 
     # Get data from PostgreSQL database and convert to CSV
-    import psycopg2
-    import pandas as pd
     import os
+
+    import pandas as pd
+    import psycopg2
 
     # Database connection parameters
     db_config = {
@@ -151,7 +152,7 @@ if __name__ == '__main__':
         print(f"Successfully fetched {len(df)} records from database")
 
         # Create output directory if it doesn't exist
-        output_dir = "../veri_setleri"
+        output_dir = "../datasets"
         os.makedirs(output_dir, exist_ok=True)
 
         # Save to CSV
@@ -165,11 +166,11 @@ if __name__ == '__main__':
     except psycopg2.Error as e:
         print(f"Database error: {e}")
         print("Falling back to original CSV file...")
-        file_path = "../veri_setleri/playstore.csv"
+        file_path = "../datasets/playstore.csv"
     except Exception as e:
         print(f"Error: {e}")
         print("Falling back to original CSV file...")
-        file_path = "../veri_setleri/playstore.csv"
+        file_path = "../datasets/playstore.csv"
 
 
 
@@ -185,11 +186,15 @@ if __name__ == '__main__':
 
 
 
-    file_path = "../misc/DNA/combined_dna_sequence.csv"
-    file_path = "../veri_setleri/abstracts_pubmed_v2.csv"
-    file_path = "../veri_setleri/radiology_imaging.csv"
+    file_path = "misc/DNA/combined_dna_sequence.csv"
+    file_path = "../datasets/abstracts_pubmed_v2.csv"
+    file_path = "../datasets/radiology_imaging.csv"
     #file_path = "../pubmed_articles.csv"
-    #file_path = "../radiology_journals.csv"
+    file_path = "../custom_datasets/radiology_imaging_articles_paper.csv"
+    file_path = "../custom_datasets/beyza_hoca_veri.csv"
+    column = "abstract"
+
+    file_path = "../datasets/covid_abstracts.csv"
     column = "abstract"
 
     # N-gram Discovery via BPE:
@@ -205,10 +210,9 @@ if __name__ == '__main__':
         separator=",",
         language="EN",
         lemmatize=True,
-        topic_count=25,
+        topic_count=10,
         words_per_topic=15,
-        n_grams_to_discover=None,  # Discover 300 n-grams using BPE algorithm
-        nmf_method="pnmf", # "nmf" or "nmtf" or "pnmf"
+        nmf_method="nmf", # "nmf" or "nmtf" or "pnmf"
         tokenizer_type="bpe",
         filter_app=False,
         data_filter_options = {
@@ -218,13 +222,14 @@ if __name__ == '__main__':
             "filter_app_column": "package_name",
         },
         emoji_map=False,
+        n_grams_to_discover=None,  # or an integer like 200, or None to disable
         generate_wordclouds=True,
         save_to_db=False,
         word_pairs_out=False,
         topic_distribution=True,
         export_excel=False,
-        output_dir="radiology_imaging_full_test_new_param",
-        gen_tsne=False
+        output_dir="../results/beyza_hoca_makale",
+        gen_tsne=True
     )
 
     if False:

@@ -1,8 +1,11 @@
 import os
 import json
+from typing import Optional
+
+from ..console.console_manager import ConsoleManager, get_console
 
 
-def save_word_score_pair(base_dir, output_dir, table_name, topics_data, result, data_frame_name=None, topics_db_eng=None):
+def save_word_score_pair(base_dir, output_dir, table_name, topics_data, result, data_frame_name=None, topics_db_eng=None, console: Optional[ConsoleManager] = None):
     """
     Processes topic word scores and saves them as a JSON file in a structured directory format.
     
@@ -43,6 +46,7 @@ def save_word_score_pair(base_dir, output_dir, table_name, topics_data, result, 
         - The function ensures ASCII compatibility is maintained in JSON output
     """
     
+    _console = console or get_console()
     # Convert the topics_data format to the desired format
     topic_word_scores = {}
     for topic_name, word_scores in topics_data.items():
@@ -56,7 +60,7 @@ def save_word_score_pair(base_dir, output_dir, table_name, topics_data, result, 
                     word = " ".join(word)  # Join back the word parts
                     topic_dict[word] = float(score)
                 except:
-                    print(f"Error parsing word score: {word_score}")
+                    _console.print_error(f"Error parsing word score: {word_score}", tag="EXPORT")
         topic_word_scores[topic_name] = topic_dict
 
     # Save the topic word scores to a JSON file
@@ -78,8 +82,8 @@ def save_word_score_pair(base_dir, output_dir, table_name, topics_data, result, 
     wordcloud_file = os.path.join(table_output_dir, f"{table_name}_word_scores.json")
     try:
         with open(wordcloud_file, "w") as f:
-            json.dump(topic_word_scores, f, indent=4,ensure_ascii=False)
-        print(f"Topic word scores saved to: {wordcloud_file}")
+            json.dump(topic_word_scores, f, indent=4, ensure_ascii=False)
+        _console.print_debug(f"Topic word scores saved to: {wordcloud_file}", tag="EXPORT")
     except Exception as e:
-        print(f"Error saving topic word scores: {e}")
+        _console.print_error(f"Error saving topic word scores: {e}", tag="EXPORT")
     return topic_word_scores

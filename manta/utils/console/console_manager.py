@@ -32,7 +32,7 @@ class ConsoleManager:
     configuration displays, and professional status messages.
     """
     
-    def __init__(self, use_rich: bool = True):
+    def __init__(self, use_rich: bool = False):
         """
         Initialize the console manager.
         
@@ -46,7 +46,6 @@ class ConsoleManager:
         self.current_tasks = {}
         self.start_time = None
         self.stage_times = {}
-        self.use_rich = False
         
     def print_header(self, title: str, subtitle: Optional[str] = None):
         """Print a formatted header."""
@@ -86,7 +85,7 @@ class ConsoleManager:
     def _display_config_rich(self, options: Dict[str, Any], filepath: str, column: str, table_name: str):
         """Display configuration using Rich formatting."""
         # Create main configuration table
-        config_table = Table(title="📋 Analysis Configuration", box=box.ROUNDED)
+        config_table = Table(title="Analysis Configuration", box=box.ROUNDED)
         config_table.add_column("Setting", style="cyan", no_wrap=True, width=25)
         config_table.add_column("Value", style="white", width=35)
         config_table.add_column("Description", style="dim", width=30)
@@ -135,7 +134,7 @@ class ConsoleManager:
         elif options.get('LANGUAGE') == 'EN':
             config_table.add_row(
                 "Lemmatization", 
-                "[green]✓[/green]" if options.get('LEMMATIZE') else "[red]✗[/red]", 
+                "[green]Yes[/green]" if options.get('LEMMATIZE') else "[red]No[/red]", 
                 "Reduce words to base forms"
             )
         
@@ -148,28 +147,28 @@ class ConsoleManager:
         # Output settings
         config_table.add_row("", "", "")  # Separator
         config_table.add_row(
-            "Word Clouds", 
-            "[green]✓[/green]" if options.get('gen_cloud') else "[red]✗[/red]", 
+            "Word Clouds",
+            "[green]Yes[/green]" if options.get('gen_cloud') else "[red]No[/red]",
             "Generate topic word clouds"
         )
         config_table.add_row(
-            "Excel Export", 
-            "[green]✓[/green]" if options.get('save_excel') else "[red]✗[/red]", 
+            "Excel Export",
+            "[green]Yes[/green]" if options.get('save_excel') else "[red]No[/red]",
             "Export results to Excel"
         )
         config_table.add_row(
-            "Topic Distribution", 
-            "[green]✓[/green]" if options.get('gen_topic_distribution') else "[red]✗[/red]", 
+            "Topic Distribution",
+            "[green]Yes[/green]" if options.get('gen_topic_distribution') else "[red]No[/red]",
             "Create distribution plots"
         )
         config_table.add_row(
-            "Database Storage", 
-            "[green]✓[/green]" if options.get('save_to_db') else "[red]✗[/red]", 
+            "Database Storage",
+            "[green]Yes[/green]" if options.get('save_to_db') else "[red]No[/red]",
             "Save to database"
         )
         config_table.add_row(
-            "Emoji Processing", 
-            "[green]✓[/green]" if options.get('emoji_map') else "[red]✗[/red]", 
+            "Emoji Processing",
+            "[green]Yes[/green]" if options.get('emoji_map') else "[red]No[/red]",
             "Process emojis in text"
         )
         
@@ -217,6 +216,18 @@ class ConsoleManager:
         print(f"  Distribution Plots: {'Enabled' if options.get('gen_topic_distribution') else 'Disabled'}")
         print(f"  Database Storage: {'Enabled' if options.get('save_to_db') else 'Disabled'}")
         print(f"  Emoji Processing: {'Enabled' if options.get('emoji_map') else 'Disabled'}")
+        print()
+        print("Analysis Options:")
+        n_grams = options.get('n_grams_to_discover')
+        if n_grams == "auto":
+            print(f"  N-gram Discovery: Auto (k={options.get('ngram_auto_k', 0.5)})")
+        elif n_grams:
+            print(f"  N-gram Discovery: {n_grams} n-grams")
+        else:
+            print(f"  N-gram Discovery: Disabled")
+        print(f"  Keep Numbers: {'Enabled' if options.get('keep_numbers') else 'Disabled'}")
+        if options.get('keep_numbers'):
+            print(f"  PMI Scoring: {'Enabled' if options.get('use_pmi', True) else 'Disabled'}")
         print()
         
     @contextmanager
@@ -297,12 +308,12 @@ class ConsoleManager:
         """
         if self.use_rich and self.progress and isinstance(task_id, int):
             if description:
-                self.progress.update(task_id, description=f"[green]✓[/green] {description}")
+                self.progress.update(task_id, description=f"[green][OK][/green] {description}")
             else:
                 # Find original description and mark as complete
                 for desc, tid in self.current_tasks.items():
                     if tid == task_id:
-                        self.progress.update(task_id, description=f"[green]✓[/green] {desc}")
+                        self.progress.update(task_id, description=f"[green][OK][/green] {desc}")
                         break
         elif not self.use_rich:
             if description:
@@ -325,13 +336,13 @@ class ConsoleManager:
             
         if self.use_rich:
             icons = {
-                "info": "ℹ️",
-                "success": "✅", 
-                "warning": "⚠️",
-                "error": "❌",
-                "processing": "⚙️"
+                "info": "[INFO]",
+                "success": "[OK]",
+                "warning": "[WARN]",
+                "error": "[ERR]",
+                "processing": ""
             }
-            
+
             styles = {
                 "info": "blue",
                 "success": "green",
@@ -339,11 +350,11 @@ class ConsoleManager:
                 "error": "red",
                 "processing": "cyan"
             }
-            
-            icon = icons.get(status, "•")
+
+            icon = icons.get(status, "")
             style = styles.get(status, "white")
-            
-            self.console.print(f"{time_prefix}{icon} [{style}]{message}[/{style}]")
+
+            self.console.print(f"{time_prefix}[{style}]{icon}[/{style}] {message}")
         else:
             prefixes = {
                 "info": "INFO:",
@@ -354,7 +365,46 @@ class ConsoleManager:
             }
             prefix = prefixes.get(status, "")
             print(f"{time_prefix}{prefix} {message}" if prefix else f"{time_prefix}{message}")
-            
+
+    def print_warning(self, message: str, tag: Optional[str] = None, timestamp: bool = True):
+        """
+        Print a warning message.
+
+        Args:
+            message: Warning message
+            tag: Optional tag prefix (e.g., "DATA LOADING", "PREPROCESSING")
+            timestamp: Whether to include timestamp
+        """
+        formatted_msg = f"[{tag}] {message}" if tag else message
+        self.print_status(formatted_msg, status="warning", timestamp=timestamp)
+
+    def print_error(self, message: str, tag: Optional[str] = None, timestamp: bool = True):
+        """
+        Print an error message.
+
+        Args:
+            message: Error message
+            tag: Optional tag prefix
+            timestamp: Whether to include timestamp
+        """
+        formatted_msg = f"[{tag}] {message}" if tag else message
+        self.print_status(formatted_msg, status="error", timestamp=timestamp)
+
+    def print_debug(self, message: str, tag: Optional[str] = None, timestamp: bool = False):
+        """
+        Print a debug/tracking message. These are detailed process tracking messages.
+
+        Args:
+            message: Debug message
+            tag: Optional tag prefix (e.g., "DATA LOADING", "YEAR FILTER")
+            timestamp: Whether to include timestamp (default False for debug)
+        """
+        formatted_msg = f"[{tag}] {message}" if tag else message
+        if self.use_rich:
+            self.console.print(f"[dim]{formatted_msg}[/dim]")
+        else:
+            print(formatted_msg)
+
     def print_timing_summary(self, stage_times: Dict[str, float], total_time: float):
         """
         Print timing summary for analysis stages.
@@ -364,7 +414,7 @@ class ConsoleManager:
             total_time: Total execution time
         """
         if self.use_rich:
-            timing_table = Table(title="⏱️  Timing Summary", box=box.SIMPLE)
+            timing_table = Table(title="Timing Summary", box=box.SIMPLE)
             timing_table.add_column("Stage", style="cyan")
             timing_table.add_column("Time", style="green", justify="right")
             timing_table.add_column("Percentage", style="dim", justify="right")
@@ -412,7 +462,7 @@ class ConsoleManager:
     def _print_success_summary_rich(self, result: Dict[str, Any], stage_times: Dict[str, float], total_time: float):
         """Print success summary using Rich formatting."""
         # Main success panel
-        success_text = Text("Analysis Completed Successfully! 🎉", style="bold green", justify="center")
+        success_text = Text("Analysis Completed Successfully!", style="bold green", justify="center")
         success_panel = Panel(
             success_text,
             box=box.DOUBLE,
@@ -420,9 +470,9 @@ class ConsoleManager:
             padding=(1, 2)
         )
         self.console.print(success_panel)
-        
+
         # Results summary table
-        summary_table = Table(title="📊 Results Summary", box=box.ROUNDED)
+        summary_table = Table(title="Results Summary", box=box.ROUNDED)
         summary_table.add_column("Metric", style="cyan")
         summary_table.add_column("Value", style="white")
         
@@ -452,13 +502,13 @@ class ConsoleManager:
         
         generated_files = []
         if result.get('topic_word_scores'):
-            generated_files.append("📄 Topic-word scores (JSON/Excel)")
+            generated_files.append("Topic-word scores (JSON/Excel)")
         if result.get('topic_doc_scores'):
-            generated_files.append("📄 Document-topic scores")
+            generated_files.append("Document-topic scores")
         if result.get('topic_dist_img'):
-            generated_files.append("📊 Topic distribution plot")
+            generated_files.append("Topic distribution plot")
         if result.get('coherence_scores'):
-            generated_files.append("📈 Coherence scores")
+            generated_files.append("Coherence scores")
             
         for i, file_desc in enumerate(generated_files):
             label = "Generated Files" if i == 0 else ""
@@ -521,15 +571,43 @@ class ConsoleManager:
             return time.time() - self.start_time
         return 0.0
         
-    def print_section_header(self, title: str, icon: str = "🔧"):
+    def print_section_header(self, title: str, icon: str = ""):
         """Print a section header."""
         if self.use_rich:
-            header = Text(f"{icon} {title}", style="bold cyan")
+            header_text = f"{icon} {title}" if icon else title
+            header = Text(header_text, style="bold cyan")
             self.console.print(Panel(header, style="cyan", box=box.SIMPLE))
         else:
             print(f"\n{title}")
             print()
 
 
-# Global console manager instance
-console_manager = ConsoleManager()
+# Global console manager instance management
+_global_console: Optional[ConsoleManager] = None
+
+
+def get_console(use_rich: bool = False) -> ConsoleManager:
+    """
+    Get the global ConsoleManager singleton.
+    Creates one if it doesn't exist.
+
+    Args:
+        use_rich: Whether to use Rich library for enhanced output (default: False)
+    """
+    global _global_console
+    if _global_console is None:
+        _global_console = ConsoleManager(use_rich=use_rich)
+    return _global_console
+
+
+def set_console(console: ConsoleManager) -> None:
+    """
+    Set the global ConsoleManager instance.
+    Useful for testing or custom configurations.
+    """
+    global _global_console
+    _global_console = console
+
+
+# Backwards compatibility - expose global instance
+console_manager = get_console()

@@ -4,24 +4,32 @@ import numpy as np
 import matplotlib.pyplot as plt
 from ...utils.analysis import get_dominant_topics
 
+
 def gen_topic_dist(W, output_dir, table_name, s_matrix=None):
     """Generate a bar plot of the document distribution across topics.
     From the W matrix, first we get biggest value per row. This is the topic that the document is most associated with.
     Then we count the number of documents for each topic.
     Bar plot values should sum up to the number of documents.
 
-    For NMTF models (when s_matrix is provided), topics are defined by S matrix relationships.
+    Topic ordering is sequential: Topic i uses W column i. This ensures consistency
+    with word extraction across all visualizations.
 
     Args:
         W (numpy.ndarray): The matrix of topic distributions.
         output_dir (str): The directory to save the plot.
         table_name (str): The name of the table.
-        s_matrix (numpy.ndarray, optional): S matrix for NMTF models.
+        s_matrix (numpy.ndarray, optional): S matrix for NMTF models. DEPRECATED: No longer used
+                                           for reordering. Kept for backwards compatibility.
     """
     print("Calculating document distribution across topics...")
 
+    # Use W directly - no reordering needed
+    # Topic ordering is now sequential (Topic i = W column i)
+    # This ensures consistency with word extraction
+    W_for_topics = W
+
     # Get dominant topics, filtering out zero-score documents
-    dominant_topics = get_dominant_topics(W, min_score=0.0, s_matrix=s_matrix)
+    dominant_topics = get_dominant_topics(W_for_topics, min_score=0.0)
 
     # Filter out documents with no dominant topic (marked as -1)
     valid_mask = dominant_topics != -1

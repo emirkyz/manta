@@ -14,6 +14,7 @@ import seaborn as sns
 from ...utils.analysis import get_dominant_topics
 import matplotlib.dates as mdates
 
+
 def normalize_W_matrix(W:np.ndarray) -> np.ndarray:
     """
     Normalize W matrix so each document (row) sums to 1.
@@ -48,7 +49,9 @@ def gen_temporal_topic_dist(
 
     Args:
         W (numpy.ndarray): Document-topic matrix where rows are documents and columns are topics.
-        s_matrix (numpy.ndarray, optional): S matrix for NMTF. If provided, W @ s_matrix is used before normalization.
+                          Topic ordering is sequential: Topic i uses W column i.
+        s_matrix (numpy.ndarray, optional): S matrix for NMTF. DEPRECATED: No longer used for reordering.
+                                           Kept for backwards compatibility but has no effect.
         datetime_series (pd.Series): Series containing datetime information for each document.
         output_dir (str|Path): Directory to save the plots.
         table_name (str): Name of the table/dataset.
@@ -105,12 +108,10 @@ def gen_temporal_topic_dist(
         # Weighted approach: sum normalized topic weights over time
         print(f"Using weighted approach: summing normalized topic weights")
 
-        # Apply S matrix if provided (for NMTF)
-        if s_matrix is not None:
-            print(f"Applying S matrix transformation before normalization")
-            W_effective = W @ s_matrix
-        else:
-            W_effective = W.copy()
+        # Use W directly - no reordering needed
+        # Topic ordering is now sequential (Topic i = W column i)
+        # This ensures consistency with word extraction
+        W_effective = W.copy()
 
         # Normalize the W matrix so each document (row) sums to 1
         W_normalized = normalize_W_matrix(W_effective)
@@ -147,8 +148,13 @@ def gen_temporal_topic_dist(
         # Original approach: count documents by dominant topic
         print(f"Using count approach: assigning documents to dominant topics")
 
+        # Use W directly - no reordering needed
+        # Topic ordering is now sequential (Topic i = W column i)
+        # This ensures consistency with word extraction
+        W_for_dominant = W
+
         # Get dominant topics
-        dominant_topics = get_dominant_topics(W, min_score=min_score, s_matrix=s_matrix)
+        dominant_topics = get_dominant_topics(W_for_dominant, min_score=min_score, s_matrix=None)
 
         # Create DataFrame with topic assignments and datetime
         df = pd.DataFrame({

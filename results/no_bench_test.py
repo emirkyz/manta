@@ -369,7 +369,7 @@ def predict_topics_for_dataset(dataset_path, column_name, model_file="topic_mode
 
 
 if __name__ == '__main__':
-    file_path = "../veri_setleri/bbc_news.csv"
+    file_path = "../datasets/bbc_news.csv"
     column = "text"
 
     result = manta.run_topic_analysis(

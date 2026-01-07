@@ -8,13 +8,13 @@ import pandas as pd
 
 from .._functions.common_language.topic_extractor import topic_extract
 from .._functions.nmf import run_nmf
-from ..utils.analysis.coherence_score import calculate_coherence_scores
+from ..utils.analysis.gensim_coherence import calculate_gensim_cv_coherence
 from ..utils.analysis.topic_correlation import build_correlation_graph
 from ..utils.analysis.topic_similarity import HybridTFIDFTopicSimilarity
 from ..utils.export.save_doc_score_pair import save_doc_score_pair
 from ..utils.export.save_word_score_pair import save_word_score_pair
 from ..utils.export.save_s_matrix import save_s_matrix
-from ..utils.console.console_manager import ConsoleManager
+from ..utils.console.console_manager import ConsoleManager, get_console
 from ..utils.visualization.topic_similarity_heatmap import plot_combined_similarity_analysis
 import json
 import numpy as np
@@ -26,29 +26,37 @@ class ModelingPipeline:
     
     @staticmethod
     def perform_topic_modeling(
-        tdm, 
-        options: Dict[str, Any], 
-        vocab, 
+        tdm,
+        options: Dict[str, Any],
+        vocab,
         text_array,
-        db_config, 
-        table_name: str, 
-        table_output_dir, 
+        original_text_array,
+        db_config,
+        table_name: str,
+        table_output_dir,
         console: Optional[ConsoleManager] = None,
         desired_columns: str = "text"
     ) -> Tuple[Dict, Dict, Dict, Dict, Any]:
         """
         Perform NMF topic modeling and analysis.
-        
+
         Args:
+            tdm: Term-document matrix (TF-IDF)
+            options: Configuration options
+            vocab: Vocabulary list
+            text_array: Preprocessed text array (for coherence calculation)
+            original_text_array: Original text array (for output files)
+            db_config: Database configuration
+            table_name: Name of the dataset/table
+            table_output_dir: Output directory for results
             console: Console manager for status messages
-        
+            desired_columns: Name of the text column
+
         Returns:
             Tuple of (topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result)
         """
-        if console:
-            console.print_status(f"Starting NMF processing ({options['nmf_type'].upper()})...", "processing")
-        else:
-            print("Starting NMF processing...")
+        _console = console or get_console()
+        _console.print_status(f"Starting NMF processing ({options['nmf_type'].upper()})...", "processing")
         
         # NMF processing
         nmf_output = run_nmf(
@@ -58,10 +66,7 @@ class ModelingPipeline:
             nmf_method=options["nmf_type"],
         )
 
-        if console:
-            console.print_status("Extracting topics from NMF results...", "processing")
-        else:
-            print("Generating topic groups...")
+        _console.print_status("Extracting topics from NMF results...", "processing")
             
         # Extract topics based on language
         if options["LANGUAGE"] == "TR":
@@ -73,6 +78,7 @@ class ModelingPipeline:
                 vocab=vocab,
                 tokenizer=options["tokenizer"],
                 documents=text_array,
+                original_documents=original_text_array,
                 db_config=db_config,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
@@ -87,6 +93,7 @@ class ModelingPipeline:
                 topic_count=int(options["DESIRED_TOPIC_COUNT"]),
                 vocab=vocab,
                 documents=text_array,
+                original_documents=original_text_array,
                 db_config=db_config,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
@@ -96,10 +103,7 @@ class ModelingPipeline:
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
-        if console:
-            console.print_status("Saving topic results...", "processing")
-        else:
-            print("Saving topic results...")
+        _console.print_status("Saving topic results...", "processing")
             
         # Convert the topics_data format to the desired format
         topic_word_scores = save_word_score_pair(
@@ -123,8 +127,7 @@ class ModelingPipeline:
 
         # Save S matrix if present (for NMTF)
         if "S" in nmf_output:
-            if console:
-                console.print_status("Saving S matrix...", "processing")
+            _console.print_status("Saving S matrix...", "processing")
             save_s_matrix(
                 s_matrix=nmf_output["S"],
                 output_dir=table_output_dir,
@@ -133,10 +136,7 @@ class ModelingPipeline:
             )
 
             # Generate S matrix graph visualizations
-            if console:
-                console.print_status("Generating S matrix graph visualizations...", "processing")
-            else:
-                print("Generating S matrix graph visualizations...")
+            _console.print_status("Generating S matrix graph visualizations...", "processing")
 
             from ..utils.visualization.s_matrix_graph import visualize_s_matrix_graph
             visualize_s_matrix_graph(
@@ -149,31 +149,40 @@ class ModelingPipeline:
                 create_heatmap=True
             )
 
-        if console:
-            console.print_status("Calculating coherence scores...", "processing")
-        else:
-            print("Calculating coherence scores...")
-            
-        # Calculate and save coherence scores
-        coherence_scores = calculate_coherence_scores(
-            topic_word_scores,
-            tokenizer=options["tokenizer"],
-            output_dir=table_output_dir,
-            column_name=desired_columns,
-            cleaned_data=text_array,
-            table_name=table_name,
-            topic_word_matrix=nmf_output["H"],
-            doc_topic_matrix=nmf_output["W"],
+        _console.print_status("Calculating coherence scores...", "processing")
+
+        # Calculate coherence scores using the clean, standalone function
+        coherence_results = calculate_gensim_cv_coherence(
+            h_matrix=nmf_output["H"],
+            w_matrix=nmf_output["W"],
             vocabulary=vocab,
-            s_matrix = nmf_output.get("S", None),
+            documents=text_array,
+            s_matrix=nmf_output.get("S", None),
+            lambda_val=0.6,
+            top_n_words=options["N_TOPICS"],
         )
+
+        # Format coherence scores for compatibility with existing code
+        coherence_scores = {
+            "relevance": coherence_results["topic_word_scores"],
+            "gensim": {
+                "c_v_average": coherence_results["c_v_average"],
+                "c_v_per_topic": coherence_results["c_v_per_topic"]
+            }
+        }
+
+        # Save coherence results to JSON (includes relevance top words)
+        if table_output_dir and table_name:
+            output_path = Path(table_output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            coherence_file = output_path / f"{table_name}_relevance_top_words.json"
+            with open(coherence_file, "w", encoding="utf-8") as f:
+                json.dump(coherence_scores, f, indent=4, ensure_ascii=False)
+            _console.print_debug(f"Coherence scores saved to: {coherence_file}", tag="COHERENCE")
 
         if False:
             # Calculate topic similarity using hybrid weighted TF-IDF
-            if console:
-                console.print_status("Computing topic similarity scores...", "processing")
-            else:
-                print("Computing topic similarity scores...")
+            _console.print_status("Computing topic similarity scores...", "processing")
 
             try:
                 # Create vocabulary dict if it's a list
@@ -231,16 +240,10 @@ class ModelingPipeline:
                 with open(output_file, 'w', encoding='utf-8') as f:
                     json.dump(similarity_results, f, indent=2, ensure_ascii=False)
 
-                if console:
-                    console.print_status(f"Topic similarity results saved to: {output_file}", "success")
-                else:
-                    print(f"Topic similarity results saved to: {output_file}")
+                _console.print_status(f"Topic similarity results saved to: {output_file}", "success")
 
                 # Generate visualizations
-                if console:
-                    console.print_status("Generating topic similarity visualizations...", "processing")
-                else:
-                    print("Generating topic similarity visualizations...")
+                _console.print_status("Generating topic similarity visualizations...", "processing")
 
                 viz_paths = plot_combined_similarity_analysis(
                     similarity_matrix=similarity_matrix,
@@ -253,17 +256,10 @@ class ModelingPipeline:
                     create_distribution=True
                 )
 
-                if console:
-                    console.print_status("Topic similarity analysis completed!", "success")
-                else:
-                    print("Topic similarity analysis completed!")
+                _console.print_status("Topic similarity analysis completed!", "success")
 
             except Exception as e:
-                error_msg = f"Warning: Could not compute topic similarity: {str(e)}"
-                if console:
-                    console.print_status(error_msg, "warning")
-                else:
-                    print(error_msg)
+                _console.print_warning(f"Could not compute topic similarity: {str(e)}", tag="SIMILARITY")
 
         # Calculate reconstruction error
 

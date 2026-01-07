@@ -2,12 +2,14 @@ from . import visualize_s_matrix_graph
 from ..analysis.word_cooccurrence import calc_word_cooccurrence
 from ..analysis.word_cooccurrence_analyzer import analyze_word_cooccurrence
 from ..export.save_s_matrix import _normalize_s_matrix_columns
+from ..console.console_manager import ConsoleManager, get_console
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def create_visualization(nmf_output, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir, datetime_series=None):
+def create_visualization(nmf_output, sozluk, table_output_dir, table_name, options, result, topic_word_scores, metin_array, topics_db_eng, emoji_map, program_output_dir, output_dir, datetime_series=None, console=None):
+    _console = console or get_console()
     # Normalize S matrix if present (for NMTF)
     if "S" in nmf_output and nmf_output["S"] is not None:
         logger.info("Normalizing S matrix for visualizations (L1 column normalization)")
@@ -24,7 +26,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
 
     
     # generate t-SNE visualization plot
-    if options["gen_tsne"]:
+    if options.get("gen_tsne", False):
         # Use optimized t-SNE for large datasets (>5K documents)
         n_docs = nmf_output["W"].shape[0]
         use_optimized = False
@@ -32,7 +34,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         if use_optimized:
             try:
                 from .tsne_optimized import tsne_graph_output_optimized
-                print(f"🚀 Using optimized t-SNE for {n_docs:,} documents")
+                _console.print_debug(f"Using optimized t-SNE for {n_docs:,} documents", tag="VISUALIZATION")
                 tsne_plot_path = tsne_graph_output_optimized(
                     w=nmf_output["W"],
                     h=nmf_output["H"],
@@ -42,7 +44,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                     performance_mode="auto"
                 )
             except ImportError as e:
-                print(f"⚠️  Optimized t-SNE not available, falling back to standard: {e}")
+                _console.print_warning(f"Optimized t-SNE not available, falling back to standard: {e}", tag="VISUALIZATION")
                 from .tsne_graph_output import tsne_graph_output
                 tsne_plot_path = tsne_graph_output(
                     w=nmf_output["W"],
@@ -60,6 +62,42 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 output_dir=table_output_dir,
                 table_name=table_name,
             )
+
+    # generate UMAP visualization plot
+    if True:
+        from .umap_graph_output import umap_graph_output
+        umap_plot_path = umap_graph_output(
+            w=nmf_output["W"],
+            h=nmf_output["H"],
+            s_matrix=nmf_output.get("S", None),
+            output_dir=table_output_dir,
+            table_name=table_name,
+            n_neighbors=options.get("umap_n_neighbors", 15),
+            console=_console
+        )
+        if umap_plot_path:
+            _console.print_debug(f"UMAP plot saved: {umap_plot_path}", tag="VISUALIZATION")
+
+    # generate word-level t-SNE visualization plot
+    if options.get("gen_tsne", False):  # Default enabled
+        try:
+            from .word_tsne_output import word_tsne_visualization
+
+            word_tsne_path = word_tsne_visualization(
+                h=nmf_output["H"],
+                vocab=sozluk if options["LANGUAGE"] == "EN" else None,
+                tokenizer=options["tokenizer"] if options["LANGUAGE"] == "TR" else None,
+                s_matrix=nmf_output.get("S", None),
+                output_dir=table_output_dir,
+                table_name=table_name,
+                top_words_per_topic=50,
+                console=_console
+            )
+
+            if word_tsne_path:
+                _console.print_debug(f"Word t-SNE saved: {word_tsne_path}", tag="VISUALIZATION")
+        except Exception as e:
+            _console.print_warning(f"Failed to generate word t-SNE visualization: {e}", tag="VISUALIZATION")
 
     # generate topic-space fuzzy classification plot
     from .topic_space_graph_output_old import topic_space_graph_output
@@ -112,6 +150,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         time_grouping = 'month' if options.get('datetime_is_combined_year_month', False) else 'year'
 
         try:
+            time_grouping = "quarter"
 
             fig, temporal_df = gen_temporal_topic_dist(
                 W=nmf_output["W"],
@@ -139,74 +178,48 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 min_score=0.0,
                 use_mm_yyyy_format=options.get('datetime_is_combined_year_month', False)
             )
-            print(f"Generated temporal topic distribution visualization")
+            
+            if options.get("gen_line_html",False):
+                from .create_interactive_temporal import generate_temporal_line_graph
+                generate_temporal_line_graph(
+                    CSV_PATH=table_output_dir / f"{table_name}_temporal_topic_dist_{time_grouping}.csv",
+                    OUTPUT_HTML=table_output_dir / f"{table_name}_temporal_topic_distribution.html"
+                )
+            
+            
+            _console.print_debug(f"Generated temporal topic distribution visualization", tag="VISUALIZATION")
         except Exception as e:
-            print(f"Warning: Failed to generate temporal visualization: {e}")
+            _console.print_warning(f"Failed to generate temporal visualization: {e}", tag="VISUALIZATION")
 
-        # Generate violin plot showing topic distribution by year
+        # Generate static violin plot showing topic distribution by year
         try:
-            import matplotlib.pyplot as plt
-            import seaborn as sns
-            import numpy as np
-            from ..analysis import get_dominant_topics
-
-            # Get dominant topics for each document
-            W_matrix = nmf_output["W"]
-            S_matrix = nmf_output.get("S", None)  # Get S matrix if NMTF
-            n_topics = W_matrix.shape[1]
-            dominant_topics = get_dominant_topics(W_matrix, min_score=0.0, s_matrix=S_matrix)
-
-            # Extract year from datetime series
-            years = datetime_series.dt.year
-
-            # Prepare data: create weighted year distribution for each topic based on document counts
-            violin_data = []
-            for doc_idx in range(len(W_matrix)):
-                year = int(years.iloc[doc_idx])
-                dominant_topic_idx = dominant_topics[doc_idx]
-
-                if dominant_topic_idx != -1:  # Only include valid topics
-                    topic_id = dominant_topic_idx + 1
-                    violin_data.append({
-                        'Topic': f'Topic {topic_id}',
-                        'Year': year
-                    })
-
-            violin_df = pd.DataFrame(violin_data)
-
-            # Get unique topics for plot sizing
-            n_topics_found = violin_df['Topic'].nunique()
-
-            # Create horizontal violin plot: one violin per topic showing year distribution
-            fig_violin, ax = plt.subplots(figsize=(12, max(8, n_topics_found * 0.8)))
-
-            sns.violinplot(
-                data=violin_df,
-                y='Topic',
-                x='Year',
-                orient='h',
-                inner='box',
-                palette='Set2',
-                ax=ax
+            from .violin_plot import gen_violin_plot
+            violin_path = gen_violin_plot(
+                W=nmf_output["W"],
+                S_matrix=nmf_output.get("S", None),
+                datetime_series=datetime_series,
+                table_output_dir=table_output_dir,
+                table_name=table_name
             )
-
-            ax.set_xlabel('Year', fontsize=12, fontweight='bold')
-            ax.set_ylabel('Topic ID', fontsize=12, fontweight='bold')
-            ax.set_title('Topic Distribution Across Years',
-                        fontsize=14, fontweight='bold', pad=20)
-            ax.grid(axis='x', alpha=0.3, linestyle='--')
-
-            plt.tight_layout()
-
-            # Save the plot
-            violin_path = table_output_dir / f"{table_name}_topic_distribution_by_year.png"
-            fig_violin.savefig(violin_path, dpi=300, bbox_inches='tight')
-            plt.close(fig_violin)
-
-            print(f"Generated topic distribution violin plot by year: {violin_path.name}")
+            _console.print_debug(f"Generated static violin plot: {violin_path.name}", tag="VISUALIZATION")
 
         except Exception as e:
-            print(f"Warning: Failed to generate violin plot: {e}")
+            _console.print_warning(f"Failed to generate static violin plot: {e}", tag="VISUALIZATION")
+
+        # Generate interactive HTML violin plot
+        try:
+            from .create_interactive_violin import generate_interactive_violin_plot
+            interactive_violin_path = generate_interactive_violin_plot(
+                W=nmf_output["W"],
+                S_matrix=nmf_output.get("S", None),
+                datetime_series=datetime_series,
+                table_output_dir=table_output_dir,
+                table_name=table_name
+            )
+            _console.print_debug(f"Generated interactive violin plot: {interactive_violin_path.name}", tag="VISUALIZATION")
+
+        except Exception as e:
+            _console.print_warning(f"Failed to generate interactive violin plot: {e}", tag="VISUALIZATION")
 
     # generate interactive LDAvis-style visualization
     if False:
@@ -221,6 +234,8 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
             tokenizer=options["tokenizer"] if options["LANGUAGE"] == "TR" else None,
         )
 
+    
+
     if options["gen_cloud"]:
         from .gen_cloud import generate_wordclouds
         generate_wordclouds(result, table_output_dir, table_name)
@@ -234,7 +249,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         cooccurrence_method = "sliding_window"   # Default to old method for backward compatibility
         
         if cooccurrence_method == "sliding_window":
-            print(f"Using sliding window co-occurrence analysis with options")
+            _console.print_debug(f"Using sliding window co-occurrence analysis with options", tag="VISUALIZATION")
             # Use new memory-efficient sliding window co-occurrence analyzer
             language = "turkish" if options["LANGUAGE"] == "TR" else "english"
             top_pairs = analyze_word_cooccurrence(

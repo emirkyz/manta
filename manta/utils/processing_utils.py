@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, List
+import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
 
@@ -34,10 +35,18 @@ class ProcessingPaths:
 
     @property
     def metadata_file(self) -> Path:
-        """Path to cached metadata file (vocab, text_array, datetime).
+        """Path to cached metadata file (vocab, text_array, datetime) in HDF5 format.
 
         Uses preprocessing_name (without topic count) since preprocessing
         is independent of the number of topics.
+        """
+        return self.output_dir / f"{self.preprocessing_name}_tfidf_metadata.h5"
+
+    @property
+    def metadata_file_legacy(self) -> Path:
+        """Path to legacy NPZ metadata file (for backward compatibility).
+
+        Used to detect and load existing NPZ caches created before HDF5 migration.
         """
         return self.output_dir / f"{self.preprocessing_name}_tfidf_metadata.npz"
 
@@ -70,10 +79,14 @@ class ProcessingPaths:
     def cache_exists(self) -> bool:
         """Check if cached preprocessing files exist.
 
+        Supports both new HDF5 format and legacy NPZ format.
+
         Returns:
-            True if both TF-IDF matrix and metadata files exist
+            True if TF-IDF matrix exists and metadata (HDF5 or NPZ) exists
         """
-        return self.tfidf_matrix_file.exists() and self.metadata_file.exists()
+        has_matrix = self.tfidf_matrix_file.exists()
+        has_metadata = self.metadata_file.exists() or self.metadata_file_legacy.exists()
+        return has_matrix and has_metadata
 
 
 @dataclass
@@ -86,13 +99,19 @@ class CachedData:
     Attributes:
         tdm: Term-document matrix (sparse format)
         vocab: Vocabulary list (words/tokens)
-        text_array: Original text documents
+        text_array: Preprocessed text documents (lowercased, stemmed, stopwords removed)
+        original_text_array: Original raw text documents from input file (for exports)
         datetime_series: Optional datetime values for temporal analysis
+        datetime_is_combined: Whether datetime was created from combined year/month columns
+        pagerank_weights: Optional PageRank weights for TF-IDF boosting (range [1, 2])
     """
     tdm: sparse.csr_matrix
     vocab: List[str]
     text_array: List[str]
+    original_text_array: List[str] = None
     datetime_series: Optional[pd.Series] = None
+    datetime_is_combined: bool = False
+    pagerank_weights: Optional[np.ndarray] = None
 
     def __len__(self) -> int:
         """Return number of documents in the cached data."""
@@ -102,6 +121,11 @@ class CachedData:
     def has_datetime(self) -> bool:
         """Check if datetime information is available."""
         return self.datetime_series is not None and len(self.datetime_series) > 0
+
+    @property
+    def has_pagerank_weights(self) -> bool:
+        """Check if PageRank weights are available."""
+        return self.pagerank_weights is not None and len(self.pagerank_weights) > 0
 
 
 @dataclass

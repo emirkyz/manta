@@ -11,24 +11,34 @@ Example:
     representing the "good product" n-gram.
 """
 
-import numpy as np
-from collections import Counter, defaultdict
-from typing import List, Dict, Tuple, Optional
 import json
+import math
 import os
 import time
+from collections import Counter, defaultdict
+from itertools import chain
+from operator import itemgetter
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+
+import numpy as np
 from tqdm import tqdm
+
+if TYPE_CHECKING:
+    from ...utils.console.console_manager import ConsoleManager
 
 # Try to import numba for JIT compilation (optional dependency)
 try:
     from numba import jit
+
     NUMBA_AVAILABLE = True
 except ImportError:
     NUMBA_AVAILABLE = False
+
     # Provide a no-op decorator if numba is not available
     def jit(*args, **kwargs):
         def decorator(func):
             return func
+
         return decorator
 
 
@@ -101,7 +111,22 @@ class WordPairBPE:
     until a vocabulary size limit is reached.
     """
 
-    def __init__(self, vocab_limit: int = 10000, min_pair_frequency: int = 2, verbose: bool = False):
+    __slots__ = (
+        'vocab_limit', 'min_pair_frequency', 'verbose', 'use_pmi',
+        'original_vocab_size', 'current_vocab_size', 'merge_operations',
+        'pair_to_id', 'id_to_pair', 'pair_frequencies', 'inverted_index',
+        'max_frequency', 'max_pair', 'token_frequencies', 'total_tokens',
+        '_ngram_cache', '_console'
+    )
+
+    def __init__(
+        self,
+        vocab_limit: int = 10000,
+        min_pair_frequency: int = 2,
+        verbose: bool = False,
+        use_pmi: bool = False,
+        console: Optional["ConsoleManager"] = None,
+    ):
         """
         Initialize the WordPairBPE encoder.
 
@@ -109,10 +134,18 @@ class WordPairBPE:
             vocab_limit: Maximum vocabulary size before stopping merging
             min_pair_frequency: Minimum frequency threshold for pair merging
             verbose: Whether to print detailed decoding information (default: False for speed)
+            use_pmi: Use PMI (Pointwise Mutual Information) scoring instead of raw frequency.
+                    This helps number-word pairs compete fairly with word-word pairs.
+            console: Console manager for output. If None, uses global console.
         """
+        # Import here to avoid circular imports
+        from ...utils.console.console_manager import get_console
+        self._console = console or get_console()
+
         self.vocab_limit = vocab_limit
         self.min_pair_frequency = min_pair_frequency
         self.verbose = verbose
+        self.use_pmi = use_pmi
         self.original_vocab_size = 0
         self.current_vocab_size = 0
         self.merge_operations = []  # List of (pair, new_id, frequency) tuples
@@ -120,10 +153,17 @@ class WordPairBPE:
         self.id_to_pair = {}  # Reverse mapping for reconstruction
         self.pair_frequencies = {}  # Store frequencies for each merged pair
         self.inverted_index = {}  # Mapping of word_id -> set of doc indices containing that word
-        
+
         # Optimization: Track max frequency pair for O(1) lookup
         self.max_frequency = 0
         self.max_pair = None
+
+        # PMI scoring state
+        self.token_frequencies = {}  # Token marginal frequencies for PMI
+        self.total_tokens = 0  # Total token count for PMI
+
+        # Memoization cache for reconstruct_ngram_meaning
+        self._ngram_cache = {}
 
     def _get_optimal_dtype(self):
         """
@@ -157,6 +197,63 @@ class WordPairBPE:
 
         return dict(inverted_index)
 
+    def build_token_frequencies(
+        self, counterized_data: List[List[int]]
+    ) -> Tuple[Dict[int, int], int]:
+        """
+        Compute marginal frequency of each token across all documents.
+
+        This is used for PMI scoring to compute P(x) and P(y) probabilities.
+
+        Args:
+            counterized_data: List of documents with word IDs
+
+        Returns:
+            Tuple of (token_freq_dict, total_token_count)
+        """
+        # Flatten all documents into single iterable (memory efficient)
+        all_tokens = chain.from_iterable(counterized_data)
+
+        # Use Counter for efficient counting - it's optimized in C
+        token_counter = Counter(int(t) for t in all_tokens)
+
+        return dict(token_counter), sum(token_counter.values())
+
+    def compute_pmi(self, pair: Tuple[int, int], pair_freq: int, total_pairs: int) -> float:
+        """
+        Compute PMI (Pointwise Mutual Information) score for a token pair.
+
+        PMI(x, y) = log2(P(x,y) / (P(x) * P(y)))
+
+        Higher PMI means the pair appears together more than expected by chance.
+        This helps number-word pairs compete fairly with word-word pairs.
+
+        Args:
+            pair: (token1_id, token2_id) tuple
+            pair_freq: Frequency of this pair
+            total_pairs: Total number of pairs in corpus
+
+        Returns:
+            PMI score (higher = stronger association)
+        """
+        token1, token2 = pair
+        freq1 = self.token_frequencies.get(int(token1), 1)
+        freq2 = self.token_frequencies.get(int(token2), 1)
+
+        # P(x,y), P(x), P(y)
+        p_xy = pair_freq / total_pairs if total_pairs > 0 else 0
+        p_x = freq1 / self.total_tokens if self.total_tokens > 0 else 0
+        p_y = freq2 / self.total_tokens if self.total_tokens > 0 else 0
+
+        # PMI = log2(P(x,y) / (P(x) * P(y)))
+        denominator = p_x * p_y
+        if denominator > 0 and p_xy > 0:
+            pmi = math.log2(p_xy / denominator)
+        else:
+            pmi = 0.0
+
+        return pmi
+
     def build_pair_frequency_table_optimized(self, counterized_data: List[List[int]]) -> dict:
         """
         Optimized version using numpy vectorized operations and Numba JIT.
@@ -172,37 +269,33 @@ class WordPairBPE:
             # Use Numba-optimized batch pair extraction
             all_pairs = count_pairs_from_docs_numba(counterized_data)
 
-            # Convert pairs array to tuples and count frequencies
-            pair_frequencies = {}
-            for i in range(len(all_pairs)):
-                pair = (all_pairs[i, 0], all_pairs[i, 1])
-                pair_frequencies[pair] = pair_frequencies.get(pair, 0) + 1
+            # Use map + Counter for batch counting (C-optimized)
+            pair_frequencies = dict(Counter(map(tuple, all_pairs)))
 
             # Initialize max tracking
             self._update_max_frequency(pair_frequencies)
             return pair_frequencies
         else:
-            # Fallback to vectorized numpy (still faster than list comprehension)
-            pair_frequencies = {}
+            # Fallback using generator + Counter (memory efficient)
+            def pair_generator():
+                for doc_array in counterized_data:
+                    if len(doc_array) >= 2:
+                        # Use zip for memory-efficient pairing
+                        yield from zip(doc_array[:-1].tolist(), doc_array[1:].tolist())
 
-            for doc_array in counterized_data:
-                if len(doc_array) < 2:
-                    continue
-
-                # Use numpy slicing without list conversion
-                pairs = np.column_stack([doc_array[:-1], doc_array[1:]])
-                for i in range(len(pairs)):
-                    pair = (pairs[i, 0], pairs[i, 1])
-                    pair_frequencies[pair] = pair_frequencies.get(pair, 0) + 1
+            pair_frequencies = dict(Counter(pair_generator()))
 
             # Initialize max tracking
             self._update_max_frequency(pair_frequencies)
             return pair_frequencies
 
-    def update_inverted_index_after_merge(self, counterized_data: List[List[int]],
-                                          modified_indices: List[int],
-                                          merged_pair: Tuple[int, int],
-                                          new_id: int) -> None:
+    def update_inverted_index_after_merge(
+        self,
+        counterized_data: List[List[int]],
+        modified_indices: List[int],
+        merged_pair: Tuple[int, int],
+        new_id: int,
+    ) -> None:
         """
         Update inverted index after merging operation.
 
@@ -213,31 +306,34 @@ class WordPairBPE:
             new_id: New ID created from the merge
         """
         word1, word2 = merged_pair
+        inv_idx = self.inverted_index  # Local ref for faster access
+
+        # Pre-create set for new_id if needed (avoid repeated 'in' checks)
+        if new_id not in inv_idx:
+            inv_idx[new_id] = set()
+        new_id_set = inv_idx[new_id]
 
         # Update index for modified documents only
         for doc_idx in modified_indices:
-            document = counterized_data[doc_idx]
-            doc_words = set(document)
+            doc_words = set(counterized_data[doc_idx])
 
             # Remove this document from word1 and word2 if they no longer exist
-            if word1 not in doc_words and word1 in self.inverted_index:
-                self.inverted_index[word1].discard(doc_idx)
-                if not self.inverted_index[word1]:
-                    del self.inverted_index[word1]
+            # Use dict.get() with walrus operator for cleaner conditional cleanup
+            for word in (word1, word2):
+                if word not in doc_words and (word_set := inv_idx.get(word)):
+                    word_set.discard(doc_idx)
+                    if not word_set:
+                        del inv_idx[word]
 
-            if word2 not in doc_words and word2 in self.inverted_index:
-                self.inverted_index[word2].discard(doc_idx)
-                if not self.inverted_index[word2]:
-                    del self.inverted_index[word2]
+            new_id_set.add(doc_idx)
 
-            # Add new_id to index
-            if new_id not in self.inverted_index:
-                self.inverted_index[new_id] = set()
-            self.inverted_index[new_id].add(doc_idx)
-
-    def merge_word_pairs_vectorized(self, counterized_data: List[List[int]],
-                                   pair_to_merge: Tuple[int, int], new_id: int,
-                                   candidate_doc_indices: set = None) -> Tuple[List[List[int]], List[int]]:
+    def merge_word_pairs_vectorized(
+        self,
+        counterized_data: List[List[int]],
+        pair_to_merge: Tuple[int, int],
+        new_id: int,
+        candidate_doc_indices: set = None,
+    ) -> Tuple[List[List[int]], List[int]]:
         """
         Optimized vectorized merge with skip filtering and in-place modification.
 
@@ -285,22 +381,22 @@ class WordPairBPE:
             # Build result array by collecting segments
             result_segments = []
             last_end = 0
-            
+
             for match_pos in match_positions:
                 # Add elements before this match
                 if match_pos > last_end:
                     result_segments.append(doc_array[last_end:match_pos])
-                
+
                 # Add merged token
                 result_segments.append(np.array([new_id], dtype=doc_array.dtype))
-                
+
                 # Skip the pair (next segment starts after both elements)
                 last_end = match_pos + 2
-            
+
             # Add remaining elements after last match
             if last_end < len(doc_array):
                 result_segments.append(doc_array[last_end:])
-            
+
             # Concatenate all segments efficiently
             if result_segments:
                 new_doc = np.concatenate(result_segments)
@@ -311,11 +407,14 @@ class WordPairBPE:
             counterized_data[doc_idx] = new_doc
 
         return counterized_data, modified_indices
-
-    def update_pair_frequencies_incremental(self, pair_frequencies: dict,
-                                           counterized_data: List[List[int]],
-                                           modified_indices: List[int],
-                                           old_documents: Dict[int, np.ndarray]) -> dict:
+    
+    def update_pair_frequencies_incremental(
+        self,
+        pair_frequencies: dict,
+        counterized_data: List[List[int]],
+        modified_indices: List[int],
+        old_documents: Dict[int, np.ndarray],
+    ) -> dict:
         """
         Incrementally update pair frequencies for modified documents only.
         Optimized to use plain dict and update max tracking efficiently.
@@ -394,24 +493,18 @@ class WordPairBPE:
         Returns:
             Counter object with (word1_id, word2_id) -> frequency mappings
         """
-        pair_frequencies = Counter()
+        # Single-pass with chain.from_iterable for memory efficiency
+        all_pairs = chain.from_iterable(
+            zip(doc[:-1], doc[1:]) for doc in counterized_data if len(doc) >= 2
+        )
 
-        for document in counterized_data:
-            if len(document) < 2:
-                continue
-
-            # Count adjacent pairs using vectorized slicing
-            # document[:-1] creates first elements, document[1:] creates second elements
-            pairs = list(zip(document[:-1], document[1:]))
-            for pair in pairs:
-                pair_frequencies[pair] += 1
-
-        return pair_frequencies
+        # Counter.update() from iterable is C-optimized
+        return Counter(all_pairs)
 
     def _update_max_frequency(self, pair_frequencies: dict, updated_pair: Tuple[int, int] = None):
         """
         Update max frequency tracking efficiently.
-        
+
         Args:
             pair_frequencies: Current frequency dictionary
             updated_pair: Specific pair that was updated (for targeted check)
@@ -421,37 +514,78 @@ class WordPairBPE:
             if freq > self.max_frequency:
                 self.max_frequency = freq
                 self.max_pair = updated_pair
-        else:
+        elif pair_frequencies:
             # Full scan only when necessary (initialization or max pair removed)
-            if pair_frequencies:
-                max_item = max(pair_frequencies.items(), key=lambda x: x[1])
-                self.max_pair = max_item[0]  # pair
-                self.max_frequency = max_item[1]  # frequency
-            else:
-                self.max_frequency = 0
-                self.max_pair = None
+            # itemgetter(1) is ~20% faster than lambda x: x[1]
+            self.max_pair, self.max_frequency = max(
+                pair_frequencies.items(),
+                key=itemgetter(1)
+            )
+        else:
+            self.max_frequency = 0
+            self.max_pair = None
 
     def find_most_frequent_pair(self, pair_frequencies: dict) -> Optional[Tuple[int, int]]:
         """
-        Find the most frequent word pair that meets minimum frequency threshold.
-        Optimized to use O(1) max tracking instead of scanning entire dictionary.
+        Find the best word pair to merge based on scoring method.
+
+        When use_pmi is True, uses PMI (Pointwise Mutual Information) scoring
+        which helps number-word pairs compete fairly with word-word pairs.
+        Otherwise uses O(1) max frequency tracking.
 
         Args:
             pair_frequencies: Dict with pair frequencies
 
         Returns:
-            Most frequent pair as (word1_id, word2_id) tuple, or None if no valid pairs
+            Best pair as (word1_id, word2_id) tuple, or None if no valid pairs
         """
-        if not pair_frequencies or self.max_pair is None:
+        if not pair_frequencies:
             return None
 
-        if self.max_frequency >= self.min_pair_frequency:
-            return self.max_pair
+        if self.use_pmi:
+            # Score by weighted PMI: PMI * log2(freq + 1)
+            # This balances association strength with occurrence frequency
+            # Prevents rare-but-associated pairs from dominating
+            total_pairs = sum(pair_frequencies.values())
+            best_pair = None
+            best_score = float("-inf")
+
+            # Create a generator for pairs that meet the minimum frequency threshold.
+            # This is more memory-efficient than creating an intermediate list.
+            candidate_pairs = (
+                (pair, freq)
+                for pair, freq in pair_frequencies.items()
+                if freq >= self.min_pair_frequency
+            )
+
+            # Use the `max` function with a key, which is generally faster and more
+            # Pythonic than a manual loop for finding the maximum item.
+            # The key function calculates the weighted PMI score for each candidate pair.
+            # The `default=None` argument handles the case where candidate_pairs is empty.
+            best_pair_item = max(
+                candidate_pairs,
+                key=lambda item: self.compute_pmi(item[0], item[1], total_pairs)
+                * math.log2(item[1] + 1),
+                default=None,
+            )
+            
+            # Extract the pair from the result
+            best_pair = best_pair_item[0] if best_pair_item else None
+
+            return best_pair
         else:
-            return None
+            # Original frequency-based logic with O(1) max tracking
+            if self.max_pair is None:
+                return None
 
-    def merge_word_pairs(self, counterized_data: List[List[int]],
-                        pair_to_merge: Tuple[int, int], new_id: int) -> List[List[int]]:
+            if self.max_frequency >= self.min_pair_frequency:
+                return self.max_pair
+            else:
+                return None
+                
+    def merge_word_pairs(
+        self, counterized_data: List[List[int]], pair_to_merge: Tuple[int, int], new_id: int
+    ) -> List[List[int]]:
         """
         Replace all occurrences of a word pair with a new combined ID.
 
@@ -465,7 +599,7 @@ class WordPairBPE:
         """
         word1, word2 = pair_to_merge
         updated_data = []
-
+        
         for document in counterized_data:
             if len(document) < 2:
                 updated_data.append(document[:])
@@ -476,8 +610,7 @@ class WordPairBPE:
 
             while i < len(document):
                 # Check if current and next word form the target pair
-                if (i < len(document) - 1 and
-                    document[i] == word1 and document[i + 1] == word2):
+                if i < len(document) - 1 and document[i] == word1 and document[i + 1] == word2:
                     # Replace pair with new ID
                     new_document.append(new_id)
                     i += 2  # Skip both words
@@ -490,8 +623,12 @@ class WordPairBPE:
 
         return updated_data
 
-    def fit_optimized(self, counterized_data: List[List[int]], original_vocab_size: int,
-                     original_vocab: List[str] = None) -> List[List[int]]:
+    def fit_optimized(
+        self,
+        counterized_data: List[List[int]],
+        original_vocab_size: int,
+        original_vocab: List[str] = None,
+    ) -> List[List[int]]:
         """
         Optimized training method using vectorized operations and optimized data structures.
 
@@ -515,34 +652,53 @@ class WordPairBPE:
         # Performance tracking
         start_time = time.time()
         timing_stats = {
-            'inverted_index_time': 0,
-            'initial_freq_time': 0,
-            'merge_time': 0,
-            'freq_update_time': 0,
-            'total_iterations': 0
+            "inverted_index_time": 0,
+            "initial_freq_time": 0,
+            "merge_time": 0,
+            "freq_update_time": 0,
+            "total_iterations": 0,
         }
-        
-        print(f"Starting optimized n-gram BPE with vocab size: {self.current_vocab_size}")
-        print(f"Target vocab limit: {self.vocab_limit}")
-        print(f"Using dtype: {dtype.__name__} for memory efficiency")
-        print("Using inverted index, vectorized operations, and incremental frequency updates")
+
+        self._console.print_debug(f"Starting optimized n-gram BPE with vocab size: {self.current_vocab_size}", tag="N-GRAM BPE")
+        self._console.print_debug(f"Target vocab limit: {self.vocab_limit}", tag="N-GRAM BPE")
+        self._console.print_debug(f"Using dtype: {dtype.__name__} for memory efficiency", tag="N-GRAM BPE")
+        if self.use_pmi:
+            self._console.print_debug("Using PMI scoring (helps number-word pairs compete with word-word pairs)", tag="N-GRAM BPE")
+        self._console.print_debug("Using inverted index, vectorized operations, and incremental frequency updates", tag="N-GRAM BPE")
 
         # Build inverted index once at start
-        print("Building inverted index...")
+        self._console.print_debug("Building inverted index...", tag="N-GRAM BPE")
         idx_start = time.time()
         self.inverted_index = self.build_inverted_index(working_data)
-        timing_stats['inverted_index_time'] = time.time() - idx_start
-        print(f"Inverted index built with {len(self.inverted_index)} unique tokens")
+        timing_stats["inverted_index_time"] = time.time() - idx_start
+        self._console.print_debug(f"Inverted index built with {len(self.inverted_index)} unique tokens", tag="N-GRAM BPE")
+
+        # Build token frequencies for PMI scoring
+        if self.use_pmi:
+            self._console.print_debug("Computing token frequencies for PMI scoring...", tag="N-GRAM BPE")
+            pmi_start = time.time()
+            self.token_frequencies, self.total_tokens = self.build_token_frequencies(working_data)
+            pmi_time = time.time() - pmi_start
+            self._console.print_debug(
+                f"Token frequencies computed in {pmi_time:.2f}s (total tokens: {self.total_tokens}, unique: {len(self.token_frequencies)})",
+                tag="N-GRAM BPE"
+            )
 
         # Build initial frequency table once
         freq_start = time.time()
         pair_frequencies = self.build_pair_frequency_table_optimized(working_data)
-        timing_stats['initial_freq_time'] = time.time() - freq_start
+        timing_stats["initial_freq_time"] = time.time() - freq_start
 
         # Create progress bar with rate display
         max_iterations = self.vocab_limit - self.current_vocab_size
-        pbar = tqdm(total=max_iterations, desc="N-gram BPE",
-                   unit="merge", disable=False, smoothing=0.3, mininterval=0.1)
+        pbar = tqdm(
+            total=max_iterations,
+            desc="N-gram BPE",
+            unit="merge",
+            disable=False,
+            smoothing=0.3,
+            mininterval=0.1,
+        )
 
         iteration = 0
         while self.current_vocab_size < self.vocab_limit:
@@ -551,7 +707,10 @@ class WordPairBPE:
 
             if most_frequent_pair is None:
                 pbar.close()
-                print(f"\nNo more pairs meet minimum frequency threshold. Stopping at vocab size: {self.current_vocab_size}")
+                self._console.print_debug(
+                    f"No more pairs meet minimum frequency threshold. Stopping at vocab size: {self.current_vocab_size}",
+                    tag="N-GRAM BPE"
+                )
                 break
 
             # Assign new ID to this pair
@@ -565,7 +724,7 @@ class WordPairBPE:
             if word1 in self.inverted_index and word2 in self.inverted_index:
                 set1 = self.inverted_index[word1]
                 set2 = self.inverted_index[word2]
-                
+
                 # Early exit if either set is empty
                 if not set1 or not set2:
                     candidate_docs = set()
@@ -582,24 +741,34 @@ class WordPairBPE:
 
                 # Decode token1 (could be original or previously created n-gram)
                 if token1_id < self.original_vocab_size:
-                    token1_text = original_vocab[token1_id] if token1_id < len(original_vocab) else f"UNK_{token1_id}"
+                    token1_text = (
+                        original_vocab[token1_id]
+                        if token1_id < len(original_vocab)
+                        else f"UNK_{token1_id}"
+                    )
                 else:
                     # This is a previously created n-gram, reconstruct it
                     token1_text = self.reconstruct_ngram_meaning(token1_id, original_vocab)
 
                 # Decode token2 (could be original or previously created n-gram)
                 if token2_id < self.original_vocab_size:
-                    token2_text = original_vocab[token2_id] if token2_id < len(original_vocab) else f"UNK_{token2_id}"
+                    token2_text = (
+                        original_vocab[token2_id]
+                        if token2_id < len(original_vocab)
+                        else f"UNK_{token2_id}"
+                    )
                 else:
                     # This is a previously created n-gram, reconstruct it
                     token2_text = self.reconstruct_ngram_meaning(token2_id, original_vocab)
 
-                tqdm.write(f"Iteration {iteration + 1}: Merging '{token1_text}'+'{token2_text}' "
-                          f"(freq: {frequency}) -> ID {new_id}")
+                tqdm.write(
+                    f"Iteration {iteration + 1}: Merging '{token1_text}'+'{token2_text}' "
+                    f"(freq: {frequency}) -> ID {new_id}"
+                )
 
             # Optimization: Batch progress bar updates to reduce I/O overhead
             if iteration % 25 == 0 or iteration < 10:  # Update frequently at start, then batch
-                pbar.set_postfix({'vocab_size': self.current_vocab_size, 'freq': frequency})
+                pbar.set_postfix({"vocab_size": self.current_vocab_size, "freq": frequency})
 
             # Store merge operation with frequency
             self.merge_operations.append((most_frequent_pair, new_id, frequency))
@@ -608,16 +777,20 @@ class WordPairBPE:
             self.pair_frequencies[most_frequent_pair] = frequency
 
             # Optimization: Only backup documents that actually contain the pair to merge
-            old_docs_backup = {}
             if candidate_docs:
                 word1, word2 = most_frequent_pair
-                for doc_idx in candidate_docs:
+
+                def has_pair(doc_idx):
                     doc_array = working_data[doc_idx]
-                    # Quick check: does this document actually contain the consecutive pair?
-                    if len(doc_array) >= 2:
-                        matches = (doc_array[:-1] == word1) & (doc_array[1:] == word2)
-                        if matches.any():
-                            old_docs_backup[doc_idx] = working_data[doc_idx].copy()
+                    return (len(doc_array) >= 2 and
+                            ((doc_array[:-1] == word1) & (doc_array[1:] == word2)).any())
+
+                old_docs_backup = {
+                    doc_idx: working_data[doc_idx].copy()
+                    for doc_idx in candidate_docs if has_pair(doc_idx)
+                }
+            else:
+                old_docs_backup = {}
 
             # Apply merge using vectorized operations with candidate docs from inverted index
             merge_start = time.time()
@@ -626,20 +799,50 @@ class WordPairBPE:
             )
 
             # Update inverted index after merge
-            self.update_inverted_index_after_merge(working_data, modified_indices, most_frequent_pair, new_id)
-            timing_stats['merge_time'] += time.time() - merge_start
+            self.update_inverted_index_after_merge(
+                working_data, modified_indices, most_frequent_pair, new_id
+            )
+            timing_stats["merge_time"] += time.time() - merge_start
+
+            # Update token frequencies for PMI scoring
+            if self.use_pmi and modified_indices:
+                # Count actual merges by looking at document length changes
+                total_merges = 0
+                for doc_idx in modified_indices:
+                    if doc_idx in old_docs_backup:
+                        old_len = len(old_docs_backup[doc_idx])
+                        new_len = len(working_data[doc_idx])
+                        # Each merge reduces length by 1 (two tokens -> one)
+                        merges_in_doc = old_len - new_len
+                        total_merges += merges_in_doc
+
+                if total_merges > 0:
+                    # Decrease token frequencies for merged tokens
+                    word1, word2 = most_frequent_pair
+                    self.token_frequencies[int(word1)] = max(
+                        0, self.token_frequencies.get(int(word1), 0) - total_merges
+                    )
+                    self.token_frequencies[int(word2)] = max(
+                        0, self.token_frequencies.get(int(word2), 0) - total_merges
+                    )
+                    # Increase frequency for new merged token
+                    self.token_frequencies[int(new_id)] = (
+                        self.token_frequencies.get(int(new_id), 0) + total_merges
+                    )
+                    # Total tokens decreases (two tokens become one for each merge)
+                    self.total_tokens -= total_merges
 
             # Incrementally update frequency table (only for modified documents)
             freq_update_start = time.time()
             pair_frequencies = self.update_pair_frequencies_incremental(
                 pair_frequencies, working_data, modified_indices, old_docs_backup
             )
-            timing_stats['freq_update_time'] += time.time() - freq_update_start
+            timing_stats["freq_update_time"] += time.time() - freq_update_start
 
             # Update vocabulary size
             self.current_vocab_size += 1
             iteration += 1
-            
+
             # Optimization: Batch progress bar updates
             if iteration % 25 == 0 or iteration < 10:
                 pbar.update(25 if iteration >= 25 else 1)
@@ -649,30 +852,41 @@ class WordPairBPE:
             # Safety check to prevent infinite loops
             if iteration > 50000:
                 pbar.close()
-                print("\nWarning: Maximum iterations reached. Stopping merge process.")
+                self._console.print_warning("Maximum iterations reached. Stopping merge process.", tag="N-GRAM BPE")
                 break
 
         pbar.close()
-        
+
         # Performance report
         total_time = time.time() - start_time
-        timing_stats['total_iterations'] = iteration
-        
-        print(f"\nOptimized n-gram BPE completed. Final vocab size: {self.current_vocab_size}")
-        print(f"Created {len(self.merge_operations)} n-gram combinations")
-        print(f"\nPerformance Report:")
-        print(f"  Total time: {total_time:.2f}s")
-        print(f"  Inverted index build: {timing_stats['inverted_index_time']:.2f}s")
-        print(f"  Initial frequency table: {timing_stats['initial_freq_time']:.2f}s")
-        print(f"  Merge operations: {timing_stats['merge_time']:.2f}s ({timing_stats['merge_time']/total_time*100:.1f}%)")
-        print(f"  Frequency updates: {timing_stats['freq_update_time']:.2f}s ({timing_stats['freq_update_time']/total_time*100:.1f}%)")
+        timing_stats["total_iterations"] = iteration
+
+        self._console.print_debug(f"Optimized n-gram BPE completed. Final vocab size: {self.current_vocab_size}", tag="N-GRAM BPE")
+        self._console.print_debug(f"Created {len(self.merge_operations)} n-gram combinations", tag="N-GRAM BPE")
+        self._console.print_debug("Performance Report:", tag="N-GRAM BPE")
+        self._console.print_debug(f"  Total time: {total_time:.2f}s", tag="N-GRAM BPE")
+        self._console.print_debug(f"  Inverted index build: {timing_stats['inverted_index_time']:.2f}s", tag="N-GRAM BPE")
+        self._console.print_debug(f"  Initial frequency table: {timing_stats['initial_freq_time']:.2f}s", tag="N-GRAM BPE")
+        self._console.print_debug(
+            f"  Merge operations: {timing_stats['merge_time']:.2f}s ({timing_stats['merge_time'] / total_time * 100:.1f}%)",
+            tag="N-GRAM BPE"
+        )
+        self._console.print_debug(
+            f"  Frequency updates: {timing_stats['freq_update_time']:.2f}s ({timing_stats['freq_update_time'] / total_time * 100:.1f}%)",
+            tag="N-GRAM BPE"
+        )
         if iteration > 0:
-            print(f"  Average per iteration: {total_time/iteration*1000:.1f}ms")
-            print(f"  Iterations per second: {iteration/total_time:.1f}")
+            self._console.print_debug(f"  Average per iteration: {total_time / iteration * 1000:.1f}ms", tag="N-GRAM BPE")
+            self._console.print_debug(f"  Iterations per second: {iteration / total_time:.1f}", tag="N-GRAM BPE")
 
         return working_data
 
-    def fit(self, counterized_data: List[List[int]], original_vocab_size: int, original_vocab: List[str] = None) -> List[List[int]]:
+    def fit(
+        self,
+        counterized_data: List[List[int]],
+        original_vocab_size: int,
+        original_vocab: List[str] = None,
+    ) -> List[List[int]]:
         """
         Main training method that iteratively merges word pairs.
 
@@ -693,14 +907,20 @@ class WordPairBPE:
         # Work with a copy to avoid modifying original data
         working_data = [np.array(doc, dtype=dtype) for doc in counterized_data]
 
-        print(f"Starting n-gram BPE with vocab size: {self.current_vocab_size}")
-        print(f"Target vocab limit: {self.vocab_limit}")
-        print(f"Using dtype: {dtype.__name__} for memory efficiency")
+        self._console.print_debug(f"Starting n-gram BPE with vocab size: {self.current_vocab_size}", tag="N-GRAM BPE")
+        self._console.print_debug(f"Target vocab limit: {self.vocab_limit}", tag="N-GRAM BPE")
+        self._console.print_debug(f"Using dtype: {dtype.__name__} for memory efficiency", tag="N-GRAM BPE")
 
         # Create progress bar with rate display
         max_iterations = self.vocab_limit - self.current_vocab_size
-        pbar = tqdm(total=max_iterations, desc="N-gram BPE",
-                   unit="merge", disable=False, smoothing=0.3, mininterval=0.1)
+        pbar = tqdm(
+            total=max_iterations,
+            desc="N-gram BPE",
+            unit="merge",
+            disable=False,
+            smoothing=0.3,
+            mininterval=0.1,
+        )
 
         iteration = 0
         while self.current_vocab_size < self.vocab_limit:
@@ -712,7 +932,10 @@ class WordPairBPE:
 
             if most_frequent_pair is None:
                 pbar.close()
-                print(f"\nNo more pairs meet minimum frequency threshold. Stopping at vocab size: {self.current_vocab_size}")
+                self._console.print_debug(
+                    f"No more pairs meet minimum frequency threshold. Stopping at vocab size: {self.current_vocab_size}",
+                    tag="N-GRAM BPE"
+                )
                 break
 
             # Assign new ID to this pair
@@ -720,7 +943,7 @@ class WordPairBPE:
             frequency = pair_frequencies[most_frequent_pair]
 
             # Update progress bar with current vocab size
-            pbar.set_postfix({'vocab_size': self.current_vocab_size, 'freq': frequency})
+            pbar.set_postfix({"vocab_size": self.current_vocab_size, "freq": frequency})
 
             # Decode pair for human-readable output (only if verbose)
             if self.verbose and original_vocab:
@@ -728,20 +951,30 @@ class WordPairBPE:
 
                 # Decode token1 (could be original or previously created n-gram)
                 if token1_id < self.original_vocab_size:
-                    token1_text = original_vocab[token1_id] if token1_id < len(original_vocab) else f"UNK_{token1_id}"
+                    token1_text = (
+                        original_vocab[token1_id]
+                        if token1_id < len(original_vocab)
+                        else f"UNK_{token1_id}"
+                    )
                 else:
                     # This is a previously created n-gram, reconstruct it
                     token1_text = self.reconstruct_ngram_meaning(token1_id, original_vocab)
 
                 # Decode token2 (could be original or previously created n-gram)
                 if token2_id < self.original_vocab_size:
-                    token2_text = original_vocab[token2_id] if token2_id < len(original_vocab) else f"UNK_{token2_id}"
+                    token2_text = (
+                        original_vocab[token2_id]
+                        if token2_id < len(original_vocab)
+                        else f"UNK_{token2_id}"
+                    )
                 else:
                     # This is a previously created n-gram, reconstruct it
                     token2_text = self.reconstruct_ngram_meaning(token2_id, original_vocab)
 
-                tqdm.write(f"Iteration {iteration + 1}: Merging '{token1_text}'+'{token2_text}' "
-                          f"(freq: {frequency}) -> ID {new_id}")
+                tqdm.write(
+                    f"Iteration {iteration + 1}: Merging '{token1_text}'+'{token2_text}' "
+                    f"(freq: {frequency}) -> ID {new_id}"
+                )
 
             # Store merge operation with frequency
             self.merge_operations.append((most_frequent_pair, new_id, frequency))
@@ -760,12 +993,12 @@ class WordPairBPE:
             # Safety check to prevent infinite loops
             if iteration > 50000:
                 pbar.close()
-                print("\nWarning: Maximum iterations reached. Stopping merge process.")
+                self._console.print_warning("Maximum iterations reached. Stopping merge process.", tag="N-GRAM BPE")
                 break
 
         pbar.close()
-        print(f"\nN-gram BPE completed. Final vocab size: {self.current_vocab_size}")
-        print(f"Created {len(self.merge_operations)} n-gram combinations")
+        self._console.print_debug(f"N-gram BPE completed. Final vocab size: {self.current_vocab_size}", tag="N-GRAM BPE")
+        self._console.print_debug(f"Created {len(self.merge_operations)} n-gram combinations", tag="N-GRAM BPE")
 
         return working_data
 
@@ -777,11 +1010,11 @@ class WordPairBPE:
             Dictionary containing vocabulary statistics and mappings
         """
         return {
-            'original_vocab_size': self.original_vocab_size,
-            'final_vocab_size': self.current_vocab_size,
-            'ngrams_created': len(self.merge_operations),
-            'merge_operations': self.merge_operations[:10],  # Show first 10 for inspection
-            'pair_to_id_sample': dict(list(self.pair_to_id.items())[:5])  # Sample mappings
+            "original_vocab_size": self.original_vocab_size,
+            "final_vocab_size": self.current_vocab_size,
+            "ngrams_created": len(self.merge_operations),
+            "merge_operations": self.merge_operations[:10],  # Show first 10 for inspection
+            "pair_to_id_sample": dict(list(self.pair_to_id.items())[:5]),  # Sample mappings
         }
 
     def reconstruct_ngram_meaning(self, ngram_id: int, original_vocab: List[str]) -> str:
@@ -795,21 +1028,29 @@ class WordPairBPE:
         Returns:
             String representation of the n-gram
         """
+        # Memoization: check cache first using vocab identity
+        cache_key = (ngram_id, id(original_vocab))
+        if cache_key in self._ngram_cache:
+            return self._ngram_cache[cache_key]
+
+        # Base cases
         if ngram_id < self.original_vocab_size:
-            # This is an original word
-            return original_vocab[ngram_id] if ngram_id < len(original_vocab) else f"UNK_{ngram_id}"
+            result = original_vocab[ngram_id] if ngram_id < len(original_vocab) else f"UNK_{ngram_id}"
+        elif ngram_id not in self.id_to_pair:
+            result = f"NGRAM_{ngram_id}"
+        else:
+            # Recursively reconstruct the pair
+            word1_id, word2_id = self.id_to_pair[ngram_id]
+            word1_str = self.reconstruct_ngram_meaning(word1_id, original_vocab)
+            word2_str = self.reconstruct_ngram_meaning(word2_id, original_vocab)
+            result = f"{word1_str}_{word2_str}"
 
-        if ngram_id not in self.id_to_pair:
-            return f"NGRAM_{ngram_id}"
+        self._ngram_cache[cache_key] = result
+        return result
 
-        # Recursively reconstruct the pair
-        word1_id, word2_id = self.id_to_pair[ngram_id]
-        word1_str = self.reconstruct_ngram_meaning(word1_id, original_vocab)
-        word2_str = self.reconstruct_ngram_meaning(word2_id, original_vocab)
-
-        return f"{word1_str}_{word2_str}"
-
-    def save_ngrams_to_json(self, filename: str, original_vocab: List[str], output_dir: str = None) -> str:
+    def save_ngrams_to_json(
+        self, filename: str, original_vocab: List[str], output_dir: str = None
+    ) -> str:
         """
         Save n-gram pairs and their meanings to a JSON file.
 
@@ -827,41 +1068,33 @@ class WordPairBPE:
         else:
             filepath = filename
 
+        # Helper to decode token ID to text
+        def decode_token(token_id: int) -> str:
+            if token_id < self.original_vocab_size:
+                return original_vocab[token_id] if token_id < len(original_vocab) else f"UNK_{token_id}"
+            return self.reconstruct_ngram_meaning(token_id, original_vocab)
+
+        # Build ngrams dict using dict comprehension
         ngrams_data = {
             "metadata": {
                 "original_vocab_size": self.original_vocab_size,
                 "final_vocab_size": self.current_vocab_size,
                 "ngrams_created": len(self.merge_operations),
                 "vocab_limit": self.vocab_limit,
-                "min_pair_frequency": self.min_pair_frequency
+                "min_pair_frequency": self.min_pair_frequency,
             },
-            "ngrams": {}
+            "ngrams": {
+                str(new_id): {
+                    "pair": f"{decode_token(pair[0])},{decode_token(pair[1])}",
+                    "frequency": self.pair_frequencies.get(pair, 0),
+                }
+                for pair, new_id in self.pair_to_id.items()
+            },
         }
 
-        # Export each n-gram with its information
-        for pair, new_id in self.pair_to_id.items():
-            token1_id, token2_id = pair
-            frequency = self.pair_frequencies.get(pair, 0)
-
-            # Decode tokens to readable text (handle both original and n-gram tokens)
-            if token1_id < self.original_vocab_size:
-                token1_text = original_vocab[token1_id] if token1_id < len(original_vocab) else f"UNK_{token1_id}"
-            else:
-                token1_text = self.reconstruct_ngram_meaning(token1_id, original_vocab)
-
-            if token2_id < self.original_vocab_size:
-                token2_text = original_vocab[token2_id] if token2_id < len(original_vocab) else f"UNK_{token2_id}"
-            else:
-                token2_text = self.reconstruct_ngram_meaning(token2_id, original_vocab)
-
-            ngrams_data["ngrams"][str(new_id)] = {
-                "pair": f"{token1_text},{token2_text}",
-                "frequency": frequency
-            }
-
         # Save to JSON file
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(ngrams_data, f, ensure_ascii=False, indent=2)
 
-        print(f"N-grams saved to: {filepath}")
+        self._console.print_status(f"N-grams saved to: {filepath}", "success")
         return filepath

@@ -5,8 +5,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Tuple
 from ...utils.analysis import get_dominant_topics
+from ..console.console_manager import ConsoleManager, get_console
+from .visualization_helpers import _generate_distinct_colors, _generate_greedy_distinct_colors, _color_distance
 
 
 def tsne_graph_output(w: np.ndarray, h: np.ndarray,
@@ -17,7 +19,8 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
                       time_ranges: Optional[List] = None,
                       cumulative: bool = True,
                       time_column_name: str = "time",
-                      outlier_percentile: float = 0.95) -> Optional[str]:
+                      outlier_percentile: float = 0.95,
+                      console: Optional[ConsoleManager] = None) -> Optional[str]:
     """
     Create beautiful t-SNE visualizations for document-topic analysis.
 
@@ -27,9 +30,8 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     Args:
         w: Document-topic matrix (W from NMF/LDA) - shape (n_docs, n_topics)
         h: Topic-word matrix (H from NMF/LDA) - shape (n_topics, n_words)
-        s_matrix: Optional S matrix from NMTF (k×k). When provided, uses topic relationships
-                 for enhanced clustering. Expected to be L1 column-normalized for consistent
-                 interpretation (each column sums to 1.0).
+        s_matrix: Optional S matrix from NMTF (k×k). DEPRECATED: No longer used for reordering.
+                 Kept for backwards compatibility.
         output_dir: Directory to save the plot (optional)
         table_name: Base name for the output file and plot title
         time_data: Time/date information for time-series visualization (optional)
@@ -55,45 +57,45 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
         where each column sums to 1.0. This ensures consistent probability-like interpretation
         of topic relationships across visualizations.
     """
-    # Input validation with beautiful formatting
-    print(f"\n🎨 Starting t-SNE Visualization")
-    print(f"📊 Input Data:")
-    print(f"  • Documents: {w.shape[0] if w is not None else 'None'}")
-    print(f"  • Topics: {h.shape[0] if h is not None else 'None'}")
+    # Input validation with console output
+    _console = console or get_console()
+    _console.print_debug("Starting t-SNE Visualization", tag="VISUALIZATION")
+    _console.print_debug(f"Input Data: Documents={w.shape[0] if w is not None else 'None'}, Topics={h.shape[0] if h is not None else 'None'}", tag="VISUALIZATION")
     if time_data is not None:
-        print(f"  • Time-series mode: {len(time_ranges) if time_ranges else 'Auto-detect'} periods")
-    print(f"  • Output: {table_name}")
+        _console.print_debug(f"Time-series mode: {len(time_ranges) if time_ranges else 'Auto-detect'} periods", tag="VISUALIZATION")
+    _console.print_debug(f"Output: {table_name}", tag="VISUALIZATION")
 
     if w is None or h is None:
-        print("⚠️  Error: Invalid input matrices for t-SNE visualization")
+        _console.print_warning("Invalid input matrices for t-SNE visualization", tag="VISUALIZATION")
         return None
 
     if w.shape[0] < 2:
-        print("⚠️  Error: Need at least 2 documents for t-SNE visualization")
+        _console.print_warning("Need at least 2 documents for t-SNE visualization", tag="VISUALIZATION")
         return None
 
-    print(f"\n🔮 Generating t-SNE embedding for {w.shape[0]:,} documents and {h.shape[0]} topics...")
+    _console.print_debug(f"Generating t-SNE embedding for {w.shape[0]:,} documents and {h.shape[0]} topics...", tag="VISUALIZATION")
 
     # Convert W to dense array only if necessary
     if hasattr(w, 'toarray'):
         # It's a sparse matrix, convert to dense
         w_dense = w.toarray()
-        print(f"🔄 Converted sparse matrix to dense: {w.shape} → {w_dense.shape}")
+        _console.print_debug(f"Converted sparse matrix to dense: {w.shape} -> {w_dense.shape}", tag="VISUALIZATION")
     else:
         # Use np.asarray to avoid copying if already an array
         w_dense = np.asarray(w)
-        print(f"✅ Using matrix as-is: {w_dense.shape}")
+        _console.print_debug(f"Using matrix as-is: {w_dense.shape}", tag="VISUALIZATION")
 
     # Apply t-SNE to document-topic matrix (W) with optimized parameters
     n_docs = w_dense.shape[0]
 
     # Adaptive perplexity based on dataset size
-    adaptive_perplexity = min(30, max(5, n_docs // 3))
+    # TODO CHANGE BACK
+    adaptive_perplexity = 45
 
     # Choose method based on dataset size
     method = 'barnes_hut' if n_docs > 1000 else 'exact'
 
-    print(f"⚙️  t-SNE parameters: perplexity={adaptive_perplexity}, method={method}, iterations=300")
+    _console.print_debug(f"t-SNE parameters: perplexity={adaptive_perplexity}, method={method}, iterations=300", tag="VISUALIZATION")
 
     tsne = TSNE(
         random_state=42,
@@ -105,8 +107,13 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     tsne_embedding = tsne.fit_transform(w_dense)
     tsne_embedding = pd.DataFrame(tsne_embedding, columns=['x', 'y'])
 
+    # Use W directly - no reordering needed
+    # Topic ordering is now sequential (Topic i = W column i)
+    # This ensures consistency with word extraction across all visualizations
+    w_for_topics = w_dense
+
     # Get dominant topics, filtering out zero-score documents
-    dominant_topics = get_dominant_topics(w_dense, min_score=0.0, s_matrix=s_matrix)
+    dominant_topics = get_dominant_topics(w_for_topics, min_score=0.0)
     tsne_embedding['hue'] = dominant_topics
 
     # Filter out documents with no dominant topic (marked as -1)
@@ -114,7 +121,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     excluded_count = (~valid_mask).sum()
 
     if excluded_count > 0:
-        print(f"Excluded {excluded_count} documents with all zero topic scores from t-SNE visualization")
+        _console.print_debug(f"Excluded {excluded_count} documents with all zero topic scores from t-SNE visualization", tag="VISUALIZATION")
 
     tsne_embedding = tsne_embedding[valid_mask].reset_index(drop=True)
 
@@ -148,6 +155,8 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
         point_size = 25  # Medium points
     else:
         point_size = max(8, 25 - np.log10(max(n_points, 10)) * 4)  # Adaptive for large datasets
+    #TODO CHANGE BACK
+    point_size *= 3
 
     # Improved alpha calculation: higher transparency for small datasets, lower for large ones
     if n_points <= 100:
@@ -161,7 +170,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
 
     alpha = 1
 
-    print(f"✨ Visualization settings: {n_points} points, size={point_size:.1f}, alpha={alpha:.2f}")
+    _console.print_debug(f"Visualization settings: {n_points} points, size={point_size:.1f}, alpha={alpha:.2f}", tag="VISUALIZATION")
 
     # Use maximally distinct colors like digital city maps
     import matplotlib.cm as cm
@@ -170,7 +179,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
     
     # Generate distinct colors for topics
     distinct_colors = _generate_distinct_colors(n_unique_topics)
-    print(f"🎨 Generated {len(distinct_colors)} maximally distinct colors for topics")
+    _console.print_debug(f"Generated {len(distinct_colors)} maximally distinct colors for topics", tag="VISUALIZATION")
     
     # Create a custom colormap from distinct colors
     from matplotlib.colors import ListedColormap
@@ -192,7 +201,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
               title='Topics', title_fontsize=11)
 
     # Set modern title and labels with better typography
-    title_text = f'📊 Topic Distribution Visualization\n{table_name.replace("_", " ").title()}'
+    title_text = f'Topic Distribution Visualization\n{table_name.replace("_", " ").title()}'
     ax.set_title(title_text, fontsize=18, fontweight='bold', pad=25,
                  color='#2E3440', family='sans-serif')
     ax.set_xlabel('t-SNE Component 1', fontsize=13, color='#4C566A', fontweight='medium')
@@ -234,19 +243,16 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
                     metadata={'Title': f't-SNE Visualization: {table_name}',
                               'Description': 'Generated by MANTA Topic Modeling'})
         saved_path = str(file_path)
-        print(f"💾 High-quality plot saved: {saved_path}")
+        _console.print_debug(f"High-quality plot saved: {saved_path}", tag="VISUALIZATION")
 
     plt.show()
 
-    # Print beautiful summary statistics with emojis and formatting
-    print(f"\n📊 t-SNE Visualization Summary:")
-    print(f"📝 Total documents: {len(data):,}")
-    print(f"🎨 Number of topics: {len(unique_topics)}")
-    print(f"🔍 Topic Distribution:")
+    # Print summary statistics
+    _console.print_debug(f"t-SNE Visualization Summary: {len(data):,} documents, {len(unique_topics)} topics", tag="VISUALIZATION")
     for topic_id in unique_topics:
         topic_count = len(data[data['hue'] == topic_id])
         percentage = (topic_count / len(data)) * 100
-        print(f"  • Topic {topic_id + 1}: {topic_count:,} documents ({percentage:.1f}%)")
+        _console.print_debug(f"  Topic {topic_id + 1}: {topic_count:,} documents ({percentage:.1f}%)", tag="VISUALIZATION")
 
     return saved_path
 
@@ -273,12 +279,13 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
     import matplotlib.cm as cm
     from datetime import datetime
 
-    print(f"🕰️ Creating time-series visualization with {len(time_ranges)} periods...")
+    _console = get_console()
+    _console.print_debug(f"Creating time-series visualization with {len(time_ranges)} periods...", tag="VISUALIZATION")
 
     # Parse time data if needed
     parsed_time_data = _parse_time_data(time_data)
     if parsed_time_data is None:
-        print("⚠️  Could not parse time data, falling back to standard visualization")
+        _console.print_warning("Could not parse time data, falling back to standard visualization", tag="VISUALIZATION")
         return None
 
     # Create subplot layout (2x3 for 6 periods, 3x2 for 6 periods, etc.)
@@ -308,7 +315,7 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
     
     # Generate distinct colors for topics
     distinct_colors = _generate_distinct_colors(n_unique_topics)
-    print(f"🎨 Time-series: Generated {len(distinct_colors)} maximally distinct colors")
+    _console.print_debug(f"Time-series: Generated {len(distinct_colors)} maximally distinct colors", tag="VISUALIZATION")
     
     # Create a custom colormap from distinct colors
     from matplotlib.colors import ListedColormap
@@ -389,7 +396,7 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
 
     # Add main title with modern typography
     title_type = "Cumulative" if cumulative else "Period-by-Period"
-    main_title = f'🕰️ Topic Evolution Over Time ({title_type})\\n{table_name.replace("_", " ").title()}'
+    main_title = f'Topic Evolution Over Time ({title_type})\\n{table_name.replace("_", " ").title()}'
     fig.suptitle(main_title, fontsize=18, fontweight='bold', y=0.96, color='#2E3440')
 
     plt.tight_layout()
@@ -410,15 +417,12 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
                     metadata={'Title': f'Time-series t-SNE: {table_name}',
                               'Description': 'Generated by MANTA Topic Modeling'})
         saved_path = str(file_path)
-        print(f"💾 Time-series plot saved: {saved_path}")
+        _console.print_debug(f"Time-series plot saved: {saved_path}", tag="VISUALIZATION")
 
     plt.show()
 
-    # Print beautiful time-series summary
-    print(f"\\n🕰️ Time-Series t-SNE Summary:")
-    print(f"📅 Time periods: {len(time_ranges)}")
-    print(f"🔄 Mode: {'Cumulative' if cumulative else 'Period-by-period'}")
-    print(f"📈 Document Distribution:")
+    # Print time-series summary
+    _console.print_debug(f"Time-Series t-SNE Summary: {len(time_ranges)} periods, Mode: {'Cumulative' if cumulative else 'Period-by-period'}", tag="VISUALIZATION")
     for i, time_point in enumerate(time_ranges):
         if cumulative:
             mask = parsed_time_data <= time_point
@@ -427,7 +431,7 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
             mask = parsed_time_data == time_point
             prefix = "In"
         count = mask.sum()
-        print(f"  • {prefix} {time_point}: {count:,} documents")
+        _console.print_debug(f"  {prefix} {time_point}: {count:,} documents", tag="VISUALIZATION")
 
     return saved_path
 
@@ -479,11 +483,13 @@ def _parse_time_data(time_data: pd.Series) -> Optional[pd.Series]:
             except:
                 pass
 
-        print(f"⚠️  Could not parse time data of type {time_data.dtype}")
+        _console = get_console()
+        _console.print_warning(f"Could not parse time data of type {time_data.dtype}", tag="VISUALIZATION")
         return None
 
     except Exception as e:
-        print(f"⚠️  Error parsing time data: {e}")
+        _console = get_console()
+        _console.print_warning(f"Error parsing time data: {e}", tag="VISUALIZATION")
         return None
 
 
@@ -523,7 +529,8 @@ def _auto_detect_time_ranges(time_data: pd.Series, n_periods: int = 6) -> Option
             return [t.strftime('%Y-%m-%d') for t in time_range]
 
     except Exception as e:
-        print(f"⚠️  Could not auto-detect time ranges: {e}")
+        _console = get_console()
+        _console.print_warning(f"Could not auto-detect time ranges: {e}", tag="VISUALIZATION")
         return None
 
 
@@ -563,8 +570,9 @@ def _remove_outliers_percentile(tsne_data: pd.DataFrame, percentile: float = 0.9
     # Log the filtering results
     n_removed = len(tsne_data) - len(filtered_data)
     if n_removed > 0:
-        print(f"🎯 Removed {n_removed} outlier points (keeping {percentile*100:.1f}% closest to center)")
-        print(f"   Distance threshold: {threshold:.2f}")
+        _console = get_console()
+        _console.print_debug(f"Removed {n_removed} outlier points (keeping {percentile*100:.1f}% closest to center)", tag="VISUALIZATION")
+        _console.print_debug(f"Distance threshold: {threshold:.2f}", tag="VISUALIZATION")
 
     return filtered_data
 
@@ -665,7 +673,8 @@ def _apply_representative_sampling(tsne_data: pd.DataFrame, target_size: int = 1
         return result
 
     except Exception as e:
-        print(f"⚠️  Sampling optimization failed: {e}")
+        _console = get_console()
+        _console.print_warning(f"Sampling optimization failed: {e}", tag="VISUALIZATION")
         # Fallback to simple random sampling
         return tsne_data.sample(n=min(target_size, len(tsne_data)), random_state=42)
 
@@ -687,8 +696,9 @@ def _apply_density_based_reduction(tsne_data: pd.DataFrame, density_threshold: f
     if len(tsne_data) <= 500:  # Don't reduce small datasets
         return tsne_data
 
+    _console = get_console()
     try:
-        print(f"✨ Optimizing visualization with {len(tsne_data):,} points...")
+        _console.print_debug(f"Optimizing visualization with {len(tsne_data):,} points...", tag="VISUALIZATION")
 
         # Work on each topic separately to maintain topic representation
         reduced_dfs = []
@@ -765,16 +775,16 @@ def _apply_density_based_reduction(tsne_data: pd.DataFrame, density_threshold: f
             reduced_dfs.append(reduced_topic)
 
             reduction_ratio = len(reduced_topic) / len(topic_data)
-            print(f"  • Topic {hue}: {len(topic_data):,} → {len(reduced_topic):,} points ({reduction_ratio:.1%})")
+            _console.print_debug(f"  Topic {hue}: {len(topic_data):,} -> {len(reduced_topic):,} points ({reduction_ratio:.1%})", tag="VISUALIZATION")
 
         result = pd.concat(reduced_dfs, ignore_index=True)
         total_reduction = len(result) / len(tsne_data)
-        print(f"✅ Optimization complete: {len(tsne_data):,} → {len(result):,} points ({total_reduction:.1%} retained)")
+        _console.print_debug(f"Optimization complete: {len(tsne_data):,} -> {len(result):,} points ({total_reduction:.1%} retained)", tag="VISUALIZATION")
 
         return result
 
     except Exception as e:
-        print(f"⚠️  Warning: Optimization failed, using all points: {e}")
+        _console.print_warning(f"Optimization failed, using all points: {e}", tag="VISUALIZATION")
         return tsne_data
 
 
@@ -801,8 +811,9 @@ def _add_topic_background_regions(ax, data: pd.DataFrame, topics: list):
         
         # Generate distinct colors for background regions (same as main plot)
         distinct_colors = _generate_distinct_colors(n_unique_topics)
-        
-        print(f"Creating unified background regions for {len(unique_topics)} topics...")
+
+        _console = get_console()
+        _console.print_debug(f"Creating unified background regions for {len(unique_topics)} topics...", tag="VISUALIZATION")
 
         for i, topic_id in enumerate(unique_topics):
             if topic_id >= len(topics):
@@ -875,139 +886,19 @@ def _add_topic_background_regions(ax, data: pd.DataFrame, topics: list):
                                 pass  # Skip if hull creation fails
 
             except Exception as e:
-                print(f"Warning: Could not create unified region for topic {topic_id}: {e}")
+                _console.print_warning(f"Could not create unified region for topic {topic_id}: {e}", tag="VISUALIZATION")
                 continue
 
     except ImportError:
-        print("Warning: scipy or sklearn not available for unified background regions")
+        _console = get_console()
+        _console.print_warning("scipy or sklearn not available for unified background regions", tag="VISUALIZATION")
     except Exception as e:
-        print(f"Warning: Could not create unified background regions: {e}")
+        _console = get_console()
+        _console.print_warning(f"Could not create unified background regions: {e}", tag="VISUALIZATION")
 
 
-def _generate_distinct_colors(n_topics: int) -> List[tuple]:
-    """
-    Generate maximally distinct colors for topics, similar to digital city maps.
-    
-    Uses a combination of predefined high-contrast palettes and perceptual color spacing
-    to ensure adjacent topics have visually distinct colors.
-    
-    Args:
-        n_topics: Number of distinct colors needed
-        
-    Returns:
-        List of RGB tuples with maximally distinct colors
-    """
-    import matplotlib.colors as mcolors
-    import numpy as np
-    
-    # Predefined high-contrast color palettes for common topic counts
-    # These are carefully chosen to be maximally distinct
-    distinct_palettes = {
-        2: ['#E31A1C', '#1F78B4'],  # Red, Blue
-        3: ['#E31A1C', '#33A02C', '#1F78B4'],  # Red, Green, Blue
-        4: ['#E31A1C', '#FF7F00', '#33A02C', '#1F78B4'],  # Red, Orange, Green, Blue
-        5: ['#E31A1C', '#FF7F00', '#33A02C', '#1F78B4', '#6A3D9A'],  # + Purple
-        6: ['#E31A1C', '#FF7F00', '#33A02C', '#1F78B4', '#6A3D9A', '#FB9A99'],  # + Light Pink
-        7: ['#E31A1C', '#FF7F00', '#33A02C', '#1F78B4', '#6A3D9A', '#FB9A99', '#B15928'],  # + Brown
-        8: ['#E31A1C', '#FF7F00', '#33A02C', '#1F78B4', '#6A3D9A', '#FB9A99', '#B15928', '#FDBF6F'],  # + Light Orange
-        9: ['#E31A1C', '#FF7F00', '#33A02C', '#1F78B4', '#6A3D9A', '#FB9A99', '#B15928', '#FDBF6F', '#CAB2D6'],  # + Light Purple
-        10: ['#E31A1C', '#FF7F00', '#33A02C', '#1F78B4', '#6A3D9A', '#FB9A99', '#B15928', '#FDBF6F', '#CAB2D6', '#FFFF99'],  # + Yellow
-    }
-    
-    if n_topics <= 10 and n_topics in distinct_palettes:
-        # Use predefined palette for optimal distinction
-        colors = distinct_palettes[n_topics]
-        return [mcolors.hex2color(color) for color in colors]
-    
-    # For larger numbers of topics, use a combination approach
-    if n_topics <= 20:
-        # Use tab20 colormap but with optimized ordering for maximum distinction
-        import matplotlib.pyplot as plt
-        base_colors = plt.cm.tab20(np.arange(20))
-        
-        # Reorder colors to maximize distinction between adjacent indices
-        # Interleave light and dark colors, separate similar hues
-        optimized_order = [0, 10, 2, 12, 4, 14, 6, 16, 8, 18, 1, 11, 3, 13, 5, 15, 7, 17, 9, 19]
-        reordered_colors = [base_colors[i] for i in optimized_order[:n_topics]]
-        return [(r, g, b, a) for r, g, b, a in reordered_colors]
-    
-    # For very large numbers of topics, use greedy color selection
-    return _generate_greedy_distinct_colors(n_topics)
-
-
-def _generate_greedy_distinct_colors(n_topics: int) -> List[tuple]:
-    """
-    Generate colors using a greedy algorithm that maximizes perceptual distance.
-    
-    Args:
-        n_topics: Number of colors needed
-        
-    Returns:
-        List of RGB tuples with maximally distinct colors
-    """
-    import colorsys
-    import numpy as np
-    
-    if n_topics <= 1:
-        return [(0.8, 0.2, 0.2, 1.0)]  # Default red
-    
-    colors = []
-    
-    # Start with a high-contrast base color
-    colors.append((0.8, 0.2, 0.2, 1.0))  # Red
-    
-    # For each additional color, find the one with maximum distance from existing colors
-    for i in range(1, n_topics):
-        best_color = None
-        best_min_distance = 0
-        
-        # Try 100 candidate colors
-        for _ in range(100):
-            # Generate candidate color in HSV space for better perceptual distribution
-            h = np.random.uniform(0, 1)
-            s = np.random.uniform(0.4, 0.8)  # High saturation for distinction
-            v = np.random.uniform(0.4, 0.9)  # Avoid very dark or very light
-            
-            r, g, b = colorsys.hsv_to_rgb(h, s, v)
-            candidate = (r, g, b, 1.0)
-            
-            # Calculate minimum distance to existing colors
-            min_distance = min(_color_distance(candidate, existing) for existing in colors)
-            
-            # Keep the candidate with the largest minimum distance
-            if min_distance > best_min_distance:
-                best_min_distance = min_distance
-                best_color = candidate
-        
-        if best_color:
-            colors.append(best_color)
-        else:
-            # Fallback: use HSV with even spacing
-            h = i / n_topics
-            r, g, b = colorsys.hsv_to_rgb(h, 0.8, 0.7)
-            colors.append((r, g, b, 1.0))
-    
-    return colors
-
-
-def _color_distance(color1: tuple, color2: tuple) -> float:
-    """
-    Calculate perceptual distance between two RGB colors.
-    
-    Uses a simple but effective Euclidean distance in RGB space.
-    For better results, could be upgraded to LAB color space.
-    
-    Args:
-        color1: RGB(A) tuple
-        color2: RGB(A) tuple
-        
-    Returns:
-        Float distance value
-    """
-    r1, g1, b1 = color1[:3]
-    r2, g2, b2 = color2[:3]
-    
-    # Simple RGB distance (could be improved with LAB color space)
-    return ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
+# Color generation functions now imported from visualization_helpers.py
+# This eliminates ~125 lines of code duplication and ensures consistent
+# color schemes across all visualizations (t-SNE, UMAP, etc.)
 
 
