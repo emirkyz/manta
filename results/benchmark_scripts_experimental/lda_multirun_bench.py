@@ -24,7 +24,7 @@ from manta._functions.common_language.emoji_processor import EmojiMap
 
 def run_lda_analysis():
     """Run LDA topic analysis"""
-    file_path = "../../veri_setleri/mimic_train_impressions.csv"
+    file_path = "../../datasets/mimic_train_impressions.csv"
     column = "report"
 
     # Extract base name from filepath for output naming

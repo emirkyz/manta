@@ -122,7 +122,7 @@ def run_lda_topic_analysis(
 
 if __name__ == "__main__":
     # Test parameters (matching no_bench_test.py exactly)
-    file_path = "../../veri_setleri/bbc_news.csv"
+    file_path = "../../datasets/bbc_news.csv"
     column = "text"
     
     # Run LDA with same parameters as NMF test

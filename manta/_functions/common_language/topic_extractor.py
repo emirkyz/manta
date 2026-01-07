@@ -119,14 +119,14 @@ def _extract_topic_words(topic_word_vector, word_ids, tokenizer, vocabulary, emo
     return word_score_list
 
 
-def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
+def _extract_topic_documents(topic_doc_vector, doc_ids, original_documents, emoji_map):
     """
-    Extract and process documents for a single topic.
+    Extract and process documents for a single topic using original (unpreprocessed) text.
 
     Args:
         topic_doc_vector (numpy.ndarray): Document scores for this topic
         doc_ids (numpy.ndarray): Sorted document IDs by score
-        documents: Collection of documents (DataFrame or list)
+        original_documents: Collection of original documents (DataFrame or list) - raw text before preprocessing
         emoji_map: Emoji map for decoding (optional)
 
     Returns:
@@ -135,17 +135,17 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
     document_score_list = {}
 
     for doc_id in doc_ids:
-        if doc_id < len(documents):
+        if doc_id < len(original_documents):
             score = topic_doc_vector[doc_id]
 
             # Skip documents with zero or negative scores
             if score <= 0.0:
                 continue
 
-            if hasattr(documents, 'iloc'):
-                document_text = documents.iloc[doc_id]
+            if hasattr(original_documents, 'iloc'):
+                document_text = original_documents.iloc[doc_id]
             else:
-                document_text = documents[doc_id]
+                document_text = original_documents[doc_id]
 
             if emoji_map is not None:
                 if emoji_map.check_if_text_contains_tokenized_emoji_doc(document_text):
@@ -156,7 +156,7 @@ def _extract_topic_documents(topic_doc_vector, doc_ids, documents, emoji_map):
     return document_score_list
 
 
-def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None, db_config=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, s_matrix=None):
+def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None, original_documents=None, db_config=None, data_frame_name=None, word_per_topic=20, include_documents=True, emoji_map=None, s_matrix=None):
     """
     Performs topic analysis using Non-negative Matrix Factorization (NMF) results for both Turkish and English texts.
 
@@ -179,8 +179,10 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
                                     token IDs to words. Required for Turkish text processing.
         vocab (list, optional): English vocabulary list where indices correspond to feature indices in H matrix.
                                Required for English text processing.
-        documents (pandas.DataFrame or list, optional): Collection of document texts used in the analysis.
+        documents (pandas.DataFrame or list, optional): Collection of preprocessed document texts (for coherence calculation).
                                                        Can be pandas DataFrame or list of strings.
+        original_documents (pandas.DataFrame or list, optional): Collection of original (unpreprocessed) document texts for exports.
+                                                                Can be pandas DataFrame or list of strings. Must have same length as documents.
         db_config (DatabaseConfig, optional): Database configuration object containing database engines and output directories.
         data_frame_name (str, optional): Name of the dataset/table, used for database operations and file naming.
         word_per_topic (int, optional): Maximum number of top words to extract per topic. Default is 20.
@@ -242,6 +244,14 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
     if tokenizer is None and vocab is None:
         raise ValueError("Either tokenizer (for Turkish) or vocab (for English) must be provided")
 
+    # Validate document arrays alignment
+    if documents is not None and original_documents is not None:
+        if len(documents) != len(original_documents):
+            raise ValueError(
+                f"Document arrays must have the same length. "
+                f"documents: {len(documents)}, original_documents: {len(original_documents)}"
+            )
+
     word_result = {}
     document_result = {}
 
@@ -270,10 +280,10 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
             word_result[f"Topic {topic_idx+1:02d}"] = word_scores
 
             # Extract documents for this topic (optional)
-            if include_documents and documents is not None:
+            if include_documents and original_documents is not None:
                 top_doc_ids = sorted_doc_ids[:10]
                 doc_scores = _extract_topic_documents(
-                    topic_doc_vector, top_doc_ids, documents, emoji_map
+                    topic_doc_vector, top_doc_ids, original_documents, emoji_map
                 )
                 document_result[f"Topic {topic_idx+1}"] = doc_scores
     else:
@@ -296,10 +306,10 @@ def topic_extract(H, W, topic_count, tokenizer=None, vocab=None, documents=None,
             word_result[f"Topic {i+1:02d}"] = word_scores
 
             # Extract documents for this topic (optional)
-            if include_documents and documents is not None:
+            if include_documents and original_documents is not None:
                 top_doc_ids = sorted_doc_ids[:10]
                 doc_scores = _extract_topic_documents(
-                    topic_doc_vector, top_doc_ids, documents, emoji_map
+                    topic_doc_vector, top_doc_ids, original_documents, emoji_map
                 )
                 document_result[f"Topic {i+1}"] = doc_scores
 

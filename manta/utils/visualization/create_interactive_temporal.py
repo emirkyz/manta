@@ -88,7 +88,8 @@ def generate_temporal_line_graph(CSV_PATH, OUTPUT_HTML):
 
     # Read the current index.html
     print("Reading index.html template...")
-    with open(script_dir / "index.html", "r", encoding="utf-8") as f:
+    template_path = Path(__file__).parent / "templates" / "temporal_template.html"
+    with open(template_path, "r", encoding="utf-8") as f:
         html_content = f.read()
 
     # Create the embedded data section

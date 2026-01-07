@@ -210,7 +210,7 @@ def run_comparison_test(
 
 if __name__ == "__main__":
     # Test parameters (same as no_bench_test.py)
-    file_path = "../../veri_setleri/Headlines_5000.csv"
+    file_path = "../../datasets/Headlines_5000.csv"
     column = "headline"
     
     # Run comparison with different topic counts

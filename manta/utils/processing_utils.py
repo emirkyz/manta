@@ -99,7 +99,8 @@ class CachedData:
     Attributes:
         tdm: Term-document matrix (sparse format)
         vocab: Vocabulary list (words/tokens)
-        text_array: Original text documents
+        text_array: Preprocessed text documents (lowercased, stemmed, stopwords removed)
+        original_text_array: Original raw text documents from input file (for exports)
         datetime_series: Optional datetime values for temporal analysis
         datetime_is_combined: Whether datetime was created from combined year/month columns
         pagerank_weights: Optional PageRank weights for TF-IDF boosting (range [1, 2])
@@ -107,6 +108,7 @@ class CachedData:
     tdm: sparse.csr_matrix
     vocab: List[str]
     text_array: List[str]
+    original_text_array: List[str] = None
     datetime_series: Optional[pd.Series] = None
     datetime_is_combined: bool = False
     pagerank_weights: Optional[np.ndarray] = None

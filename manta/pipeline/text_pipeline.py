@@ -20,22 +20,25 @@ class TextPipeline:
         desired_columns: str, 
         options: Dict[str, Any], 
         console: Optional[ConsoleManager] = None
-    ) -> Tuple[Any, Any, Any, Any, Dict[str, Any]]:
+    ) -> Tuple[Any, Any, Any, Any, Any, Dict[str, Any]]:
         """
         Perform language-specific text processing and feature extraction.
-        
+
         Args:
             df: Preprocessed DataFrame
             desired_columns: Column containing text data
             options: Configuration options
             console: Console manager for status messages
-            
+
         Returns:
-            Tuple of (tdm, vocab, counterized_data, text_array, updated_options)
+            Tuple of (tdm, vocab, counterized_data, text_array, original_text_array, updated_options)
         """
         _console = console or get_console()
         _console.print_status(f"Starting text processing ({options['LANGUAGE']})...", "processing")
-        
+
+        # Preserve original text before preprocessing
+        original_text_array = df[desired_columns].values.copy()
+
         # Get PageRank weights from options (may be None)
         pagerank_weights = options.get("pagerank_weights")
 
@@ -73,5 +76,6 @@ class TextPipeline:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
         _console.print_status("Text processing completed", "success")
-
-        return tdm, vocab, counterized_data, text_array, options
+        del df 
+        
+        return tdm, vocab, counterized_data, text_array, original_text_array, options

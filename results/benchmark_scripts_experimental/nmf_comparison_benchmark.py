@@ -543,7 +543,7 @@ def main():
     }
 
     # File configuration
-    filepath = "../../veri_setleri/bbc_news.csv"  # Update path as needed
+    filepath = "../../datasets/bbc_news.csv"  # Update path as needed
     data_name = os.path.splitext(os.path.basename(filepath))[0]
     table_name = f"{data_name}_nmf_comparison_{options['DESIRED_TOPIC_COUNT']}_topics"
     desired_columns = "text"  # Update column name as needed

@@ -153,9 +153,12 @@ def load_or_process_data(
         )
 
     # Perform text processing to create TF-IDF matrix
-    tdm, vocab, counterized_data, text_array, options = TextPipeline.perform_text_processing(
+    tdm, vocab, counterized_data, text_array, original_text_array, options = TextPipeline.perform_text_processing(
         df, desired_columns, options, console
     )
+
+    if options.get("use_original_data",True):
+        original_text_array = text_array.copy()
 
     # Print final data statistics summary
     console.print_debug("=" * 60, tag="DATA STATISTICS")
@@ -177,8 +180,10 @@ def load_or_process_data(
         tdm=tdm,
         vocab=vocab,
         text_array=text_array,
+        original_text_array=original_text_array,
         datetime_series=datetime_series,
-        datetime_is_combined=options.get('datetime_is_combined_year_month', False)
+        datetime_is_combined=options.get('datetime_is_combined_year_month', False),
+        pagerank_weights=options.get('pagerank_weights')
     )
 
     # Save to cache for future use
@@ -268,7 +273,8 @@ def process_file(
         topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result = (
             ModelingPipeline.perform_topic_modeling(
                 cached_data.tdm, options, cached_data.vocab, cached_data.text_array,
-                db_config, table_name, table_output_dir, console, desired_columns
+                cached_data.original_text_array, db_config, table_name, table_output_dir,
+                console, desired_columns
             )
         )
         console.record_stage_time("NMF Topic Modeling", modeling_start)

@@ -26,7 +26,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
 
     
     # generate t-SNE visualization plot
-    if options["gen_tsne"]:
+    if options.get("gen_tsne", False):
         # Use optimized t-SNE for large datasets (>5K documents)
         n_docs = nmf_output["W"].shape[0]
         use_optimized = False
@@ -62,6 +62,42 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 output_dir=table_output_dir,
                 table_name=table_name,
             )
+
+    # generate UMAP visualization plot
+    if True:
+        from .umap_graph_output import umap_graph_output
+        umap_plot_path = umap_graph_output(
+            w=nmf_output["W"],
+            h=nmf_output["H"],
+            s_matrix=nmf_output.get("S", None),
+            output_dir=table_output_dir,
+            table_name=table_name,
+            n_neighbors=options.get("umap_n_neighbors", 15),
+            console=_console
+        )
+        if umap_plot_path:
+            _console.print_debug(f"UMAP plot saved: {umap_plot_path}", tag="VISUALIZATION")
+
+    # generate word-level t-SNE visualization plot
+    if options.get("gen_tsne", False):  # Default enabled
+        try:
+            from .word_tsne_output import word_tsne_visualization
+
+            word_tsne_path = word_tsne_visualization(
+                h=nmf_output["H"],
+                vocab=sozluk if options["LANGUAGE"] == "EN" else None,
+                tokenizer=options["tokenizer"] if options["LANGUAGE"] == "TR" else None,
+                s_matrix=nmf_output.get("S", None),
+                output_dir=table_output_dir,
+                table_name=table_name,
+                top_words_per_topic=50,
+                console=_console
+            )
+
+            if word_tsne_path:
+                _console.print_debug(f"Word t-SNE saved: {word_tsne_path}", tag="VISUALIZATION")
+        except Exception as e:
+            _console.print_warning(f"Failed to generate word t-SNE visualization: {e}", tag="VISUALIZATION")
 
     # generate topic-space fuzzy classification plot
     from .topic_space_graph_output_old import topic_space_graph_output
@@ -155,7 +191,7 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         except Exception as e:
             _console.print_warning(f"Failed to generate temporal visualization: {e}", tag="VISUALIZATION")
 
-        # Generate violin plot showing topic distribution by year
+        # Generate static violin plot showing topic distribution by year
         try:
             from .violin_plot import gen_violin_plot
             violin_path = gen_violin_plot(
@@ -165,10 +201,25 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 table_output_dir=table_output_dir,
                 table_name=table_name
             )
-            _console.print_debug(f"Generated topic distribution violin plot by year: {violin_path.name}", tag="VISUALIZATION")
+            _console.print_debug(f"Generated static violin plot: {violin_path.name}", tag="VISUALIZATION")
 
         except Exception as e:
-            _console.print_warning(f"Failed to generate violin plot: {e}", tag="VISUALIZATION")
+            _console.print_warning(f"Failed to generate static violin plot: {e}", tag="VISUALIZATION")
+
+        # Generate interactive HTML violin plot
+        try:
+            from .create_interactive_violin import generate_interactive_violin_plot
+            interactive_violin_path = generate_interactive_violin_plot(
+                W=nmf_output["W"],
+                S_matrix=nmf_output.get("S", None),
+                datetime_series=datetime_series,
+                table_output_dir=table_output_dir,
+                table_name=table_name
+            )
+            _console.print_debug(f"Generated interactive violin plot: {interactive_violin_path.name}", tag="VISUALIZATION")
+
+        except Exception as e:
+            _console.print_warning(f"Failed to generate interactive violin plot: {e}", tag="VISUALIZATION")
 
     # generate interactive LDAvis-style visualization
     if False:

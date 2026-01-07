@@ -131,7 +131,7 @@ def run_optimization_process(
             )
 
             # Text processing to create TF-IDF
-            tdm, vocab, _, text_array, options = TextPipeline.perform_text_processing(
+            tdm, vocab, _, text_array, original_test_temp, options = TextPipeline.perform_text_processing(
                 df, column, options, console
             )
 

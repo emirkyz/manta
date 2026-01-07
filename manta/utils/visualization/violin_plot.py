@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from ..analysis import get_dominant_topics
+from manta.utils.analysis import get_dominant_topics
 
 
 def gen_violin_plot(W, S_matrix, datetime_series, table_output_dir, table_name):
@@ -24,9 +24,19 @@ def gen_violin_plot(W, S_matrix, datetime_series, table_output_dir, table_name):
 
         if dominant_topic_idx != -1:  # Only include valid topics
             topic_id = dominant_topic_idx + 1
-            violin_data.append({"Topic": f"Topic {topic_id}", "Year": year})
+            violin_data.append({"Topic": topic_id, "Year": year})
 
     violin_df = pd.DataFrame(violin_data)
+
+    # Convert Topic column to ordered categorical for numerical sorting
+    # This ensures "Topic 2" comes before "Topic 10" instead of lexicographic ordering
+    unique_topics = sorted(violin_df["Topic"].unique())
+    topic_labels = [f"Topic {t}" for t in unique_topics]
+    violin_df["Topic"] = pd.Categorical(
+        [f"Topic {t}" for t in violin_df["Topic"]],
+        categories=topic_labels,
+        ordered=True
+    )
 
     # Get unique topics for plot sizing
     n_topics_found = violin_df["Topic"].nunique()
@@ -49,3 +59,5 @@ def gen_violin_plot(W, S_matrix, datetime_series, table_output_dir, table_name):
     violin_path = table_output_dir / f"{table_name}_topic_distribution_by_year.png"
     fig_violin.savefig(violin_path, dpi=300, bbox_inches="tight")
     plt.close(fig_violin)
+
+    return violin_path

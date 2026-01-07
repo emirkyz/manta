@@ -26,22 +26,32 @@ class ModelingPipeline:
     
     @staticmethod
     def perform_topic_modeling(
-        tdm, 
-        options: Dict[str, Any], 
-        vocab, 
+        tdm,
+        options: Dict[str, Any],
+        vocab,
         text_array,
-        db_config, 
-        table_name: str, 
-        table_output_dir, 
+        original_text_array,
+        db_config,
+        table_name: str,
+        table_output_dir,
         console: Optional[ConsoleManager] = None,
         desired_columns: str = "text"
     ) -> Tuple[Dict, Dict, Dict, Dict, Any]:
         """
         Perform NMF topic modeling and analysis.
-        
+
         Args:
+            tdm: Term-document matrix (TF-IDF)
+            options: Configuration options
+            vocab: Vocabulary list
+            text_array: Preprocessed text array (for coherence calculation)
+            original_text_array: Original text array (for output files)
+            db_config: Database configuration
+            table_name: Name of the dataset/table
+            table_output_dir: Output directory for results
             console: Console manager for status messages
-        
+            desired_columns: Name of the text column
+
         Returns:
             Tuple of (topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result)
         """
@@ -68,6 +78,7 @@ class ModelingPipeline:
                 vocab=vocab,
                 tokenizer=options["tokenizer"],
                 documents=text_array,
+                original_documents=original_text_array,
                 db_config=db_config,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],
@@ -82,6 +93,7 @@ class ModelingPipeline:
                 topic_count=int(options["DESIRED_TOPIC_COUNT"]),
                 vocab=vocab,
                 documents=text_array,
+                original_documents=original_text_array,
                 db_config=db_config,
                 data_frame_name=table_name,
                 word_per_topic=options["N_TOPICS"],

@@ -580,7 +580,7 @@ if __name__ == "__main__":
     # Example usage - modify these parameters as needed
     
     # Configuration (modify as needed)
-    FILEPATH = "../../veri_setleri/playstore.csv"  # Path to your data file
+    FILEPATH = "../../datasets/playstore.csv"  # Path to your data file
     DESIRED_COLUMNS = "REVIEW_TEXT"           # Column containing text data
     BASE_NAME = "playstore_lda"               # Base name for output files
     LEMMATIZE = False                         # Whether to lemmatize text

@@ -257,8 +257,8 @@ class CacheManager:
         with h5py.File(str(path), 'w') as f:
             # Save vocab (usually smaller, single write is fine)
             f.create_dataset('vocab', data=data.vocab, dtype=dt, compression='gzip')
-
-            # Save documents with chunked writing (key memory optimization)
+            # TODO: Might change back. check results
+            # Save preprocessed documents with chunked writing (key memory optimization)
             n_docs = len(data.text_array)
             chunk_size = min(CHUNK_SIZE, n_docs) if n_docs > 0 else 1
             docs_ds = f.create_dataset(
@@ -273,6 +273,23 @@ class CacheManager:
             for start in range(0, n_docs, CHUNK_SIZE):
                 end = min(start + CHUNK_SIZE, n_docs)
                 docs_ds[start:end] = data.text_array[start:end]
+
+
+            if data.original_text_array is not None:
+                # Save original documents with chunked writing
+                n_orig_docs = len(data.original_text_array)
+                orig_docs_ds = f.create_dataset(
+                    'original_documents',
+                    shape=(n_orig_docs,),
+                    dtype=dt,
+                    chunks=(chunk_size,),
+                    compression='gzip'
+                )
+
+                # Write original documents in chunks
+                for start in range(0, n_orig_docs, CHUNK_SIZE):
+                    end = min(start + CHUNK_SIZE, n_orig_docs)
+                    orig_docs_ds[start:end] = data.original_text_array[start:end]
 
             # Save datetime arrays if present
             if data.datetime_series is not None:
@@ -292,7 +309,7 @@ class CacheManager:
             # Save metadata scalars as attributes
             meta_grp = f.create_group('metadata')
             meta_grp.attrs['datetime_is_combined'] = data.datetime_is_combined
-            meta_grp.attrs['format_version'] = 2
+            meta_grp.attrs['format_version'] = 3  # Incremented for original_documents support
 
     @staticmethod
     def _load_from_hdf5(
@@ -314,8 +331,23 @@ class CacheManager:
             # Load vocab
             vocab = [v.decode('utf-8') if isinstance(v, bytes) else v for v in f['vocab'][:]]
 
-            # Load documents
+            # Load preprocessed documents
             text_array = [d.decode('utf-8') if isinstance(d, bytes) else d for d in f['documents'][:]]
+
+            # Load original documents (backward compatibility: fallback to preprocessed if missing)
+            if 'original_documents' in f:
+                original_text_array = [d.decode('utf-8') if isinstance(d, bytes) else d for d in f['original_documents'][:]]
+            else:
+                # Old cache format without original text - force reprocessing by raising error
+                if console:
+                    console.print_warning(
+                        "Cache format is outdated (missing original_documents). Reprocessing required.",
+                        tag="CACHE"
+                    )
+                raise ValueError(
+                    "Cache file is missing 'original_documents' field. "
+                    "Please delete cache and reprocess to use original text in outputs."
+                )
 
             # Load datetime if present
             datetime_series = None
@@ -340,6 +372,7 @@ class CacheManager:
             tdm=tdm,
             vocab=vocab,
             text_array=text_array,
+            original_text_array=original_text_array,
             datetime_series=datetime_series,
             datetime_is_combined=datetime_is_combined,
             pagerank_weights=pagerank_weights
@@ -365,6 +398,18 @@ class CacheManager:
             vocab = list(file["vocab"])
             text_array = list(file["text_array"])
 
+            # Load original text array (legacy NPZ won't have it - force reprocessing)
+            if console:
+                console.print_warning(
+                    "Legacy NPZ cache format detected (missing original text). Reprocessing required.",
+                    tag="CACHE"
+                )
+            raise ValueError(
+                "Legacy NPZ cache format does not contain original_documents. "
+                "Please delete cache and reprocess to use original text in outputs."
+            )
+
+            # Note: The code below is unreachable but kept for reference
             # Handle datetime series if present
             datetime_series = None
             datetime_is_combined = False
@@ -397,6 +442,7 @@ class CacheManager:
             tdm=tdm,
             vocab=vocab,
             text_array=text_array,
+            original_text_array=text_array,  # Fallback to preprocessed text
             datetime_series=datetime_series,
             datetime_is_combined=datetime_is_combined,
             pagerank_weights=pagerank_weights

@@ -36,7 +36,7 @@ from manta.utils.analysis.coherence_score import calculate_coherence_scores
 # ========================================
 
 # File and column settings
-FILE_PATH = "veri_setleri/radiology_imaging.csv"
+FILE_PATH = "../datasets/radiology_imaging.csv"
 COLUMN_NAME = "abstract"
 SEPARATOR = ","
 LANGUAGE = "EN"  # "EN" or "TR"
