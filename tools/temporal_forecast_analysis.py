@@ -49,7 +49,7 @@ Version: 1.0.0
 INPUT_FILE = "/Users/emirkarayagiz/Work/radiology-topic-analysis/to_generate_from/heart_failure_with_pagerank_nmtf_bpe_34/heart_failure_with_pagerank_nmtf_bpe_34_temporal_topic_dist_quarter.csv"
 
 # Output directory (set to None to use same directory as input file)
-OUTPUT_DIR = "custom_datasets/forecast_deneme"  # or specify a path like "./output/"
+OUTPUT_DIR = "../custom_datasets/forecast_deneme"  # or specify a path like "./output/"
 
 # Forecasting parameters
 FORECAST_PERIODS = 20  # Number of quarters to forecast (20 = 5 years)

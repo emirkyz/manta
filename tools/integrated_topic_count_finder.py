@@ -17,7 +17,7 @@ from manta import run_optimization
 # ========================================
 
 # File and column settings
-FILE_PATH = "custom_datasets/beyza_hoca_veri.csv"
+FILE_PATH = "../custom_datasets/beyza_hoca_veri.csv"
 COLUMN_NAME = "abstract"
 SEPARATOR = ","
 LANGUAGE = "EN"  # "EN" or "TR"
@@ -36,7 +36,7 @@ PAGERANK_COLUMN = "pagerank"  # Column name for PageRank weights (set to None to
 N_GRAMS_TO_DISCOVER = 1000  # int, "auto", or None to disable n-gram discovery
 
 # Output settings
-OUTPUT_DIR = "custom_datasets/heart_failure_topic_count_find_avg_citiation_rank"
+OUTPUT_DIR = "../custom_datasets/heart_failure_topic_count_find_avg_citiation_rank"
 SAVE_PLOT = True
 SHOW_PLOT = False  # Set to True to display interactive plot
 SAVE_CSV = True
