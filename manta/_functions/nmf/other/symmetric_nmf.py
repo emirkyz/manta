@@ -323,7 +323,7 @@ def example_usage():
         plt.legend()
         plt.title('Symmetric NMF Convergence')
         plt.grid(True)
-        plt.show()
+        #plt.show()
     except ImportError:
         print("Matplotlib not available for plotting")
     

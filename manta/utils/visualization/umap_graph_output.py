@@ -248,7 +248,7 @@ def umap_graph_output(w: np.ndarray, h: np.ndarray,
         saved_path = str(file_path)
         _console.print_debug(f"High-quality plot saved: {saved_path}", tag="VISUALIZATION")
 
-    plt.show()
+    #plt.show()
 
     # Print summary statistics
     _console.print_debug(f"UMAP Visualization Summary: {len(data):,} documents, {len(unique_topics)} topics", tag="VISUALIZATION")

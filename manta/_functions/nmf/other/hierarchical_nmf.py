@@ -629,7 +629,7 @@ def example_usage():
             plt.ylabel('Feature 2')
             
             plt.tight_layout()
-            plt.show()
+            #plt.show()
             
     except ImportError:
         print("Matplotlib not available for plotting")

@@ -232,7 +232,7 @@ def word_tsne_visualization(
         saved_path = str(file_path)
         _console.print_debug(f"High-quality plot saved: {saved_path}", tag="VISUALIZATION")
 
-    plt.show()
+    #plt.show()
 
     # Print summary statistics
     _console.print_debug(f"Word t-SNE Visualization Summary: {len(data):,} words, {len(unique_topics)} topics", tag="VISUALIZATION")

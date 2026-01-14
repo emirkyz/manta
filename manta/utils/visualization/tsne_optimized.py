@@ -537,7 +537,7 @@ def _create_optimized_visualization(
         saved_path = str(file_path)
         _console.print_debug(f"Optimized plot saved: {saved_path}", tag="VISUALIZATION")
 
-    plt.show()
+    #plt.show()
 
     # Print visualization summary
     _console.print_debug(f"Optimized Visualization Summary: {n_points:,} points, {len(unique_topics)} topics", tag="VISUALIZATION")

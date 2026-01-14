@@ -245,7 +245,7 @@ def tsne_graph_output(w: np.ndarray, h: np.ndarray,
         saved_path = str(file_path)
         _console.print_debug(f"High-quality plot saved: {saved_path}", tag="VISUALIZATION")
 
-    plt.show()
+    #plt.show()
 
     # Print summary statistics
     _console.print_debug(f"t-SNE Visualization Summary: {len(data):,} documents, {len(unique_topics)} topics", tag="VISUALIZATION")
@@ -419,7 +419,7 @@ def _create_time_series_visualization(tsne_embedding: pd.DataFrame,
         saved_path = str(file_path)
         _console.print_debug(f"Time-series plot saved: {saved_path}", tag="VISUALIZATION")
 
-    plt.show()
+    #plt.show()
 
     # Print time-series summary
     _console.print_debug(f"Time-Series t-SNE Summary: {len(time_ranges)} periods, Mode: {'Cumulative' if cumulative else 'Period-by-period'}", tag="VISUALIZATION")

@@ -435,7 +435,7 @@ def _create_topic_space_plot(doc_positions: np.ndarray, doc_data: pd.DataFrame,
         _console = get_console()
         _console.print_debug(f"Topic-space plot saved: {saved_path}", tag="VISUALIZATION")
 
-    plt.show()
+    #plt.show()
 
     # Print summary statistics
     _print_summary_statistics(doc_data, n_topics)

@@ -118,6 +118,7 @@ def plot_coherence_results(
         plot_path = output_path / f"coherence_vs_topics_{nmf_method}.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight")
 
+    show_plot = False
     # Show plot interactively
     if show_plot:
         plt.show()
@@ -203,7 +204,7 @@ def plot_coherence_comparison(
         output_path.mkdir(parents=True, exist_ok=True)
         plot_path = output_path / "coherence_comparison.png"
         plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-
+    show_plot = False
     # Show plot interactively
     if show_plot:
         plt.show()
