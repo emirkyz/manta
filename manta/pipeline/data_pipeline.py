@@ -175,7 +175,7 @@ class DataPipeline:
                     country_col = filter_options.get("filter_app_country_column", "")
                     if country_col in df.columns:
                         before_country = len(df)
-                        df = df[df[country_col].str.upper() == filter_options["filter_app_country"]]
+                        df = df[df[country_col].str.upper() == filter_options["filter_app_country"].upper()]
                         after_country = len(df)
                         removed = before_country - after_country
                         _console.print_debug(f"Removed {removed} rows", tag="COUNTRY FILTER")
