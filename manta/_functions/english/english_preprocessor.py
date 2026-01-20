@@ -1,7 +1,7 @@
 import re
 import unicodedata
 from typing import List
-from multiprocessing import Pool
+import multiprocessing as mp
 import os
 
 import emoji.core as emoji
@@ -124,9 +124,19 @@ def clean_english_text(metin=None, lemmatize=False, kategoriler=frozenset(), emo
         try:
             from joblib import Parallel, delayed
 
-            metin = Parallel(n_jobs=cpu_count, prefer="threads")(
-                delayed(preprocess)(text) for text in metin
-            )
+            #metin = Parallel(n_jobs=cpu_count, prefer="threads", batch_size="auto")(
+            #    delayed(preprocess)(text, lemmatize=lemmatize, categories=kategoriler,
+            #                        emoji_map=emoji_map, keep_numbers=keep_numbers)
+            #    for text in metin
+            #)
+            # Use fork context - no module re-import issue
+            ctx = mp.get_context('fork')
+            with ctx.Pool(processes=cpu_count) as pool:
+                process_func = functools.partial(preprocess, lemmatize=lemmatize,
+                                                 categories=kategoriler, emoji_map=emoji_map,
+                                                 keep_numbers=keep_numbers)
+                metin = pool.map(process_func, metin, chunksize=chunk_size)
+
         except Exception:
             # Fall back to sequential processing if parallel fails
             metin = [preprocess(text=i, lemmatize=lemmatize, categories=kategoriler, emoji_map=emoji_map, keep_numbers=keep_numbers) for i in metin]

@@ -30,7 +30,7 @@ Command Line Usage:
 """
 
 # Version information
-__version__ = "0.9"
+__version__ = "0.9.1"
 __author__ = "Emir Kyz"
 __email__ = "emirkyzmain@gmail.com"
 
