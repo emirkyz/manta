@@ -46,12 +46,13 @@ def _create_vocab_from_tokenizer(tokenizer, n_vocab: int, emoji_map=None) -> Lis
                 if emoji_map.check_if_text_contains_tokenized_emoji(word):
                     word = emoji_map.decode_text(word)
 
-            # Use the word as-is (don't filter out ## tokens for LDAvis display)
-            # LDAvis is meant to show all tokens that the model uses
-            if word is not None:
+            # Filter out ## subword tokens (matching topic_extractor.py behavior)
+            # This improves relevance scoring for morphologically rich languages like Turkish
+            if word is not None and not word.startswith("##"):
                 vocab.append(word)
             else:
-                vocab.append(f"[UNK_{word_id}]")  # Fallback for unknown tokens
+                # Use placeholder to maintain index alignment with H matrix
+                vocab.append(f"[SUBWORD_{word_id}]")
 
         except Exception as e:
             # Fallback for any errors

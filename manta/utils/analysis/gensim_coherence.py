@@ -141,11 +141,14 @@ def _get_top_words_by_relevance(
 
     top_indices = np.argsort(relevance_masked)[::-1][:top_n]
 
-    # Extract words with scores, handling "/" separator if present
+    # Extract words with scores, filtering subwords and handling "/" separator
     word_scores = {}
     for idx in top_indices:
         if relevance_masked[idx] > -np.inf and idx < len(vocabulary):
             word = vocabulary[idx]
+            # Skip WordPiece subword tokens (## prefix)
+            if word.startswith("##"):
+                continue
             if "/" in word:
                 word = word.split("/")[0].strip()
             if word:

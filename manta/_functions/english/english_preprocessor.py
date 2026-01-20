@@ -122,12 +122,11 @@ def clean_english_text(metin=None, lemmatize=False, kategoriler=frozenset(), emo
         chunk_size = max(1, len(metin) // cpu_count)
 
         try:
-            with Pool(processes=cpu_count) as pool:
-                # Create partial function with fixed parameters
-                process_func = functools.partial(preprocess, lemmatize=lemmatize,
-                                               categories=kategoriler, emoji_map=emoji_map,
-                                               keep_numbers=keep_numbers)
-                metin = pool.map(process_func, metin, chunksize=chunk_size)
+            from joblib import Parallel, delayed
+
+            metin = Parallel(n_jobs=cpu_count, prefer="threads")(
+                delayed(preprocess)(text) for text in metin
+            )
         except Exception:
             # Fall back to sequential processing if parallel fails
             metin = [preprocess(text=i, lemmatize=lemmatize, categories=kategoriler, emoji_map=emoji_map, keep_numbers=keep_numbers) for i in metin]
