@@ -248,8 +248,9 @@ The main entry point function that provides a simplified interface.
 
 ```python
 def run_topic_analysis(
-    filepath: str,
-    column: str,
+    filepath: str = None,
+    dataframe = None,
+    column: str = None,
     separator: str = ",",
     language: str = "EN",
     topic_count: int = 5,
@@ -257,6 +258,7 @@ def run_topic_analysis(
     lemmatize: bool = False,
     tokenizer_type: str = "bpe",
     words_per_topic: int = 15,
+    n_grams_to_discover: Any = None,
     word_pairs_out: bool = True,
     generate_wordclouds: bool = True,
     export_excel: bool = True,
@@ -266,21 +268,27 @@ def run_topic_analysis(
     emoji_map: bool = False,
     output_name: str = None,
     save_to_db: bool = False,
-    output_dir: str = None
+    output_dir: str = None,
+    pagerank_column: str = None,
+    **kwargs
 ) -> dict:
     """
     Comprehensive topic modeling analysis using Non-negative Matrix Factorization (NMF).
-    
+
+    Data can be provided as either a file path or a pandas DataFrame.
+
     Args:
-        filepath (str): Path to input CSV or Excel file
+        filepath (str): Path to input CSV or Excel file. Optional if dataframe provided.
+        dataframe (DataFrame): Pandas DataFrame containing text data. Optional if filepath provided.
         column (str): Name of column containing text data
         separator (str): CSV file separator (default: ",")
         language (str): "TR" for Turkish, "EN" for English (default: "EN")
-        topic_count (int): Number of topics to extract (default: 5)
+        topic_count (int): Number of topics to extract (default: 5). Set to -1 for auto-selection.
         nmf_method (str): "nmf", "pnmf", or "nmtf" algorithm variant (default: "nmf")
         lemmatize (bool): Apply lemmatization for English (default: False)
         tokenizer_type (str): "bpe" or "wordpiece" for Turkish (default: "bpe")
         words_per_topic (int): Top words to show per topic (default: 15)
+        n_grams_to_discover (int/str): Number of n-grams to discover via BPE, or "auto" (default: None)
         word_pairs_out (bool): Create word pairs output (default: True)
         generate_wordclouds (bool): Create word cloud visualizations (default: True)
         export_excel (bool): Export results to Excel (default: True)
@@ -291,7 +299,23 @@ def run_topic_analysis(
         output_name (str): Custom output directory name (default: auto-generated)
         save_to_db (bool): Whether to persist data to database (default: False)
         output_dir (str): Base directory for outputs (default: current working directory)
-    
+        pagerank_column (str): Column with PageRank scores for TF-IDF weighting (boosts 1-2x)
+        **kwargs: Additional parameters for visualization and processing options
+
+    Keyword Arguments (via **kwargs):
+        gen_tsne (bool): Generate t-SNE 2D visualization (default: False)
+        gen_ldavis_plot (bool): Generate interactive LDAvis visualization (default: False)
+        tsne_time_column (str): Column for time-series t-SNE visualization
+        tsne_time_ranges (list): Time ranges for time-series visualization
+        tsne_cumulative (bool): Use cumulative time periods in t-SNE (default: False)
+        ngram_auto_k (float): Scaling constant for auto n-gram formula (default: 0.5)
+        cooccurrence_window_size (int): Window size for co-occurrence (default: 5)
+        cooccurrence_min_count (int): Minimum co-occurrence count (default: 2)
+        cooccurrence_top_n (int): Top n word pairs to display (default: 100)
+        use_cache (bool): Check for cached preprocessed data (default: True)
+        force_reprocess (bool): Force reprocessing, ignore cache (default: False)
+        nmf_variants (List[str]): List of NMF variants to run
+
     Returns:
         dict: Results containing:
             - state: "SUCCESS" or "FAILURE"
@@ -301,6 +325,11 @@ def run_topic_analysis(
             - topic_doc_scores: Topic-document associations
             - coherence_scores: Coherence metrics
             - topic_relationships: S matrix (only for NMTF)
+
+    Raises:
+        ValueError: For invalid language code, unsupported file format, or if both/neither filepath and dataframe provided
+        FileNotFoundError: If input file path does not exist
+        KeyError: If specified column is missing from input data
     """
 ```
 
@@ -443,8 +472,11 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 
 | Parameter | Type | Description                         | Default | Options |
 |-----------|------|-------------------------------------|---------|---------|
+| `filepath` | str | Path to input CSV or Excel file | None | File path |
+| `dataframe` | DataFrame | Pandas DataFrame (alternative to filepath) | None | DataFrame object |
+| `column` | str | Column name containing text data | None | Column name |
 | `language` | str | Text language                       | "EN" | "TR", "EN" |
-| `topic_count` | int | Number of topics to extract         | 5 | 2-50+ |
+| `topic_count` | int | Number of topics to extract (-1 for auto) | 5 | -1, 2-50+ |
 | `words_per_topic` | int | Words per topic to display          | 15 | 5-30 |
 | `lemmatize` | bool | Enable lemmatization (English)      | False | True, False |
 | `tokenizer_type` | str | Tokenizer type (Turkish)            | "bpe" | "bpe", "wordpiece" |
@@ -459,7 +491,42 @@ Word Clouds → Distribution Plots → Excel Export → JSON Storage
 | `save_to_db` | bool | Save to database                   | False | True, False |
 | `output_name` | str | Custom output name                  | None | Any string |
 | `output_dir` | str | Base output directory              | None | Any path |
-| `n_grams_to_discover` | int | Number of n-grams to discover via BPE (English only) | None | Any positive integer |
+| `pagerank_column` | str | Column with PageRank scores for TF-IDF weighting | None | Column name |
+
+### N-gram Discovery Parameters
+
+| Parameter | Type | Description | Default | Options |
+|-----------|------|-------------|---------|---------|
+| `n_grams_to_discover` | int/str | Number of n-grams to discover via BPE, or "auto" | None | int or "auto" |
+| `ngram_auto_k` | float | Scaling constant for auto n-gram formula: sqrt(vocab_size) * k | 0.5 | 0.1-2.0 |
+| `keep_numbers` | bool | Preserve numbers for BPE merging (e.g., "covid19") | False | True, False |
+| `use_pmi` | bool | Use PMI scoring for BPE (helps number-word pairs) | True | True, False |
+
+### Visualization Parameters (via kwargs)
+
+| Parameter | Type | Description | Default | Options |
+|-----------|------|-------------|---------|---------|
+| `gen_tsne` | bool | Generate t-SNE 2D visualization | False | True, False |
+| `gen_ldavis_plot` | bool | Generate interactive LDAvis visualization | False | True, False |
+| `tsne_time_column` | str | Column for time-series t-SNE visualization | None | Column name |
+| `tsne_time_ranges` | list | Time ranges for time-series visualization | None | List of strings |
+| `tsne_cumulative` | bool | Use cumulative time periods in t-SNE | False | True, False |
+
+### Co-occurrence Analysis Parameters (via kwargs)
+
+| Parameter | Type | Description | Default | Options |
+|-----------|------|-------------|---------|---------|
+| `cooccurrence_window_size` | int | Window size for word co-occurrence | 5 | 1-20 |
+| `cooccurrence_min_count` | int | Minimum co-occurrence count | 2 | 1-10 |
+| `cooccurrence_top_n` | int | Top n word pairs to display | 100 | 10-500 |
+
+### Cache/Processing Parameters (via kwargs)
+
+| Parameter | Type | Description | Default | Options |
+|-----------|------|-------------|---------|---------|
+| `use_cache` | bool | Check for cached preprocessed data | True | True, False |
+| `force_reprocess` | bool | Force reprocessing, ignore cache | False | True, False |
+| `nmf_variants` | List[str] | List of NMF variants to run | None | ["nmf", "pnmf", "nmtf"] |
 
 ### N-gram Discovery
 
@@ -476,7 +543,29 @@ results = run_topic_analysis(
     n_grams_to_discover=200,
     topic_count=10
 )
+
+# Example: Auto-calculate n-gram count based on vocabulary size
+results = run_topic_analysis(
+    filepath="research_papers.csv",
+    column="abstract",
+    language="EN",
+    n_grams_to_discover="auto",  # Uses formula: sqrt(vocab_size) * k
+    ngram_auto_k=0.5,            # Scaling constant (default: 0.5)
+    topic_count=10
+)
+
+# Example: Keep numbers for domain-specific merging (e.g., "covid19", "120mg")
+results = run_topic_analysis(
+    filepath="medical_papers.csv",
+    column="text",
+    language="EN",
+    n_grams_to_discover=150,
+    keep_numbers=True,  # Preserve numbers for BPE merging
+    topic_count=8
+)
 ```
+
+**Auto N-gram Formula:** When using `n_grams_to_discover="auto"`, the number of n-grams is calculated as `sqrt(vocabulary_size) * ngram_auto_k`. A higher `ngram_auto_k` value results in more n-grams being discovered.
 
 ### Advanced Options
 
@@ -490,6 +579,78 @@ results = run_topic_analysis(
 | `output_name` | str | Custom output name | None |
 | `output_dir` | str | Base output directory | None |
 | `norm_thresh` | float | NMF normalization threshold | 0.005 |
+
+### Visualization Options
+
+MANTA provides multiple visualization capabilities for exploring topics and document relationships.
+
+#### t-SNE Visualization
+
+t-SNE (t-Distributed Stochastic Neighbor Embedding) creates a 2D visualization of document-topic relationships, helping you understand how documents cluster around topics.
+
+```python
+# Basic t-SNE visualization
+results = run_topic_analysis(
+    filepath="documents.csv",
+    column="text",
+    language="EN",
+    topic_count=10,
+    gen_tsne=True
+)
+```
+
+**Time-Series t-SNE:** Visualize how topics evolve over time by specifying a time column and ranges:
+
+```python
+# Time-series t-SNE with cumulative periods
+results = run_topic_analysis(
+    filepath="reviews.csv",
+    column="review_text",
+    language="EN",
+    topic_count=8,
+    gen_tsne=True,
+    tsne_time_column="year",
+    tsne_time_ranges=["2020", "2021", "2022", "2023"],
+    tsne_cumulative=True  # Shows data "up to year X" instead of "only in year X"
+)
+```
+
+#### LDAvis Interactive Visualization
+
+Generate an interactive LDAvis-style HTML visualization for exploring topic relationships:
+
+```python
+results = run_topic_analysis(
+    filepath="papers.csv",
+    column="abstract",
+    language="EN",
+    topic_count=12,
+    gen_ldavis_plot=True
+)
+```
+
+The LDAvis visualization provides:
+- **Topic map:** 2D representation of topic relationships
+- **Term relevance:** Adjustable λ slider to balance term frequency vs. topic specificity
+- **Interactive exploration:** Click on topics to see their top terms
+
+Output is saved as an interactive HTML file in the output directory.
+
+#### PageRank-Weighted TF-IDF
+
+For citation networks or datasets with importance scores, use PageRank weighting to boost the influence of high-authority documents:
+
+```python
+results = run_topic_analysis(
+    filepath="papers_with_citations.csv",
+    column="abstract",
+    language="EN",
+    topic_count=10,
+    pagerank_column="pagerank_score"  # Column containing PageRank values
+)
+```
+
+Documents with higher PageRank scores receive boosted TF-IDF weights (ranging from 1x to 2x), making their terms more influential in topic extraction.
 
 ### Data Filtering Options
 
@@ -556,6 +717,9 @@ Output/
     ├── {output_name}_document_dist.png        # Topic distribution plot
     ├── {output_name}_wordcloud_scores.json    # Word cloud data
     ├── {output_name}_top_docs.json            # Representative documents
+    ├── {output_name}_tsne.png                 # t-SNE visualization (if gen_tsne=True)
+    ├── {output_name}_tsne_{year}.png          # Time-series t-SNE plots (if tsne_time_ranges set)
+    ├── {output_name}_ldavis.html              # Interactive LDAvis visualization (if gen_ldavis_plot=True)
     └── wordclouds/
         ├── Konu 00.png                       # Word cloud for topic 0
         ├── Konu 01.png                       # Word cloud for topic 1
@@ -695,7 +859,7 @@ files_to_process = [
         "topic_count": 8
     },
     {
-        "filepath": "data/dataset2.csv", 
+        "filepath": "data/dataset2.csv",
         "output_name": "analysis_2",
         "column": "description",
         "topic_count": 12
@@ -722,6 +886,92 @@ for file_config in files_to_process:
     results.append(result)
 
 print(f"Processed {len(results)} files successfully")
+```
+
+### Example 5: Using DataFrame Input
+
+```python
+import pandas as pd
+from manta import run_topic_analysis
+
+# Load and preprocess data manually
+df = pd.read_csv("reviews.csv")
+df = df[df['rating'] >= 3]  # Filter to positive reviews only
+df = df.dropna(subset=['review_text'])
+
+# Run analysis on the preprocessed DataFrame
+result = run_topic_analysis(
+    dataframe=df,
+    column="review_text",
+    language="EN",
+    topic_count=8,
+    lemmatize=True,
+    generate_wordclouds=True,
+    output_name="positive_reviews_analysis"
+)
+
+print(f"Analysis completed: {result['state']}")
+```
+
+### Example 6: Advanced Visualization with t-SNE and LDAvis
+
+```python
+# Complete visualization example with all options
+result = run_topic_analysis(
+    filepath="research_papers.csv",
+    column="abstract",
+    language="EN",
+    topic_count=12,
+    lemmatize=True,
+    n_grams_to_discover="auto",
+    ngram_auto_k=0.6,
+    generate_wordclouds=True,
+    export_excel=True,
+    topic_distribution=True,
+    gen_tsne=True,                    # t-SNE document visualization
+    gen_ldavis_plot=True,             # Interactive LDAvis
+    output_name="research_full_viz"
+)
+
+print(f"Outputs saved to: Output/{result['data_name']}/")
+```
+
+### Example 7: Time-Series Topic Analysis
+
+```python
+# Analyze how topics evolve over multiple years
+result = run_topic_analysis(
+    filepath="news_articles.csv",
+    column="content",
+    language="EN",
+    topic_count=10,
+    gen_tsne=True,
+    tsne_time_column="publication_year",
+    tsne_time_ranges=["2019", "2020", "2021", "2022", "2023"],
+    tsne_cumulative=True,  # Show cumulative data up to each year
+    generate_wordclouds=True,
+    output_name="news_temporal_analysis"
+)
+```
+
+### Example 8: PageRank-Weighted Citation Analysis
+
+```python
+# Academic paper analysis with citation-based importance weighting
+result = run_topic_analysis(
+    filepath="papers_with_citations.csv",
+    column="abstract",
+    language="EN",
+    topic_count=15,
+    lemmatize=True,
+    pagerank_column="pagerank_score",  # Pre-computed PageRank from citation network
+    n_grams_to_discover=200,
+    generate_wordclouds=True,
+    gen_ldavis_plot=True,
+    output_name="citation_weighted_topics"
+)
+
+# High-PageRank papers (highly cited) will have more influence on topic extraction
 ```
 
 ---
@@ -863,22 +1113,79 @@ result = run_topic_analysis(
 - Consider using standard NMF if memory is limited
 - Ensure you have sufficient RAM (recommended: 8GB+ for medium datasets)
 
+#### 11. t-SNE Visualization Issues
+
+**Problem**: t-SNE plot shows all documents clustered together
+
+**Solutions**:
+- Increase the number of topics for better separation
+- Ensure your documents have sufficient diversity
+- Try adjusting perplexity (internal parameter) by using more documents
+
+**Problem**: t-SNE takes too long to compute
+
+**Solutions**:
+- t-SNE uses PCA preprocessing by default for efficiency
+- Reduce dataset size by sampling
+- Ensure you have sufficient RAM
+
+#### 12. LDAvis HTML Not Loading
+
+**Problem**: LDAvis HTML file opens but shows blank or errors
+
+**Solutions**:
+- Open the HTML file in a modern browser (Chrome, Firefox)
+- Some browsers may block local file scripts; try using a local server:
+  ```bash
+  python -m http.server 8000
+  # Then open http://localhost:8000/Output/{output_name}/{output_name}_ldavis.html
+  ```
+
+#### 13. PageRank Column Issues
+
+**Problem**: PageRank weighting not applied
+
+**Solutions**:
+- Ensure the column name matches exactly (case-sensitive)
+- Verify PageRank values are numeric and non-negative
+- Check that the column exists in your dataset
+
+#### 14. N-gram Auto Mode Issues
+
+**Problem**: Auto n-gram count is too high/low
+
+**Solutions**:
+- Adjust `ngram_auto_k` parameter (default: 0.5)
+- Higher values = more n-grams discovered
+- For smaller vocabularies, use a higher k value
+- For larger vocabularies, use a lower k value
+
 ### Performance Optimization Tips
 
 1. **For Large Datasets**:
    - Use `gen_topic_distribution=False` to skip plotting
-   - Set `gen_cloud=False` to skip word cloud generation
+   - Set `generate_wordclouds=False` to skip word cloud generation
+   - Disable t-SNE and LDAvis for faster processing
+   - Use `use_cache=True` to cache preprocessed data
    - Reduce `words_per_topic` to 10-15
 
 2. **For Better Topic Quality**:
-   - Increase `desired_topic_count` for more granular topics
+   - Increase `topic_count` for more granular topics
    - Use `nmf_method="pnmf"` for better topic separation
-   - Enable `LEMMATIZE=True` for English text
+   - Enable `lemmatize=True` for English text
+   - Use n-gram discovery to capture meaningful phrases
+   - Consider PageRank weighting for citation-based datasets
 
 3. **For Faster Processing**:
    - Use `tokenizer_type="bpe"` for Turkish (generally faster)
    - Pre-filter your data to remove very short documents
    - Use SSD storage for better I/O performance
+   - Enable caching with `use_cache=True`
+
+4. **For Visualization**:
+   - Use t-SNE for understanding document clustering
+   - Use LDAvis for interactive topic exploration
+   - Use time-series t-SNE to track topic evolution
 
 ### Getting Help
 

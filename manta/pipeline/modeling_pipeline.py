@@ -167,7 +167,9 @@ class ModelingPipeline:
             "relevance": coherence_results["topic_word_scores"],
             "gensim": {
                 "c_v_average": coherence_results["c_v_average"],
-                "c_v_per_topic": coherence_results["c_v_per_topic"]
+                "c_v_per_topic": coherence_results["c_v_per_topic"],
+                "u_mass_average": coherence_results["u_mass_average"],
+                "u_mass_per_topic": coherence_results["u_mass_per_topic"]
             }
         }
 

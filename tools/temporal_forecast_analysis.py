@@ -49,7 +49,7 @@ Version: 1.0.0
 INPUT_FILE = "/Users/emirkarayagiz/Work/radiology-topic-analysis/to_generate_from/heart_failure_with_pagerank_nmtf_bpe_34/heart_failure_with_pagerank_nmtf_bpe_34_temporal_topic_dist_quarter.csv"
 
 # Output directory (set to None to use same directory as input file)
-OUTPUT_DIR = "../custom_datasets/forecast_deneme"  # or specify a path like "./output/"
+OUTPUT_DIR = "forecast_deneme"  # or specify a path like "./output/"
 
 # Forecasting parameters
 FORECAST_PERIODS = 20  # Number of quarters to forecast (20 = 5 years)
@@ -70,7 +70,8 @@ SEASONALITY_MODE = 'multiplicative'  # 'multiplicative' or 'additive'
 
 # Output control
 GENERATE_CSV = True   # Generate CSV output files
-GENERATE_PLOT = True  # Generate static PNG plot
+GENERATE_PLOT = True  # Generate static PNG plot (combined)
+GENERATE_INDIVIDUAL_PLOTS = True  # Generate individual PNG plots for each topic
 GENERATE_HTML = True  # Generate interactive HTML visualization
 
 # Logging
@@ -234,6 +235,7 @@ def load_configuration():
             self.seasonality_mode = SEASONALITY_MODE
             self.no_csv = not GENERATE_CSV
             self.no_plot = not GENERATE_PLOT
+            self.no_individual_plots = not GENERATE_INDIVIDUAL_PLOTS
             self.no_html = not GENERATE_HTML
             self.verbose = VERBOSE
 
@@ -812,6 +814,104 @@ def create_static_plot(
     plt.close()
 
     logger.info(f"Saved forecast plot: {output_path}")
+
+
+def create_individual_topic_plots(
+    historical_df: pd.DataFrame,
+    forecasts: Dict[str, Tuple[pd.DataFrame, Prophet]],
+    output_dir: Path,
+    base_name: str,
+    logger: logging.Logger,
+    validation_mode: bool = False
+) -> List[Path]:
+    """
+    Generate individual PNG plots for each topic.
+
+    Args:
+        historical_df: Historical data
+        forecasts: Forecast results
+        output_dir: Output directory path
+        base_name: Base name for output files
+        logger: Logger instance
+        validation_mode: Whether in validation mode
+
+    Returns:
+        List of created file paths
+    """
+    created_files = []
+    n_historical = len(historical_df)
+    n_topics = len(forecasts)
+    colors = _generate_distinct_colors(n_topics)
+
+    # Create subdirectory for individual plots
+    suffix = "_validation" if validation_mode else "_forecast"
+    individual_dir = output_dir / f"{base_name}{suffix}_individual"
+    individual_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"Generating individual topic plots in: {individual_dir}")
+
+    for idx, (topic, (forecast_df, _)) in enumerate(forecasts.items()):
+        color = colors[idx]
+
+        # Get data
+        all_dates = forecast_df['ds'].values
+        all_values = forecast_df['yhat'].values
+        lower_bounds = forecast_df['yhat_lower'].values
+        upper_bounds = forecast_df['yhat_upper'].values
+
+        hist_dates = all_dates[:n_historical]
+        hist_values = all_values[:n_historical]
+
+        forecast_dates = all_dates[n_historical:]
+        forecast_values = all_values[n_historical:]
+        forecast_lower = lower_bounds[n_historical:]
+        forecast_upper = upper_bounds[n_historical:]
+
+        # Create figure
+        fig, ax = plt.subplots(figsize=(14, 8))
+
+        # Plot historical (solid line)
+        ax.plot(hist_dates, hist_values,
+               color=color, linewidth=2.5, label='Historical', alpha=0.9)
+
+        # Plot forecast (dashed line)
+        ax.plot(forecast_dates, forecast_values,
+               color=color, linewidth=2.5, linestyle='--', label='Forecast', alpha=0.9)
+
+        # Confidence interval (shaded region)
+        ax.fill_between(forecast_dates, forecast_lower, forecast_upper,
+                       color=color, alpha=0.25, label='95% CI')
+
+        # Vertical separator
+        separator_date = all_dates[n_historical - 1]
+        ax.axvline(x=separator_date, color='red', linestyle=':', linewidth=2,
+                  label='Forecast Start', alpha=0.7)
+
+        # Formatting
+        ax.set_xlabel('Quarter', fontsize=12)
+        ax.set_ylabel('Topic Weight', fontsize=12)
+        ax.set_title(f'{topic} - Temporal Forecast', fontsize=14, fontweight='bold')
+        ax.grid(alpha=0.3, linestyle='--')
+        ax.legend(loc='best', fontsize=10)
+
+        # Rotate x-axis labels for better readability
+        plt.xticks(rotation=45, ha='right')
+
+        plt.tight_layout()
+
+        # Create safe filename from topic name
+        safe_topic_name = topic.replace(' ', '_').replace('/', '_')
+        plot_path = individual_dir / f"{safe_topic_name}{suffix}.png"
+
+        # Save
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        plt.close()
+
+        created_files.append(plot_path)
+
+    logger.info(f"Saved {len(created_files)} individual topic plots")
+
+    return created_files
 
 
 def create_interactive_html(
@@ -1511,12 +1611,20 @@ def main():
             csv_files = save_forecast_csv(combined_df, lower_df, upper_df, csv_path, logger)
             output_files.extend(csv_files)
 
-        # Static plot
+        # Static plot (combined)
         if not config.no_plot:
             suffix = "_validation" if config.validation_mode else "_forecast"
             plot_path = output_dir / f"{base_name}{suffix}.png"
             create_static_plot(df_for_forecast, forecasts, plot_path, logger)
             output_files.append(plot_path)
+
+        # Individual topic plots
+        if not config.no_individual_plots:
+            individual_files = create_individual_topic_plots(
+                df_for_forecast, forecasts, output_dir, base_name, logger,
+                validation_mode=config.validation_mode
+            )
+            output_files.extend(individual_files)
 
         # Interactive HTML
         if not config.no_html:

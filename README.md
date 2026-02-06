@@ -77,7 +77,7 @@ results = run_topic_analysis(
 
 # Turkish text analysis
 results = run_topic_analysis(
-    filepath="turkish_reviews.csv", 
+    filepath="turkish_reviews.csv",
     column="yorum_metni",
     language="TR",
     topic_count=8,
@@ -85,14 +85,44 @@ results = run_topic_analysis(
     generate_wordclouds=True
 )
 
+# Using a DataFrame directly instead of filepath
+import pandas as pd
+df = pd.read_csv("reviews.csv")
+results = run_topic_analysis(
+    dataframe=df,
+    column="review_text",
+    language="EN",
+    topic_count=5
+)
+
 # NMTF analysis for topic relationship discovery
 results = run_topic_analysis(
     filepath="data.csv",
     column="text_content",
-    language="TR", 
+    language="TR",
     topic_count=6,
     nmf_method="nmtf",
     generate_wordclouds=True
+)
+
+# Advanced visualization with t-SNE and LDAvis
+results = run_topic_analysis(
+    filepath="research_papers.csv",
+    column="abstract",
+    language="EN",
+    topic_count=10,
+    gen_tsne=True,                    # Generate t-SNE 2D visualization
+    gen_ldavis_plot=True,             # Generate interactive LDAvis
+    generate_wordclouds=True
+)
+
+# PageRank-weighted TF-IDF for citation-aware topic modeling
+results = run_topic_analysis(
+    filepath="papers_with_pagerank.csv",
+    column="abstract",
+    language="EN",
+    topic_count=8,
+    pagerank_column="pagerank_score"  # Boosts high-PageRank docs 1-2x
 )
 ```
 
@@ -168,6 +198,28 @@ manta-topic-modelling analyze data.csv --column text --language TR --topics 5 --
 
 # Disable emoji processing for faster processing
 manta-topic-modelling analyze data.csv --column text --language EN --topics 5 --emoji-map False
+
+# Generate t-SNE visualization for document-topic relationships
+manta-topic-modelling analyze data.csv --column text --language EN --topics 10 --tsne-plot
+
+# Generate interactive LDAvis-style visualization
+manta-topic-modelling analyze data.csv --column text --language EN --topics 10 --ldavis-plot
+
+# Time-series t-SNE visualization
+manta-topic-modelling analyze reviews.csv --column REVIEW --language TR --topics 5 \
+    --tsne-plot --tsne-time-column year --tsne-time-ranges "2020,2021,2022,2023" --tsne-cumulative
+
+# N-gram discovery for better phrase detection
+manta-topic-modelling analyze papers.csv --column abstract --language EN --topics 10 --n-grams-to-discover 200
+
+# Auto-calculate n-gram count based on vocabulary size
+manta-topic-modelling analyze papers.csv --column abstract --language EN --topics 10 --n-grams-auto --n-grams-auto-k 0.5
+
+# Keep numbers for BPE merging (e.g., "covid19", "120mg")
+manta-topic-modelling analyze medical.csv --column text --language EN --topics 8 --keep-numbers
+
+# PageRank-weighted TF-IDF for citation-aware analysis
+manta-topic-modelling analyze papers.csv --column abstract --language EN --topics 10 --pagerank-column pagerank_score
 ```
 
 ## Package Structure
@@ -301,6 +353,7 @@ manta-topic-modelling analyze reviews.csv \
 **Optional Arguments:**
 - `--topics, -t`: Number of topics to extract (default: 5)
 - `--output-name, -o`: Custom name for output files (default: auto-generated)
+- `--output-dir`: Directory to save output files (default: current directory)
 - `--tokenizer`: Tokenizer type for Turkish ("bpe" or "wordpiece", default: "bpe")
 - `--nmf-method`: Factorization algorithm ("nmf", "pnmf", or "nmtf", default: "nmf")
 - `--words-per-topic`: Number of top words per topic (default: 15)
@@ -309,11 +362,30 @@ manta-topic-modelling analyze reviews.csv \
 - `--wordclouds`: Generate word cloud visualizations
 - `--excel`: Export results to Excel format
 - `--topic-distribution`: Generate topic distribution plots
-- `--separator`: CSV separator character (default: "|")
+- `--separator`: CSV separator character (default: ",")
 - `--filter-app`: Filter data by specific app name
 - `--filter-app-column`: Column name for app filtering (default: "PACKAGE_NAME")
 - `--filter-country`: Filter data by country code (e.g., TR, US, GB)
 - `--filter-country-column`: Column name for country filtering (default: "COUNTRY")
+
+**Visualization Options:**
+- `--tsne-plot`: Generate t-SNE 2D visualization of document-topic relationships
+- `--tsne-time-column`: Column name for time-series t-SNE visualization
+- `--tsne-time-ranges`: Comma-separated time ranges (e.g., "2020,2021,2022,2023")
+- `--tsne-cumulative`: Use cumulative time periods (show data "up to year X")
+- `--ldavis-plot`: Generate interactive LDAvis-style topic exploration
+
+**N-gram Discovery Options:**
+- `--n-grams-to-discover`: Number of n-grams to discover via BPE (English only)
+- `--n-grams-auto`: Auto-calculate n-gram count based on vocabulary size
+- `--n-grams-auto-k`: Scaling constant k for auto n-gram formula (default: 0.5)
+- `--keep-numbers`: Preserve numbers during preprocessing for BPE merging
+- `--no-pmi`: Disable PMI scoring for BPE when --keep-numbers is used
+
+**Advanced Options:**
+- `--pagerank-column`: Column with PageRank scores for TF-IDF weighting (boosts high-PageRank docs 1-2x)
+- `--word-pairs`: Generate word co-occurrence analysis and heatmap
+- `--save-to-db`: Save data to database for persistence
 
 ### Python API
 
@@ -355,14 +427,15 @@ results = run_topic_analysis(
 
 #### API Parameters
 
-**Required:**
+**Required (one of):**
 - `filepath` (str): Path to input CSV or Excel file
+- `dataframe` (DataFrame): Pandas DataFrame containing text data (alternative to filepath)
 - `column` (str): Name of column containing text data
 
 **Optional:**
 - `separator` (str): CSV separator character (default: ",")
 - `language` (str): "TR" for Turkish, "EN" for English (default: "EN")
-- `topic_count` (int): Number of topics to extract (default: 5)
+- `topic_count` (int): Number of topics to extract (default: 5). Set to -1 for auto-selection.
 - `nmf_method` (str): "nmf", "pnmf", or "nmtf" algorithm variant (default: "nmf")
 - `lemmatize` (bool): Apply lemmatization for English (default: False)
 - `tokenizer_type` (str): "bpe" or "wordpiece" for Turkish (default: "bpe")
@@ -381,7 +454,28 @@ results = run_topic_analysis(
 - `output_name` (str): Custom output directory name (default: auto-generated)
 - `save_to_db` (bool): Whether to persist data to database (default: False)
 - `output_dir` (str): Base directory for outputs (default: current working directory)
-- `n_grams_to_discover` (int): Number of n-grams to discover via BPE for English text (default: None, disabled)
+- `pagerank_column` (str): Column with PageRank scores for TF-IDF weighting (boosts high-PageRank docs 1-2x)
+
+**N-gram Discovery (via kwargs):**
+- `n_grams_to_discover` (int/str): Number of n-grams to discover via BPE, or "auto" for automatic (default: None)
+- `ngram_auto_k` (float): Scaling constant for auto n-gram formula: sqrt(vocab_size) * k (default: 0.5)
+
+**Visualization Options (via kwargs):**
+- `gen_tsne` (bool): Generate t-SNE 2D visualization of document-topic relationships (default: False)
+- `gen_ldavis_plot` (bool): Generate interactive LDAvis-style topic exploration (default: False)
+- `tsne_time_column` (str): Column for time-series t-SNE visualization (default: None)
+- `tsne_time_ranges` (list): Time ranges for time-series visualization (default: None)
+- `tsne_cumulative` (bool): Use cumulative time periods in t-SNE (default: False)
+
+**Co-occurrence Analysis (via kwargs):**
+- `cooccurrence_window_size` (int): Window size for word co-occurrence (default: 5)
+- `cooccurrence_min_count` (int): Minimum co-occurrence count (default: 2)
+- `cooccurrence_top_n` (int): Top n word pairs to display (default: 100)
+
+**Cache/Processing Options (via kwargs):**
+- `use_cache` (bool): Check for cached preprocessed data (default: True)
+- `force_reprocess` (bool): Force reprocessing, ignore cache (default: False)
+- `nmf_variants` (List[str]): List of NMF variants to run (default: None)
 
 ## Outputs
 
@@ -423,6 +517,58 @@ results = run_topic_analysis(
 ```
 
 This can improve topic quality by capturing meaningful phrases like "machine_learning" or "climate_change" as single tokens.
+
+### Advanced Visualization Options
+
+MANTA provides multiple visualization options for exploring topics and document relationships.
+
+#### t-SNE Visualization
+
+Generate a 2D t-SNE visualization showing document-topic relationships:
+
+```python
+results = run_topic_analysis(
+    filepath="data.csv",
+    column="text",
+    language="EN",
+    topic_count=10,
+    gen_tsne=True
+)
+```
+
+For time-series analysis, use t-SNE with time ranges:
+
+```python
+results = run_topic_analysis(
+    filepath="reviews.csv",
+    column="review_text",
+    language="EN",
+    topic_count=8,
+    gen_tsne=True,
+    tsne_time_column="year",
+    tsne_time_ranges=["2020", "2021", "2022", "2023"],
+    tsne_cumulative=True  # Show cumulative data up to each year
+)
+```
+
+#### LDAvis Interactive Visualization
+
+Generate an interactive LDAvis-style HTML visualization for topic exploration:
+
+```python
+results = run_topic_analysis(
+    filepath="documents.csv",
+    column="content",
+    language="EN",
+    topic_count=12,
+    gen_ldavis_plot=True
+)
+```
+
+This creates an interactive HTML file where you can:
+- Explore topic relationships in 2D space
+- See top words for each topic with relevance adjustment
+- Understand term-topic distributions
 
 ## Requirements
 

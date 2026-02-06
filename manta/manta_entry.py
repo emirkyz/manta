@@ -157,7 +157,7 @@ def load_or_process_data(
         df, desired_columns, options, console
     )
 
-    if options.get("use_original_data",True):
+    if not options.get("use_original_data",True):
         original_text_array = text_array.copy()
 
     # Print final data statistics summary

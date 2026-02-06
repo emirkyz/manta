@@ -570,7 +570,7 @@ wheels = [
 
 [[package]]
 name = "manta-topic-modelling"
-version = "0.8"
+version = "0.9.1"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },

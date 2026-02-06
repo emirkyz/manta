@@ -93,7 +93,7 @@ def _extract_topic_word_scores_with_relevance(
 
         for topic_idx in range(n_topics):
             topic_word_vector = h_matrix[topic_idx]
-
+            #lambda_val = 0.5
             words = _get_top_words_by_relevance(
                 topic_word_vector, vocabulary, overall_word_prob, lambda_val, top_n
             )
@@ -260,8 +260,21 @@ def calculate_gensim_cv_coherence(
         processes=processes
     )
 
+    coherence_model_umass = CoherenceModel(
+        topics=topics_list,
+        texts=tokenized_docs,
+        dictionary=dictionary,
+        coherence="u_mass",
+        topn=top_n_words,
+        processes=processes
+    )
+
+
     c_v_average = coherence_model.get_coherence()
     c_v_per_topic_scores = coherence_model.get_coherence_per_topic()
+
+    u_mass_average = coherence_model_umass.get_coherence()
+    u_mass_per_topic_scores = coherence_model_umass.get_coherence_per_topic()
 
     # Build per-topic coherence dictionary
     topic_names = list(topic_word_scores.keys())
@@ -270,8 +283,17 @@ def calculate_gensim_cv_coherence(
         topic_name = topic_names[i] if i < len(topic_names) else f"topic_{i+1:02d}"
         c_v_per_topic[topic_name] = float(score) if not hasattr(score, 'tolist') else score.tolist()
 
+    topic_names_umass = list(topic_word_scores.keys())
+    u_mass_per_topic = {}
+    for i, score in enumerate(u_mass_per_topic_scores):
+        topic_name = topic_names_umass[i] if i < len(topic_names_umass) else f"topic_{i+1:02d}"
+        u_mass_per_topic[topic_name] = float(score) if not hasattr(score, 'tolist') else score.tolist()
+
+
     return {
         "c_v_average": float(c_v_average),
         "c_v_per_topic": c_v_per_topic,
-        "topic_word_scores": topic_word_scores
+        "u_mass_average": float(u_mass_average),
+        "u_mass_per_topic": u_mass_per_topic,
+        "topic_word_scores": topic_word_scores,
     }
