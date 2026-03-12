@@ -81,10 +81,10 @@ def generate_temporal_line_graph(CSV_PATH, OUTPUT_HTML):
     csv_data = read_csv_to_json(csv_path)
 
     print("Parsing topic names...")
-    topic_names = parse_topic_names_from_md(script_dir / "md" / "report.md")
+    topic_names = ""
 
     print("Reading markdown content...")
-    markdown_content = read_markdown_content(script_dir / "md" / "report.md")
+    markdown_content = ""
 
     # Read the current index.html
     print("Reading index.html template...")
@@ -256,7 +256,7 @@ def generate_temporal_line_graph(CSV_PATH, OUTPUT_HTML):
     new_html = new_html.replace(old_load_markdown, new_load_markdown)
 
     # Write standalone HTML
-    output_path = script_dir / "index_standalone.html"
+    output_path = script_dir / OUTPUT_HTML
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(new_html)
 
@@ -264,7 +264,7 @@ def generate_temporal_line_graph(CSV_PATH, OUTPUT_HTML):
     print(f"✓ File size: {len(new_html) / 1024:.1f} KB")
     print(f"✓ CSV rows: {len(csv_data)}")
     print(f"✓ Topics: {len(topic_names)}")
-    print("\nYou can now share index_standalone.html - it works without a server!")
+    print(f"\nYou can now share {OUTPUT_HTML} - it works without a server!")
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ import numpy as np
 from tqdm import tqdm
 
 if TYPE_CHECKING:
-    from ...utils.console.console_manager import ConsoleManager
+    from ...utils.console.console_manager import ConsoleManager, console_manager
 
 # Try to import numba for JIT compilation (optional dependency)
 try:
@@ -218,6 +218,86 @@ class WordPairBPE:
         token_counter = Counter(int(t) for t in all_tokens)
 
         return dict(token_counter), sum(token_counter.values())
+    # TODO: Don't use on reha hoca makale, It was not invented by then
+    def compute_tscore(self, pair: Tuple[int, int], pair_freq: int, total_pairs: int) -> float:
+        """
+        Compute T-Score for a token pair.
+
+        T-Score = (observed - expected) / sqrt(observed)
+
+        Favors frequent pairs - good for finding common collocations.
+        Higher values = stronger association with sufficient evidence.
+
+        Args:
+            pair: (token1_id, token2_id) tuple
+            pair_freq: Frequency of this pair (observed)
+            total_pairs: Total number of pairs in corpus
+
+        Returns:
+            T-Score (higher = stronger association)
+        """
+        if pair_freq <= 0 or total_pairs <= 0:
+            return 0.0
+
+        token1, token2 = pair
+        freq1 = self.token_frequencies.get(int(token1), 1)
+        freq2 = self.token_frequencies.get(int(token2), 1)
+
+        # Expected frequency under independence assumption
+        # E(x,y) = P(x) * P(y) * N = (freq1/N) * (freq2/N) * N = freq1 * freq2 / N
+        expected = (freq1 * freq2) / total_pairs
+
+        # T-Score formula
+        observed = pair_freq
+
+        if observed <= 0:
+            return 0.0
+
+        tscore = (observed - expected) / math.sqrt(observed)
+
+        return tscore
+
+    def compute_llr(self, pair: Tuple[int, int], pair_freq: int, total_pairs: int) -> float:
+        """
+        Log-Likelihood Ratio - robust statistical test for collocation.
+        Higher values = more significant association.
+        """
+        token1, token2 = pair
+        freq1 = self.token_frequencies.get(int(token1), 1)
+        freq2 = self.token_frequencies.get(int(token2), 1)
+
+        # Contingency table values
+        o11 = pair_freq  # x and y together
+        o12 = freq1 - pair_freq  # x without y
+        o21 = freq2 - pair_freq  # y without x
+        o22 = total_pairs - freq1 - freq2 + pair_freq  # neither
+
+        def safe_log(x):
+            return math.log(x) if x > 0 else 0
+
+        # Row and column totals
+        r1 = o11 + o12
+        r2 = o21 + o22
+        c1 = o11 + o21
+        c2 = o12 + o22
+        n = total_pairs
+
+        # Expected values
+        e11 = (r1 * c1) / n if n > 0 else 0
+        e12 = (r1 * c2) / n if n > 0 else 0
+        e21 = (r2 * c1) / n if n > 0 else 0
+        e22 = (r2 * c2) / n if n > 0 else 0
+
+        # LLR calculation
+        llr = 2 * (
+                (o11 * safe_log(o11 / e11) if e11 > 0 and o11 > 0 else 0) +
+                (o12 * safe_log(o12 / e12) if e12 > 0 and o12 > 0 else 0) +
+                (o21 * safe_log(o21 / e21) if e21 > 0 and o21 > 0 else 0) +
+                (o22 * safe_log(o22 / e22) if e22 > 0 and o22 > 0 else 0)
+        )
+
+        return llr
+
 
     def compute_pmi(self, pair: Tuple[int, int], pair_freq: int, total_pairs: int) -> float:
         """
@@ -249,6 +329,7 @@ class WordPairBPE:
         denominator = p_x * p_y
         if denominator > 0 and p_xy > 0:
             pmi = math.log2(p_xy / denominator)
+            #pmi = pmi / (-math.log2(p_xy)) if p_xy > 0 else 0
         else:
             pmi = 0.0
 
@@ -377,7 +458,7 @@ class WordPairBPE:
 
             # Optimized vectorized merge - safer approach without skip mask
             match_positions = np.where(matches)[0]
-            
+
             # Build result array by collecting segments
             result_segments = []
             last_end = 0
@@ -407,7 +488,7 @@ class WordPairBPE:
             counterized_data[doc_idx] = new_doc
 
         return counterized_data, modified_indices
-    
+
     def update_pair_frequencies_incremental(
         self,
         pair_frequencies: dict,
@@ -542,6 +623,7 @@ class WordPairBPE:
         if not pair_frequencies:
             return None
 
+        self.use_pmi = False
         if self.use_pmi:
             # Score by weighted PMI: PMI * log2(freq + 1)
             # This balances association strength with occurrence frequency
@@ -552,6 +634,7 @@ class WordPairBPE:
 
             # Create a generator for pairs that meet the minimum frequency threshold.
             # This is more memory-efficient than creating an intermediate list.
+
             candidate_pairs = (
                 (pair, freq)
                 for pair, freq in pair_frequencies.items()
@@ -562,13 +645,20 @@ class WordPairBPE:
             # Pythonic than a manual loop for finding the maximum item.
             # The key function calculates the weighted PMI score for each candidate pair.
             # The `default=None` argument handles the case where candidate_pairs is empty.
+
             best_pair_item = max(
                 candidate_pairs,
                 key=lambda item: self.compute_pmi(item[0], item[1], total_pairs)
-                * math.log2(item[1] + 1),
+                                 * math.log2(item[1] + 1)
+                #key=lambda item: self.compute_tscore(item[0], item[1], total_pairs)
+                ,
                 default=None,
             )
-            
+            # pmi * log2(freq + 1)
+            # item[1] is freq
+            # (item[1] ** 0.75),
+
+
             # Extract the pair from the result
             best_pair = best_pair_item[0] if best_pair_item else None
 
@@ -582,7 +672,7 @@ class WordPairBPE:
                 return self.max_pair
             else:
                 return None
-                
+
     def merge_word_pairs(
         self, counterized_data: List[List[int]], pair_to_merge: Tuple[int, int], new_id: int
     ) -> List[List[int]]:
@@ -599,7 +689,7 @@ class WordPairBPE:
         """
         word1, word2 = pair_to_merge
         updated_data = []
-        
+
         for document in counterized_data:
             if len(document) < 2:
                 updated_data.append(document[:])
@@ -699,8 +789,11 @@ class WordPairBPE:
             smoothing=0.3,
             mininterval=0.1,
         )
-
+        #self.use_pmi = True
         iteration = 0
+        if self.use_pmi:
+            self._console.print_debug("Using PMI scoring for test purposes", tag="N-GRAM BPE")
+
         while self.current_vocab_size < self.vocab_limit:
             # Find most frequent pair from current frequency table
             most_frequent_pair = self.find_most_frequent_pair(pair_frequencies)
