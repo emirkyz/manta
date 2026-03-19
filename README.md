@@ -4,7 +4,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-MANTA is an open-source Python library for topic modeling using Non-negative Matrix Factorization (NMF), Projective Non-Negative Matrix Factorization and Non-negative Matrix Tri-Factorization (NMTF). It primarily supports **English** text processing, with **Turkish** support actively being improve. It offers advanced tokenization, multiple term-weighting schemes, and rich visualization capabilities — all through a simple one-function interface.
+MANTA is an open-source Python library for topic modeling using Non-negative Matrix Factorization (NMF), Projective Non-Negative Matrix Factorization and Non-negative Matrix Tri-Factorization (NMTF). It primarily supports **English** text processing, with **Turkish** support actively being improved. It offers advanced tokenization, multiple term-weighting schemes, and rich visualization capabilities — all through a simple one-function interface.
 
 ---
 
