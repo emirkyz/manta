@@ -160,6 +160,10 @@ def run_optimization_process(
             "info",
         )
 
+        # Step 3: Generate outputs
+        output_path = paths.table_output_dir()
+        output_path.mkdir(parents=True, exist_ok=True)
+
         result = OptimizationPipeline.run_optimization(
             tfidf_matrix=cached_data.tdm,
             vocab=cached_data.vocab,
@@ -169,12 +173,9 @@ def run_optimization_process(
             words_per_topic=config.words_per_topic,
             lambda_val=config.lambda_val,
             console=console,
+            output_dir=str(output_path),
         )
         result.preprocessing_time = preprocessing_time
-
-        # Step 3: Generate outputs
-        output_path = paths.table_output_dir()
-        output_path.mkdir(parents=True, exist_ok=True)
 
         # Find indices for plotting
         optimal_idx = result.topic_counts.index(result.optimal_topic_count)

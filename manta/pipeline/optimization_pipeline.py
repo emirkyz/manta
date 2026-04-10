@@ -6,8 +6,10 @@ by evaluating coherence scores across a range of topic counts.
 """
 
 import gc
+import json
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -77,6 +79,7 @@ class OptimizationPipeline:
         words_per_topic: int,
         lambda_val: float,
         console: Optional[ConsoleManager] = None,
+        output_dir: Optional[str] = None,
     ) -> OptimizationResult:
         """
         Run NMF optimization across multiple topic counts.
@@ -126,6 +129,15 @@ class OptimizationPipeline:
 
             coherence_scores.append(coherence)
             iteration_times.append(iteration_time)
+
+            if output_dir is not None:
+                progress_path = Path(output_dir) / "coherence_progress.json"
+                progress_path.write_text(
+                    json.dumps(
+                        {"topic_counts": topic_counts[:i], "coherence_scores": coherence_scores},
+                        indent=2,
+                    )
+                )
 
             _console.print_status(
                 f"Topics: {topic_count} | Coherence: {coherence:.4f} | Time: {iteration_time:.2f}s",
