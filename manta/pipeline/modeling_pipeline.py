@@ -173,7 +173,24 @@ class ModelingPipeline:
             }
         }
 
-        # Save coherence results to JSON (includes relevance top words)
+        # Calculate simplified silhouette score in W-space (O(n × k²), scales to 900k+ docs)
+        _console.print_status("Calculating simplified silhouette score...", "processing")
+        try:
+            import gc
+            from ..utils.analysis.silhouette import calculate_simplified_silhouette
+            silhouette_result = calculate_simplified_silhouette(nmf_output["W"])
+            gc.collect()  # release large temporary arrays before downstream allocation
+            coherence_scores["silhouette"] = silhouette_result
+            if silhouette_result["average"] is not None:
+                _console.print_status(
+                    f"Silhouette score: {silhouette_result['average']:.4f} "
+                    f"({silhouette_result['n_assigned']}/{silhouette_result['n_total']} docs assigned)",
+                    "success",
+                )
+        except Exception as e:
+            _console.print_status(f"Silhouette calculation skipped: {e}", "warning")
+
+        # Save coherence results to JSON (includes relevance top words and silhouette)
         if table_output_dir and table_name:
             output_path = Path(table_output_dir)
             output_path.mkdir(parents=True, exist_ok=True)

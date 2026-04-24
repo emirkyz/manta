@@ -192,6 +192,7 @@ if __name__ == '__main__':
     #file_path = "../pubmed_articles.csv"
     file_path = "custom_datasets/radiology_imaging_articles_paper.csv"
     file_path = "custom_datasets/beyza_hoca_veri.csv"
+    file_path = "citiation_rank/heart_failure_with_pagerank.csv"
     column = "abstract"
 
 
@@ -209,8 +210,8 @@ if __name__ == '__main__':
         language="EN",
         lemmatize=True,
         topic_count=10,
-        words_per_topic=15,
-        nmf_method="nmf", # "nmf" or "nmtf" or "pnmf"
+        words_per_topic=30,
+        nmf_method="pnmf", # "nmf" or "nmtf" or "pnmf"
         tokenizer_type="bpe",
         filter_app=False,
         data_filter_options = {
@@ -226,7 +227,8 @@ if __name__ == '__main__':
         word_pairs_out=False,
         topic_distribution=True,
         export_excel=False,
-        output_dir="results/beyza_hoca_makale",
+        pagerank_column="pagerank",
+        output_dir="custom_datasets/reha_hoca_frekans",
         gen_tsne=True
     )
 
