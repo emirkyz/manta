@@ -259,138 +259,48 @@ class DataPipeline:
             options["pagerank_column"] = None
             has_pagerank = False
 
-        # Check for datetime columns to preserve for temporal analysis
-        common_datetime_cols = [
-            "year",
-            "date",
-            "datetime",
-            "timestamp",
-            "time",
-            "rev_submit_millis_since_epoch",
-            "created_at",
-            "updated_at",
-        ]
-        datetime_col_found = None
+        # Detect datetime column using centralized handler
+        from manta.utils.datetime_handler import DatetimeDetector, DatetimeFormat
 
-        # Check if both 'year' and 'month' columns exist - combine them into MM-YYYY format
-        if "year" in df.columns and "month" in df.columns:
-            _console.print_status(
-                "Combining 'year' and 'month' columns into datetime...", "processing"
-            )
+        datetime_info = DatetimeDetector.detect(df, user_column=options.get("datetime_column"))
 
-            # Make a copy to avoid SettingWithCopyWarning
-            df = df.copy()
+        if datetime_info is not None:
+            # Handle year+month combination: create synthetic column
+            if datetime_info.format == DatetimeFormat.YEAR_MONTH_COMBINED:
+                _console.print_status(
+                    "Combining 'year' and 'month' columns into datetime...", "processing"
+                )
+                df = df.copy()
+                df["datetime_combined"] = DatetimeDetector.combine_year_month(df)
+                options["datetime_is_combined_year_month"] = True
+                _console.print_status(
+                    "Created combined datetime column from year and month", "info"
+                )
+            else:
+                options["datetime_is_combined_year_month"] = False
 
-            # Create a helper function to convert month to numeric
-            def convert_month_to_numeric(month_val):
-                """Convert month name or number to numeric (1-12)."""
-                if pd.isna(month_val):
-                    return 1  # Default to January if missing
+            options["datetime_column"] = datetime_info.column_name
+            options["_datetime_info"] = datetime_info
 
-                # If already numeric, validate and return
-                if isinstance(month_val, (int, float)):
-                    month_num = int(month_val)
-                    return month_num if 1 <= month_num <= 12 else 1
-
-                # Convert string month names to numbers
-                month_str = str(month_val).strip()
-
-                # Check for None values
-                if month_str is None or month_str == "None":
-                    logger.warning(
-                        f"Invalid month value encountered: {month_val}. Defaulting to January."
-                    )
-                    return 1
-
-                month_map = {
-                    "jan": 1,
-                    "january": 1,
-                    "feb": 2,
-                    "february": 2,
-                    "mar": 3,
-                    "march": 3,
-                    "apr": 4,
-                    "april": 4,
-                    "may": 5,
-                    "jun": 6,
-                    "june": 6,
-                    "jul": 7,
-                    "july": 7,
-                    "aug": 8,
-                    "august": 8,
-                    "sep": 9,
-                    "sept": 9,
-                    "september": 9,
-                    "oct": 10,
-                    "october": 10,
-                    "nov": 11,
-                    "november": 11,
-                    "dec": 12,
-                    "december": 12,
-                }
-
-                # Try to parse as month name
-                month_lower = month_str.lower()
-                if month_lower in month_map:
-                    return month_map[month_lower]
-
-                # Try to parse as number
-                try:
-                    month_num = int(month_str)
-                    return month_num if 1 <= month_num <= 12 else 1
-                except ValueError:
-                    return 1  # Default to January if can't parse
-
-            # Apply conversion to month column
-            df["month_numeric"] = df["month"].apply(convert_month_to_numeric)
-
-            # Combine year and month into a datetime column (day=1 for proper sorting)
-            df["datetime_combined"] = pd.to_datetime(
-                df["year"].astype(int).astype(str)
-                + "-"
-                + df["month_numeric"].astype(int).astype(str).str.zfill(2)
-                + "-01",
-                format="%Y-%m-%d",
-                errors="coerce",
-            )
-
-            # Store that we combined year and month
-            datetime_col_found = "datetime_combined"
-            options["datetime_column"] = datetime_col_found
-            options["datetime_is_combined_year_month"] = True
-
-            # Select columns to keep (include pagerank if available)
-            cols_to_keep = [desired_columns, "datetime_combined"]
+            cols_to_keep = [desired_columns, datetime_info.column_name]
             if has_pagerank:
                 cols_to_keep.append(pagerank_col)
             df = df[cols_to_keep]
 
             _console.print_status(
-                f"Created combined datetime column from year and month", "info"
+                f"Datetime column: {datetime_info.column_name} "
+                f"(format: {datetime_info.format.value}, source: {datetime_info.source})",
+                "info"
             )
         else:
-            # Original logic for other datetime columns
-            for col in common_datetime_cols:
-                if col in df.columns:
-                    datetime_col_found = col
-                    break
+            options["datetime_column"] = None
+            options["datetime_is_combined_year_month"] = False
+            options["_datetime_info"] = None
 
-            # Select text column and datetime column if available (include pagerank if available)
-            if datetime_col_found:
-                cols_to_keep = [desired_columns, datetime_col_found]
-                if has_pagerank:
-                    cols_to_keep.append(pagerank_col)
-                df = df[cols_to_keep]
-                options["datetime_column"] = datetime_col_found  # Store for later use in pipeline
-                options["datetime_is_combined_year_month"] = False
-                _console.print_status(f"Preserved datetime column: {datetime_col_found}", "info")
-            else:
-                cols_to_keep = [desired_columns]
-                if has_pagerank:
-                    cols_to_keep.append(pagerank_col)
-                df = df[cols_to_keep]
-                options["datetime_column"] = None
-                options["datetime_is_combined_year_month"] = False
+            cols_to_keep = [desired_columns]
+            if has_pagerank:
+                cols_to_keep.append(pagerank_col)
+            df = df[cols_to_keep]
 
         # Remove duplicates and null values
         initial_count = len(df)

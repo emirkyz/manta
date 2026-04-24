@@ -124,8 +124,8 @@ class CacheManager:
     def _serialize_datetime(datetime_series: pd.Series) -> dict:
         """Convert datetime series to serializable format.
 
-        Stores datetime as separate year and month arrays to avoid conversion issues.
-        This approach is consistent with how datetime is handled throughout the codebase.
+        Expects datetime_series to already be converted to datetime64 dtype
+        (handled upstream by DatetimeDetector.convert_to_datetime).
 
         Args:
             datetime_series: Pandas Series with datetime values
@@ -133,55 +133,18 @@ class CacheManager:
         Returns:
             Dictionary with 'year' and 'month' NumPy arrays
         """
-        # Ensure it's datetime type
+        # Fallback conversion if not already datetime (e.g. legacy code paths)
         if not pd.api.types.is_datetime64_any_dtype(datetime_series):
-            # Detect the type of values and convert appropriately
-            # pd.to_datetime() interprets integers as nanoseconds since epoch,
-            # which produces wrong dates (1970) for year values like 2000, 2020
-            sample = datetime_series.dropna()
-            if len(sample) > 0:
-                try:
-                    numeric_sample = pd.to_numeric(sample, errors='coerce').dropna()
-                    if len(numeric_sample) > 0:
-                        min_val = numeric_sample.min()
-                        max_val = numeric_sample.max()
+            from manta.utils.datetime_handler import DatetimeDetector
+            fmt = DatetimeDetector.infer_format(datetime_series)
+            datetime_series = DatetimeDetector.convert_to_datetime(datetime_series, fmt)
 
-                        # Check if values are years (1900-2100 range)
-                        if 1900 < min_val < 2100 and 1900 < max_val < 2100:
-                            # Convert year integers to datetime properly
-                            datetime_series = pd.to_datetime(
-                                datetime_series.astype(int).astype(str),
-                                format='%Y',
-                                errors='coerce'
-                            )
-                        # Check if values are POSIX timestamps (milliseconds since epoch)
-                        elif min_val > 1e12:
-                            datetime_series = pd.to_datetime(datetime_series, unit='ms', errors='coerce')
-                        # Check if values are POSIX timestamps (seconds since epoch)
-                        elif min_val > 1e9:
-                            datetime_series = pd.to_datetime(datetime_series, unit='s', errors='coerce')
-                        else:
-                            # Fallback to standard conversion
-                            datetime_series = pd.to_datetime(datetime_series, errors='coerce')
-                    else:
-                        # Non-numeric values, try standard conversion
-                        datetime_series = pd.to_datetime(datetime_series, errors='coerce')
-                except Exception:
-                    # If detection fails, try standard conversion
-                    datetime_series = pd.to_datetime(datetime_series, errors='coerce')
-            else:
-                datetime_series = pd.to_datetime(datetime_series, errors='coerce')
-
-        # Extract year and month components
-        # Handle both Series and DatetimeIndex
         if hasattr(datetime_series, 'dt'):
-            # It's a Series with datetime accessor
             return {
                 'year': datetime_series.dt.year.values,
                 'month': datetime_series.dt.month.values
             }
         else:
-            # It's a DatetimeIndex
             return {
                 'year': datetime_series.year.values,
                 'month': datetime_series.month.values

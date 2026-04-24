@@ -128,29 +128,25 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
         from .topic_temporal_dist import gen_temporal_topic_dist
         import pandas as pd
 
-        # Convert to datetime if not already
+        # Convert to datetime if not already (fallback for cached data without pre-conversion)
         if not pd.api.types.is_datetime64_any_dtype(datetime_series):
-            # Detect format based on column name
-            datetime_col = options.get('datetime_column', '')
-            if datetime_col is None:
-                logger.warning("No datetime column specified in options. Using empty string.")
-                datetime_col_name = ''
+            from manta.utils.datetime_handler import DatetimeDetector
+            datetime_info = options.get('_datetime_info')
+            if datetime_info:
+                datetime_series = DatetimeDetector.convert_to_datetime(datetime_series, datetime_info.format)
             else:
-                datetime_col_name = datetime_col.lower()
+                datetime_series = pd.to_datetime(datetime_series, errors='coerce')
 
-            if 'millis' in datetime_col_name or 'epoch' in datetime_col_name:
-                datetime_series = pd.to_datetime(datetime_series, unit='ms')
-            elif 'year' in datetime_col_name and not options.get('datetime_is_combined_year_month', False):
-                datetime_series = pd.to_datetime(datetime_series, format='%Y')
-            else:
-                datetime_series = pd.to_datetime(datetime_series)
-
-        # Determine appropriate time grouping based on datetime type
-        # Use 'month' grouping for combined year/month columns, otherwise use 'year'
-        time_grouping = 'month' if options.get('datetime_is_combined_year_month', False) else 'year'
+        # Determine time grouping: user override > auto-suggestion
+        from manta.utils.datetime_handler import DatetimeDetector as _DtDetector
+        user_grouping = options.get('time_grouping')
+        if user_grouping:
+            time_grouping = user_grouping
+        else:
+            datetime_info = options.get('_datetime_info')
+            time_grouping = _DtDetector.suggest_time_grouping(datetime_info, datetime_series)
 
         try:
-            time_grouping = "quarter"
 
             fig, temporal_df = gen_temporal_topic_dist(
                 W=nmf_output["W"],
@@ -159,9 +155,9 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 use_weighted=True,
                 output_dir=table_output_dir,
                 table_name=table_name,
-                time_grouping='quarter',  # Options: 'year', 'month', 'quarter', 'week'
-                plot_type='stacked_area',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
-                normalize=False,  # False for count-based, True for percentage-based
+                time_grouping=time_grouping,
+                plot_type='stacked_area',
+                normalize=False,
                 min_score=0.0
             )
 
@@ -172,9 +168,9 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                 output_dir=table_output_dir,
                 table_name=table_name,
                 use_weighted=True,
-                time_grouping="quarter",  # Options: 'year', 'month', 'quarter', 'week'
-                plot_type='line',  # Options: 'stacked_area', 'line', 'heatmap', 'stacked_bar'
-                normalize=False,  # False for count-based, True for percentage-based
+                time_grouping=time_grouping,
+                plot_type='line',
+                normalize=False,
                 min_score=0.0,
                 use_mm_yyyy_format=options.get('datetime_is_combined_year_month', False)
             )

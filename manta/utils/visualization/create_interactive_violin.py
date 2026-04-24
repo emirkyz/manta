@@ -117,3 +117,16 @@ def generate_interactive_violin_plot(
         f.write(html_content)
 
     return output_path
+
+
+if __name__ == "__main__":
+    import sys
+    csv_path = Path("/Users/emirkarayagiz/Downloads/nutrition_data_nmtf_bpe_26/nutrition_data_nmtf_bpe_26_temporal_topic_dist_quarter.csv")
+    table_output_dir = csv_path.parent
+    table_name = csv_path.stem.replace("_temporal_topic_dist_quarter", "")
+    output = generate_interactive_violin_plot(
+        W=None, S_matrix=None, datetime_series=None,
+        table_output_dir=table_output_dir,
+        table_name=table_name
+    )
+    print(f"✓ Interactive violin plot created: {output}")

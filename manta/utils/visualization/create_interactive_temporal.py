@@ -256,6 +256,9 @@ def generate_temporal_line_graph(CSV_PATH, OUTPUT_HTML):
     new_html = new_html.replace(old_load_markdown, new_load_markdown)
 
     # Write standalone HTML
+    if not OUTPUT_HTML:
+        csv_stem = Path(CSV_PATH).stem
+        OUTPUT_HTML = f"{csv_stem}_interactive.html"
     output_path = script_dir / OUTPUT_HTML
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(new_html)
@@ -268,6 +271,6 @@ def generate_temporal_line_graph(CSV_PATH, OUTPUT_HTML):
 
 
 if __name__ == "__main__":
-    CSV = ""
+    CSV = "/Users/emirkarayagiz/Downloads/nutrition_data_nmtf_bpe_26/nutrition_data_nmtf_bpe_26_temporal_topic_dist_quarter.csv"
     OUTPUT = ""
     generate_temporal_line_graph(CSV, OUTPUT)

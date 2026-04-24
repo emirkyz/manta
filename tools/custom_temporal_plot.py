@@ -241,8 +241,8 @@ def create_temporal_line_plot(
     # Legend below the plot
     ax.legend(
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.12),
-        ncol=min(4, n_topics),
+        bbox_to_anchor=(0.5, -0.16),
+        ncol=min(6, n_topics),
         fontsize=9,
         framealpha=0.9,
     )
@@ -271,20 +271,10 @@ if __name__ == "__main__":
     # Map topic numbers to custom names
     # Edit the values (right side) to your desired topic names
     TOPIC_NAMES = {
-        1: "Curriculum Development",
-        2: "Assessment Methods",
-        3: "Residency Programs",
-        4: "Systematic Reviews",
-        5: "ACGME Competencies",
-        6: "Clinical Practice",
-        7: "AI and LLMs",
-        8: "Psychometric Validation",
-        9: "Equity and Inclusion",
-        10: "Digital Learning",
     }
 
     # Path to the temporal topic distribution CSV
-    CSV_PATH = "/Users/emirkarayagiz/Work/nmf-standalone/results/bildiri/TopicAnalysis/Output/medicaleducation_pnmf_bpe_10/medicaleducation_pnmf_bpe_10_temporal_topic_dist_year.csv"
+    CSV_PATH = "/Users/emirkarayagiz/Downloads/nutrition_data_pnmf_bpe_52/nutrition_data_pnmf_bpe_52_temporal_topic_dist_quarter.csv"
 
     # Optional: Custom output path (set to None to auto-generate)
     OUTPUT_PATH = None

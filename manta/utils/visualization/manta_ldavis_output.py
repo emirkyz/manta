@@ -20,37 +20,29 @@ from sklearn.manifold import MDS
 from ..console.console_manager import ConsoleManager, get_console
 
 
-def _get_word_cluster_for_doc_cluster(s_matrix: np.ndarray, doc_cluster_idx: int) -> int:
+def _get_effective_topic_word_vector(s_matrix: np.ndarray, h_matrix: np.ndarray,
+                                     doc_cluster_idx: int) -> np.ndarray:
     """
-    For a given doc-cluster (W column), find the best matching word-cluster (H row).
+    Get the effective word distribution for a topic using the full S matrix row.
 
-    S matrix structure: S[j, i] = coupling between W column i and H row j
-    - Column i corresponds to doc-cluster i (W[:, i])
-    - Row j corresponds to word-cluster j (H[j, :])
+    S matrix convention (matches topic_extractor.py and X ≈ W @ S @ H):
+        S[i, j] = coupling between doc-cluster i (W[:,i]) and word-cluster j (H[j,:])
+        Row i = all word-cluster couplings for doc-cluster i.
+
+    Using the full weighted sum S[i,:] @ H instead of just H[argmax(S[i,:])] avoids
+    the collision problem where multiple doc-clusters share the same argmax H row,
+    which would give JS distance = 0 for otherwise distinct topics.
 
     Args:
-        s_matrix: S matrix (k x k) where S[j, i] = coupling between W[:,i] and H[j,:]
-        doc_cluster_idx: Index of the document cluster (W column)
+        s_matrix: S matrix (k x k), S[i,j] = coupling(doc-cluster i, word-cluster j)
+        h_matrix: H matrix (k x n_vocab)
+        doc_cluster_idx: Index of the document cluster (W column / topic index)
 
     Returns:
-        Index of the best matching word cluster (H row)
+        Effective word distribution vector (n_vocab,)
     """
-    # Find word-cluster (row j) with maximum coupling to this doc-cluster (column i)
-    return np.argmax(s_matrix[doc_cluster_idx, :])
-
-
-def _create_topic_to_h_mapping(s_matrix: np.ndarray, n_topics: int) -> List[int]:
-    """
-    Create mapping from topic indices (W columns) to H row indices using S matrix.
-
-    Args:
-        s_matrix: S matrix (k x k) where S[j, i] = coupling between W[:,i] and H[j,:]
-        n_topics: Number of topics (W columns)
-
-    Returns:
-        List where index i contains the H row index for topic i
-    """
-    return [_get_word_cluster_for_doc_cluster(s_matrix, i) for i in range(n_topics)]
+    # Weighted sum of all H rows for this doc-cluster: shape (n_vocab,)
+    return s_matrix[doc_cluster_idx, :] @ h_matrix
 
 
 def create_manta_ldavis(w_matrix: np.ndarray,
@@ -215,9 +207,17 @@ def prepare_manta_data(w_matrix: np.ndarray,
     # Topic ordering is sequential (Topic i = W column i)
     # S matrix is used to map topics to H rows when computing word statistics
     topic_to_h_mapping = None
+    # For NMTF: build an effective topic-word matrix using the full S row (S[i,:] @ H).
+    # This gives a unique word distribution per topic even when multiple topics share
+    # the same argmax H row, avoiding JS distance = 0 collisions.
+    # For NMF: use H directly.
     if s_matrix is not None:
-        topic_to_h_mapping = _create_topic_to_h_mapping(s_matrix, n_topics)
-        _console.print_debug("Created topic-to-H mapping using S matrix (no matrix reordering)", tag="VISUALIZATION")
+        effective_h = np.array([
+            _get_effective_topic_word_vector(s_matrix, h_matrix, i) for i in range(n_topics)
+        ])
+        _console.print_debug("Built effective topic-word matrix via S[i,:] @ H for NMTF", tag="VISUALIZATION")
+    else:
+        effective_h = h_matrix
 
     # Create vocabulary from tokenizer if needed
     if vocab is None and tokenizer is not None:
@@ -227,49 +227,38 @@ def prepare_manta_data(w_matrix: np.ndarray,
     if vocab is None or len(vocab) != n_vocab:
         raise ValueError(f"Vocabulary size mismatch: H has {n_vocab} terms, vocab has {len(vocab) if vocab else 0}")
 
-    # Normalize matrices
-    w_matrix_norm = w_matrix / (w_matrix.sum(axis=1, keepdims=True) + 1e-10)
-    h_matrix_norm = h_matrix / (h_matrix.sum(axis=1, keepdims=True) + 1e-10)
+    # Normalize the effective H for probability calculations
+    effective_h_norm = effective_h / (effective_h.sum(axis=1, keepdims=True) + 1e-10)
 
-    # Calculate topic sizes (total probability mass)
-    # Note: For NMTF, w_matrix has already been reordered by topic pairing above
+    # Calculate topic sizes
     from ...utils.analysis import get_dominant_topics
     dominant_topics = get_dominant_topics(w_matrix, min_score=0.0)
-    valid_mask = dominant_topics != -1
-    n_topics_effective = n_topics  # Use the actual number of topics
-    topic_sizes = np.zeros(n_topics_effective)
-    for topic_idx in range(n_topics_effective):
+    topic_sizes = np.zeros(n_topics)
+    for topic_idx in range(n_topics):
         topic_sizes[topic_idx] = np.sum(dominant_topics == topic_idx)
 
     # Calculate term frequencies if not provided
-    # Use both H matrix and W matrix to get proper corpus-wide term frequencies
     if term_frequency is None:
-        # Method 1: Direct from H matrix (topic-word weights)
-        # Method 2: Weight by topic sizes for corpus representation
         topic_weights = w_matrix.sum(axis=0)  # Total weight per topic
-        # Weighted term frequency: sum over topics of (topic_weight * word_prob_in_topic)
-        term_frequency = np.sum(h_matrix * topic_weights.reshape(-1, 1), axis=0)
+        term_frequency = np.sum(effective_h * topic_weights.reshape(-1, 1), axis=0)
 
     # Calculate document lengths if not provided
     if doc_lengths is None:
         doc_lengths = [100] * n_docs  # Default assumption
 
-    # Calculate inter-topic distances using Jensen-Shannon divergence
-    # For NMTF, use the topic-to-H mapping to compute distances between mapped H rows
-    topic_distances = calculate_topic_distances(h_matrix_norm, topic_to_h_mapping)
+    # Calculate inter-topic distances using Jensen-Shannon divergence on effective H
+    topic_distances = calculate_topic_distances(effective_h_norm)
 
     # Project topics to 2D using MDS
     topic_coordinates = project_topics_to_2d(topic_distances)
 
-    # Calculate term-topic frequencies
-    # For NMTF, use the mapping to get the correct H rows for each topic
-    term_topic_freq = calculate_term_topic_frequencies(h_matrix, w_matrix, topic_to_h_mapping)
+    # Calculate term-topic frequencies using effective H
+    term_topic_freq = calculate_term_topic_frequencies(effective_h, w_matrix)
 
-    # Prepare topic info
-    # For NMTF, use the mapping to access the correct H rows
+    # Prepare topic info using effective H
     topic_info = prepare_topic_info(
-        h_matrix_norm, vocab, topic_sizes, term_frequency,
-        term_topic_freq, lambda_step, topic_to_h_mapping
+        effective_h_norm, vocab, topic_sizes, term_frequency,
+        term_topic_freq, lambda_step
     )
 
     # Sort topics by size if requested
@@ -301,7 +290,7 @@ def prepare_manta_data(w_matrix: np.ndarray,
     vis_data = {
         'topic_coordinates': topic_coordinates.tolist(),
         'topic_info': topic_info.to_dict('records'),
-        'token_table': prepare_token_table(h_matrix_norm, vocab, term_topic_freq).to_dict('records'),
+        'token_table': prepare_token_table(effective_h_norm, vocab, term_topic_freq).to_dict('records'),
         'R': min(30, len(vocab)),  # Number of terms to show
         'lambda_step': lambda_step,
         'plot_opts': {
@@ -319,29 +308,20 @@ def prepare_manta_data(w_matrix: np.ndarray,
     return vis_data
 
 
-def calculate_topic_distances(topic_matrix: np.ndarray,
-                              topic_to_h_mapping: Optional[List[int]] = None) -> np.ndarray:
+def calculate_topic_distances(topic_matrix: np.ndarray) -> np.ndarray:
     """
     Calculate inter-topic distances using Jensen-Shannon divergence.
 
-    Uses an optimized vectorized approach and proper normalization for better
-    interpretability of topic relationships.
-
-    For NMTF, uses topic_to_h_mapping to compute distances between the correct
-    H rows for each topic (where Topic i maps to H[topic_to_h_mapping[i]]).
+    topic_matrix should already be the effective topic-word matrix (n_topics x n_vocab),
+    i.e. for NMTF this is S @ H (pre-computed), for NMF this is H directly.
 
     Args:
-        topic_matrix: Normalized topic-word matrix (n_topics x n_vocab)
-        topic_to_h_mapping: Optional mapping from topic index to H row index (for NMTF)
+        topic_matrix: Normalized effective topic-word matrix (n_topics x n_vocab)
 
     Returns:
         Symmetric distance matrix (n_topics x n_topics)
     """
-    # Determine number of topics
-    if topic_to_h_mapping is not None:
-        n_topics = len(topic_to_h_mapping)
-    else:
-        n_topics = topic_matrix.shape[0]
+    n_topics = topic_matrix.shape[0]
 
     # Add small epsilon to avoid log(0) and ensure numerical stability
     epsilon = 1e-12
@@ -356,12 +336,8 @@ def calculate_topic_distances(topic_matrix: np.ndarray,
     # Calculate Jensen-Shannon divergence for upper triangle only (optimization)
     for i in range(n_topics):
         for j in range(i + 1, n_topics):
-            # Get the correct H row indices
-            h_row_i = topic_to_h_mapping[i] if topic_to_h_mapping is not None else i
-            h_row_j = topic_to_h_mapping[j] if topic_to_h_mapping is not None else j
-
-            p = topic_matrix_safe[h_row_i]
-            q = topic_matrix_safe[h_row_j]
+            p = topic_matrix_safe[i]
+            q = topic_matrix_safe[j]
             m = 0.5 * (p + q)
 
             # Calculate JS divergence with proper base-2 logarithm for interpretability
@@ -374,12 +350,27 @@ def calculate_topic_distances(topic_matrix: np.ndarray,
             distances[i, j] = js_distance
             distances[j, i] = js_distance
 
+    # Stretch the distance range to [0, 1] so MDS has the full dynamic range.
+    # pNMF topics are near-orthogonal by design, so raw JS distances cluster in a
+    # narrow band (e.g. [0.47, 0.89]).  Feeding such a compressed range to MDS
+    # causes very high stress because it's geometrically impossible to place N
+    # near-equidistant points in 2D.  Subtracting the minimum off-diagonal value
+    # and rescaling preserves all relative differences while giving MDS room to work.
+    off_diag = distances[~np.eye(n_topics, dtype=bool)]
+    d_min, d_max = off_diag.min(), off_diag.max()
+    if d_max > d_min:
+        distances = np.where(
+            np.eye(n_topics, dtype=bool),
+            0.0,
+            (distances - d_min) / (d_max - d_min)
+        )
+
     return distances
 
 
 def project_topics_to_2d(distance_matrix: np.ndarray) -> np.ndarray:
     """
-    Project topics to 2D space using multidimensional scaling with overlap prevention.
+    Project topics to 2D space using multidimensional scaling.
 
     Args:
         distance_matrix: Topic distance matrix
@@ -387,12 +378,9 @@ def project_topics_to_2d(distance_matrix: np.ndarray) -> np.ndarray:
     Returns:
         2D coordinates for topics (n_topics x 2)
     """
-    # Use MDS to project to 2D
-    mds = MDS(n_components=2, dissimilarity='precomputed', random_state=42)
+    # Note: circles are intentionally allowed to overlap — overlap signals topic similarity
+    mds = MDS(n_components=2, dissimilarity='precomputed', random_state=42, normalized_stress=False)
     coordinates = mds.fit_transform(distance_matrix)
-
-    # Apply force-directed layout to prevent overlapping
-    coordinates = _apply_force_layout(coordinates, distance_matrix)
 
     return coordinates
 
@@ -436,57 +424,36 @@ def _apply_force_layout(coordinates: np.ndarray, distance_matrix: np.ndarray,
     return coords
 
 
-def calculate_term_topic_frequencies(h_matrix: np.ndarray, w_matrix: np.ndarray,
-                                      topic_to_h_mapping: Optional[List[int]] = None) -> np.ndarray:
+def calculate_term_topic_frequencies(effective_h: np.ndarray, w_matrix: np.ndarray) -> np.ndarray:
     """
     Calculate term frequencies within each topic.
 
-    For NMTF, uses topic_to_h_mapping to get the correct H row for each topic.
-
     Args:
-        h_matrix: Topic-word matrix
-        w_matrix: Document-topic matrix
-        topic_to_h_mapping: Optional mapping from topic index to H row index (for NMTF)
+        effective_h: Effective topic-word matrix (n_topics x n_vocab).
+                     For NMTF this is S @ H (pre-computed), for NMF this is H.
+        w_matrix: Document-topic matrix (n_docs x n_topics)
 
     Returns:
         Term-topic frequency matrix (n_topics x n_vocab)
     """
-    n_topics = w_matrix.shape[1]
-    n_vocab = h_matrix.shape[1]
-
-    # Multiply H by topic weights from W to get actual term-topic frequencies
-    topic_weights = w_matrix.sum(axis=0)  # Total weight per topic
-
-    if topic_to_h_mapping is not None:
-        # For NMTF: use the mapping to get the correct H rows
-        term_topic_freq = np.zeros((n_topics, n_vocab))
-        for topic_idx in range(n_topics):
-            h_row_idx = topic_to_h_mapping[topic_idx]
-            term_topic_freq[topic_idx] = h_matrix[h_row_idx] * topic_weights[topic_idx]
-    else:
-        # Standard NMF: H row i corresponds to topic i
-        term_topic_freq = h_matrix * topic_weights.reshape(-1, 1)
-
-    return term_topic_freq
+    topic_weights = w_matrix.sum(axis=0)  # Total weight per topic (n_topics,)
+    return effective_h * topic_weights.reshape(-1, 1)
 
 
-def prepare_topic_info(h_matrix: np.ndarray, vocab: List[str], topic_sizes: np.ndarray,
+def prepare_topic_info(effective_h_norm: np.ndarray, vocab: List[str], topic_sizes: np.ndarray,
                        term_frequency: np.ndarray, term_topic_freq: np.ndarray,
-                       lambda_step: float = 0.01,
-                       topic_to_h_mapping: Optional[List[int]] = None) -> pd.DataFrame:
+                       lambda_step: float = 0.01) -> pd.DataFrame:
     """
     Prepare topic information DataFrame for visualization.
 
-    For NMTF, uses topic_to_h_mapping to access the correct H row for each topic.
-
     Args:
-        h_matrix: Normalized topic-word matrix
+        effective_h_norm: Normalized effective topic-word matrix (n_topics x n_vocab).
+                          For NMTF this is row-normalized S @ H, for NMF this is H.
         vocab: Vocabulary list
         topic_sizes: Topic size array
         term_frequency: Global term frequency
-        term_topic_freq: Term-topic frequency matrix (already mapped for NMTF)
+        term_topic_freq: Term-topic frequency matrix
         lambda_step: Lambda step size
-        topic_to_h_mapping: Optional mapping from topic index to H row index (for NMTF)
 
     Returns:
         DataFrame with topic information
@@ -501,19 +468,13 @@ def prepare_topic_info(h_matrix: np.ndarray, vocab: List[str], topic_sizes: np.n
             'Term': term,
             'Total': float(term_frequency[i]),
             'loglift': 0.0,
-            'logprob': np.log(term_frequency[i] / term_frequency.sum())
+            'logprob': np.log(term_frequency[i] / term_frequency.sum() + 1e-10)
         })
 
-    # Determine number of topics
-    n_topics = len(topic_to_h_mapping) if topic_to_h_mapping is not None else h_matrix.shape[0]
+    n_topics = effective_h_norm.shape[0]
 
-    # Add term frequencies for each topic using CORRECT probability normalization
     for topic_idx in range(n_topics):
-        # Get the correct H row index for this topic
-        h_row_idx = topic_to_h_mapping[topic_idx] if topic_to_h_mapping is not None else topic_idx
-
-        # Extract the topic-word vector from the correct H row
-        topic_word_vector = h_matrix[h_row_idx]
+        topic_word_vector = effective_h_norm[topic_idx]
         topic_term_freq = term_topic_freq[topic_idx]
 
         # CORRECT NORMALIZATION: Same as calculate_term_relevance function
@@ -529,19 +490,27 @@ def prepare_topic_info(h_matrix: np.ndarray, vocab: List[str], topic_sizes: np.n
         logprob = np.log(topic_word_prob + 1e-10)
         loglift = np.log(lift)
 
-        # Include ALL terms (not just top 100) for consistency with calculate_term_relevance
-        # Filter will be applied later during visualization
-        for word_idx in range(len(vocab)):
-            if topic_word_vector[word_idx] > 1e-10:  # Only meaningful words
-                term = vocab[word_idx]
-                topic_info_list.append({
-                    'Category': f'Topic{topic_idx + 1}',
-                    'Freq': float(topic_term_freq[word_idx]),
-                    'Term': term,
-                    'Total': float(term_frequency[word_idx]),
-                    'loglift': float(loglift[word_idx]),
-                    'logprob': float(logprob[word_idx])
-                })
+        # Pre-filter to top 100 terms per topic by relevance (lambda=0.6 default)
+        # This prevents huge JSON payloads with large vocabularies
+        default_lambda = 0.6
+        relevance_scores = default_lambda * logprob + (1 - default_lambda) * loglift
+        meaningful_mask = topic_word_vector > 1e-10
+        candidate_indices = np.where(meaningful_mask)[0]
+        if len(candidate_indices) > 100:
+            top_indices = candidate_indices[np.argsort(relevance_scores[candidate_indices])[-100:]]
+        else:
+            top_indices = candidate_indices
+
+        for word_idx in top_indices:
+            term = vocab[word_idx]
+            topic_info_list.append({
+                'Category': f'Topic{topic_idx + 1}',
+                'Freq': float(topic_term_freq[word_idx]),
+                'Term': term,
+                'Total': float(term_frequency[word_idx]),
+                'loglift': float(loglift[word_idx]),
+                'logprob': float(logprob[word_idx])
+            })
 
     return pd.DataFrame(topic_info_list)
 
@@ -895,6 +864,15 @@ def generate_html_visualization(vis_data: Dict[str, Any],
                     .attr("width", width + margin.left + margin.right)
                     .attr("height", height + margin.top + margin.bottom);
 
+                // Click on background to deselect
+                svg.on("click", function(event) {
+                    if (event.target.tagName === "svg" || event.target.tagName === "rect" && !event.target.classList.contains("topic-circle")) {
+                        selectedTopic = null;
+                        d3.selectAll(".topic-circle").classed("selected", false);
+                        updateTermChart();
+                    }
+                });
+
                 const g = svg.append("g")
                     .attr("transform", `translate(${margin.left},${margin.top})`);
 
@@ -1058,11 +1036,15 @@ def generate_html_visualization(vis_data: Dict[str, Any],
             }
 
             function selectTopic(topicIndex) {
-                selectedTopic = topicIndex;
-
-                // Update visual selection
-                d3.selectAll(".topic-circle")
-                    .classed("selected", (d, i) => i === topicIndex);
+                // Toggle: clicking the same topic deselects it
+                if (selectedTopic === topicIndex) {
+                    selectedTopic = null;
+                    d3.selectAll(".topic-circle").classed("selected", false);
+                } else {
+                    selectedTopic = topicIndex;
+                    d3.selectAll(".topic-circle")
+                        .classed("selected", (d, i) => i === topicIndex);
+                }
 
                 updateTermChart();
             }
@@ -1313,3 +1295,128 @@ def _create_vocab_from_tokenizer(tokenizer, n_vocab: int, emoji_map = None) -> L
             vocab.append(f"[ERROR_{word_id}]")
 
     return vocab
+
+
+def save_bubble_chart_png(w_matrix: np.ndarray,
+                          h_matrix: np.ndarray,
+                          s_matrix: Optional[np.ndarray] = None,
+                          vocab: List[str] = None,
+                          output_path: Optional[Union[str, Path]] = None,
+                          table_name: str = "",
+                          tokenizer=None,
+                          dpi: int = 300) -> Optional[str]:
+    """
+    Save a static PNG of the Intertopic Distance Map bubble chart.
+
+    Reuses prepare_manta_data() for MDS projection and topic sizing, then
+    renders with matplotlib instead of D3.js.
+
+    Args:
+        w_matrix: Document-topic matrix (n_docs x n_topics)
+        h_matrix: Topic-word matrix (n_topics x n_vocab)
+        s_matrix: S matrix for NMTF (optional)
+        vocab: Vocabulary list
+        output_path: Full path to save the PNG, or directory (filename auto-generated)
+        table_name: Base name used for auto-generated filename
+        tokenizer: Turkish tokenizer (optional)
+        dpi: Output resolution
+
+    Returns:
+        Path to saved PNG or None if failed
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    from matplotlib.colors import to_rgba
+
+    _console = get_console()
+    try:
+        vis_data = prepare_manta_data(
+            w_matrix=w_matrix,
+            h_matrix=h_matrix,
+            s_matrix=s_matrix,
+            vocab=vocab,
+            tokenizer=tokenizer,
+        )
+
+        coords = np.array(vis_data["topic_coordinates"])   # (n_topics, 2)
+        sizes = np.array(vis_data["topic_sizes"])           # doc counts per topic
+        n_topics = len(sizes)
+
+        # Color palette — same 16-color cycle as the HTML version
+        palette = [
+            "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899",
+            "#f43f5e", "#ef4444", "#f97316", "#f59e0b", "#eab308", "#84cc16",
+            "#22c55e", "#10b981", "#14b8a6", "#06b6d4",
+        ]
+        colors = [palette[i % len(palette)] for i in range(n_topics)]
+
+        # Radius: sqrt scale mapping [0, max_size] → [10, 30] points in the HTML.
+        # In data/figure units we scale proportionally.
+        max_size = sizes.max() if sizes.max() > 0 else 1
+        # Map to area: area ∝ size (circle area = π r²), so radius ∝ sqrt(size)
+        max_radius_pts = 30
+        min_radius_pts = 10
+        radii_pts = min_radius_pts + (max_radius_pts - min_radius_pts) * np.sqrt(sizes / max_size)
+
+        fig, ax = plt.subplots(figsize=(8, 7))
+        ax.set_facecolor("white")
+        fig.patch.set_facecolor("white")
+
+        # Grid
+        ax.grid(True, color="#f1f5f9", linewidth=0.8, zorder=0)
+        ax.set_axisbelow(True)
+
+        # Draw circles using scatter (s = area in points²)
+        scatter_sizes = (radii_pts ** 2) * np.pi
+        sc = ax.scatter(
+            coords[:, 0], coords[:, 1],
+            s=scatter_sizes,
+            c=colors,
+            alpha=0.75,
+            edgecolors="white",
+            linewidths=1.5,
+            zorder=2,
+        )
+
+        # Topic number labels inside circles
+        for i, (x, y) in enumerate(coords):
+            ax.text(x, y, str(i + 1),
+                    ha="center", va="center",
+                    fontsize=max(7, min(11, radii_pts[i] * 0.45)),
+                    fontweight="bold", color="white", zorder=3)
+
+        ax.set_xlabel("PC1", fontsize=12, labelpad=8)
+        ax.set_ylabel("PC2", fontsize=12, labelpad=8)
+        ax.set_title("Intertopic Distance Map", fontsize=14, fontweight="bold", pad=14)
+
+        subtitle = "Topics positioned by similarity — closer topics share more vocabulary"
+        ax.text(0.5, 1.01, subtitle, transform=ax.transAxes,
+                ha="center", va="bottom", fontsize=9, style="italic", color="#64748b")
+
+        for spine in ax.spines.values():
+            spine.set_edgecolor("#e2e8f0")
+
+        plt.tight_layout()
+
+        # Determine output path
+        output_path = Path(output_path) if output_path else None
+        if output_path and output_path.is_dir():
+            fname = f"{table_name}_intertopic_distance_map.png" if table_name else "intertopic_distance_map.png"
+            output_path = output_path / fname
+        elif output_path is None:
+            fname = f"{table_name}_intertopic_distance_map.png" if table_name else "intertopic_distance_map.png"
+            output_path = Path(fname)
+
+        plt.savefig(output_path, dpi=dpi, bbox_inches="tight", facecolor="white")
+        plt.close(fig)
+
+        _console.print_debug(f"Bubble chart PNG saved to: {output_path}", tag="VISUALIZATION")
+        return str(output_path)
+
+    except Exception as e:
+        _console.print_error(f"Error saving bubble chart PNG: {e}", tag="VISUALIZATION")
+        import traceback
+        traceback.print_exc()
+        return None

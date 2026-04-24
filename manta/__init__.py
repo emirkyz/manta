@@ -80,6 +80,8 @@ def run_topic_analysis(
     save_to_db: bool = False,
     output_dir: str = None,
     pagerank_column: str = None,
+    datetime_column: str = None,
+    time_grouping: str = None,
     **kwargs
 ) -> dict:
     """
@@ -117,6 +119,10 @@ def run_topic_analysis(
         output_dir: Base directory for outputs. Defaults to current working directory.
         pagerank_column: Column name containing PageRank scores to use for TF-IDF weighting.
             If provided, documents with higher PageRank get boosted TF-IDF scores (range 1-2x).
+        datetime_column: Column name containing datetime values for temporal analysis.
+            If provided, this column is used directly. If None, auto-detection is used.
+        time_grouping: Time grouping for temporal visualizations - "year", "quarter", "month", or "week".
+            If None, automatically determined based on the data range.
         **kwargs: Additional parameters to pass through to the analysis pipeline (e.g., visualization options)
     Returns:
         Dict containing:
@@ -191,6 +197,8 @@ def run_topic_analysis(
         save_to_db=save_to_db,
         output_name=output_name,
         pagerank_column=pagerank_column,
+        datetime_column=datetime_column,
+        time_grouping=time_grouping,
         **kwargs
     )
 

@@ -11,7 +11,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import seaborn as sns
-from ...utils.analysis import get_dominant_topics
 import matplotlib.dates as mdates
 
 
@@ -154,6 +153,10 @@ def gen_temporal_topic_dist(
         W_for_dominant = W
 
         # Get dominant topics
+        try:
+            from ...utils.analysis import get_dominant_topics
+        except ImportError:
+            from manta.utils.analysis import get_dominant_topics
         dominant_topics = get_dominant_topics(W_for_dominant, min_score=min_score, s_matrix=None)
 
         # Create DataFrame with topic assignments and datetime
@@ -698,3 +701,98 @@ def _color_distance(color1: tuple, color2: tuple) -> float:
 
     # Simple RGB distance (could be improved with LAB color space)
     return ((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2) ** 0.5
+
+
+def gen_temporal_plots_from_csv(
+    csv_path: Union[str, Path],
+    plot_types: List[str] = None,
+    normalize: bool = False,
+    figsize: tuple = (16, 8),
+) -> List[Path]:
+    """
+    Generate static temporal topic distribution plots directly from a pre-aggregated CSV.
+
+    The CSV must have a 'period' column and one or more 'Topic X' columns, as produced
+    by gen_temporal_topic_dist.
+
+    Args:
+        csv_path: Path to the temporal CSV file.
+        plot_types: List of plot types to generate. Defaults to ['stacked_area', 'line'].
+        normalize: If True, normalise each row to 100 % before plotting.
+        figsize: Figure size.
+
+    Returns:
+        List of paths to the saved PNG files.
+    """
+    if plot_types is None:
+        plot_types = ['stacked_area', 'line']
+
+    csv_path = Path(csv_path)
+    output_dir = csv_path.parent
+
+    # Derive table_name and time_grouping from the filename
+    # Expected pattern: {table_name}_temporal_topic_dist_{time_grouping}.csv
+    stem = csv_path.stem  # e.g. "nutrition_data_pnmf_bpe_52_temporal_topic_dist_quarter"
+    marker = "_temporal_topic_dist_"
+    if marker in stem:
+        table_name = stem[: stem.index(marker)]
+        time_grouping = stem[stem.index(marker) + len(marker):]
+    else:
+        table_name = stem
+        time_grouping = "period"
+
+    temporal_dist = pd.read_csv(csv_path, index_col=0)
+    topic_columns = [c for c in temporal_dist.columns if c.startswith("Topic")]
+    temporal_dist = temporal_dist[topic_columns]
+
+    if normalize:
+        row_sums = temporal_dist.sum(axis=1).replace(0, 1)
+        temporal_dist = temporal_dist.div(row_sums, axis=0) * 100
+
+    n_topics = len(topic_columns)
+    distinct_colors = _generate_distinct_colors(n_topics)
+
+    saved_paths = []
+    for plot_type in plot_types:
+        fig, ax = plt.subplots(figsize=figsize)
+
+        if plot_type == 'stacked_area':
+            temporal_dist.plot(kind='area', stacked=True, ax=ax, alpha=0.7, color=distinct_colors)
+            ylabel = 'Topic Distribution (%)' if normalize else 'Topic Weight Sum'
+            title = 'Topic Distribution Over Time (Stacked Area)'
+        elif plot_type == 'line':
+            temporal_dist.plot(kind='line', ax=ax, marker='o', linewidth=2, markersize=3,
+                               alpha=0.8, color=distinct_colors)
+            ylabel = 'Topic Distribution (%)' if normalize else 'Topic Weight Sum'
+            title = 'Topic Distribution Over Time (Line)'
+        else:
+            plt.close(fig)
+            print(f"Skipping unsupported plot_type '{plot_type}' for CSV mode.")
+            continue
+
+        ax.set_ylabel(ylabel, fontsize=12)
+        ax.set_xlabel(f'Time ({time_grouping.capitalize()})', fontsize=12)
+        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.set_xlim(-0.5, len(temporal_dist) - 0.5)
+        ax.set_xticks(range(len(temporal_dist)))
+        ax.set_xticklabels(temporal_dist.index, rotation=45, ha='right', fontsize=8)
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.08),
+                  ncol=min(6, n_topics), fontsize=10, framealpha=0.9)
+        ax.grid(alpha=0.3, linestyle='--')
+        ax.tick_params(axis='x', labelsize=8)
+        plt.tight_layout()
+
+        plot_filename = f"{table_name}_temporal_topic_dist_{time_grouping}_{plot_type}.png"
+        plot_path = output_dir / plot_filename
+        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        print(f"✓ Saved: {plot_path}")
+        saved_paths.append(plot_path)
+
+    return saved_paths
+
+
+if __name__ == "__main__":
+    CSV ="/Users/emirkarayagiz/Downloads/nutrition_data_nmtf_bpe_26/nutrition_data_nmtf_bpe_26_temporal_topic_dist_quarter.csv"
+    paths = gen_temporal_plots_from_csv(CSV, plot_types=["stacked_area", "line"])
+    print(f"\n{len(paths)} plot(s) generated.")

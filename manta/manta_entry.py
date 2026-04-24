@@ -141,11 +141,11 @@ def load_or_process_data(
 
     # Extract datetime series if available for temporal analysis
     datetime_series = None
-    if options.get('datetime_column') and options['datetime_column'] in df.columns:
-        datetime_col = df[options['datetime_column']]
-        # Keep as datetime type for proper handling in visualization
-        # (avoid conversion to POSIX timestamp which causes incorrect date interpretation)
-        datetime_series = datetime_col.copy()
+    datetime_info = options.get('_datetime_info')
+    if datetime_info and options.get('datetime_column') and options['datetime_column'] in df.columns:
+        from manta.utils.datetime_handler import DatetimeDetector
+        raw_col = df[options['datetime_column']].copy()
+        datetime_series = DatetimeDetector.convert_to_datetime(raw_col, datetime_info.format)
 
         console.print_status(
             f"Extracted {len(datetime_series)} datetime values for temporal analysis",
