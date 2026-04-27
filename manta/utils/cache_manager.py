@@ -488,7 +488,7 @@ class CacheManager:
                 W=data['W'],
                 H=data['H'],
                 vocab=list(data['vocab']),
-                text_array=list(data['text_array']),
+                text_array=[],
                 S=data['S'] if 'S' in data else None
             )
 

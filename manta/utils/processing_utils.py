@@ -157,7 +157,6 @@ class ModelComponents:
             'W': self.W,
             'H': self.H,
             'vocab': self.vocab,
-            'text_array': self.text_array,
         }
         if self.S is not None:
             result['S'] = self.S

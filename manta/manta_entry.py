@@ -297,6 +297,13 @@ def process_file(
         )
         CacheManager.save_model_components(paths, model_components, table_name, console)
 
+        # Get document-topic distributions for potential future use
+        from .utils.analysis.dominant_topic import get_dominant_topics
+        dominant_topics = get_dominant_topics(nmf_output["W"])
+        document_dominant_topics = {
+            int(doc_id): int(topic) for doc_id, topic in enumerate(dominant_topics)
+        }
+
         return {
             "state": "SUCCESS",
             "message": "Topic modeling completed successfully",
@@ -304,7 +311,8 @@ def process_file(
             "topic_word_scores": topic_word_scores,
             "topic_doc_scores": topic_doc_scores,
             "coherence_scores": coherence_scores,
-            "visual_returns": visual_returns
+            "visual_returns": visual_returns,
+            "document_dominant_topics": document_dominant_topics,
         }
 
     except Exception as e:
