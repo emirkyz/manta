@@ -82,6 +82,7 @@ def run_topic_analysis(
     pagerank_column: str = None,
     datetime_column: str = None,
     time_grouping: str = None,
+    barebones: bool = False,
     **kwargs
 ) -> dict:
     """
@@ -167,9 +168,7 @@ def run_topic_analysis(
     from pathlib import Path
 
     from .config import create_config_from_params
-
-    # Import dependencies only when needed
-    from .manta_entry import run_manta_process
+    from .manta_entry import process_file
 
     # Validate inputs
     if filepath is None and dataframe is None:
@@ -177,7 +176,7 @@ def run_topic_analysis(
     if filepath is not None and dataframe is not None:
         raise ValueError("Cannot provide both filepath and dataframe - choose one")
 
-    # Create configuration object from function parameters
+    # Create and validate configuration object
     config = create_config_from_params(
         language=language,
         topic_count=topic_count,
@@ -185,7 +184,7 @@ def run_topic_analysis(
         lemmatize=lemmatize,
         tokenizer_type=tokenizer_type,
         words_per_topic=words_per_topic,
-        n_grams_to_discover = n_grams_to_discover,
+        n_grams_to_discover=n_grams_to_discover,
         word_pairs_out=word_pairs_out,
         generate_wordclouds=generate_wordclouds,
         export_excel=export_excel,
@@ -199,33 +198,27 @@ def run_topic_analysis(
         pagerank_column=pagerank_column,
         datetime_column=datetime_column,
         time_grouping=time_grouping,
+        barebones=barebones,
         **kwargs
     )
 
-    # Set output name if not provided
     if config.output_name is None:
-        if filepath:
+        if barebones:
+            import uuid
+            config.output_name = f"barebones_{uuid.uuid4().hex[:8]}"
+        elif filepath:
             config.output_name = config.generate_output_name(filepath)
         else:
-            # Generate name for DataFrame input
             config.output_name = f"dataframe_{nmf_method}_{tokenizer_type}_{topic_count}"
 
-    # Convert config to run_options format
-    run_options = config.to_run_options()
+    resolved_filepath = str(Path(filepath).resolve()) if filepath else None
 
-    # Prepare filepath argument
-    resolved_filepath = None
-    if filepath:
-        resolved_filepath = str(Path(filepath).resolve())
-
-    # Run the analysis
-    return run_manta_process(
+    return process_file(
+        config=config,
         filepath=resolved_filepath,
         dataframe=dataframe,
-        table_name=run_options['output_name'],
-        desired_columns=column,
-        options=run_options,
-        output_base_dir=output_dir
+        column=column,
+        output_base_dir=output_dir,
     )
 
 

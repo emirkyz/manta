@@ -181,8 +181,24 @@ def create_visualization(nmf_output, sozluk, table_output_dir, table_name, optio
                     CSV_PATH=table_output_dir / f"{table_name}_temporal_topic_dist_{time_grouping}.csv",
                     OUTPUT_HTML=table_output_dir / f"{table_name}_temporal_topic_distribution.html"
                 )
-            
-            
+
+            # Normalized temporal distribution (per-article topic weights)
+            from .topic_temporal_dist import gen_normalized_temporal_topic_dist
+            gen_normalized_temporal_topic_dist(
+                temporal_dist=temporal_df,
+                datetime_series=datetime_series,
+                time_grouping=time_grouping,
+                output_dir=table_output_dir,
+                table_name=table_name,
+            )
+
+            if options.get("gen_line_html", False):
+                from .create_interactive_temporal import generate_temporal_line_graph
+                generate_temporal_line_graph(
+                    CSV_PATH=table_output_dir / f"{table_name}_temporal_topic_dist_{time_grouping}_normalized.csv",
+                    OUTPUT_HTML=table_output_dir / f"{table_name}_temporal_topic_distribution_normalized.html"
+                )
+
             _console.print_debug(f"Generated temporal topic distribution visualization", tag="VISUALIZATION")
         except Exception as e:
             _console.print_warning(f"Failed to generate temporal visualization: {e}", tag="VISUALIZATION")

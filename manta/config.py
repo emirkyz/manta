@@ -62,6 +62,8 @@ class TopicAnalysisConfig:
     pagerank_column: Optional[str] = None  # Column name for PageRank weights (boosts TF-IDF)
     time_grouping: Optional[str] = None  # Time grouping for temporal analysis: 'year', 'quarter', 'month', 'week' (auto if None)
 
+    barebones: bool = False  # Skip coherence, silhouette, visualizations, and all disk writes
+
     additional_params: Dict = field(default_factory=dict)
 
     def __post_init__(self):
@@ -70,6 +72,11 @@ class TopicAnalysisConfig:
 
     def validate(self) -> None:
         """Validate all configuration options."""
+        if self.barebones:
+            self.generate_wordclouds = False
+            self.export_excel = False
+            self.topic_distribution = False
+            self.word_pairs_out = False
         # Validate language
         if self.language.upper() not in self.SUPPORTED_LANGUAGES:
             raise ValueError(f"Unsupported language: {self.language}. Must be one of {self.SUPPORTED_LANGUAGES}")
@@ -163,6 +170,7 @@ class TopicAnalysisConfig:
             "datetime_column": self.datetime_column,
             "pagerank_column": self.pagerank_column,
             "time_grouping": self.time_grouping,
+            "barebones": self.barebones,
         }
 
         # Merge additional parameters from kwargs
@@ -335,6 +343,7 @@ def create_config_from_params(
     datetime_column: Optional[str] = None,
     pagerank_column: Optional[str] = None,
     time_grouping: Optional[str] = None,
+    barebones: bool = False,
     **kwargs
 ) -> TopicAnalysisConfig:
     """Create a TopicAnalysisConfig from individual parameters."""
@@ -374,5 +383,6 @@ def create_config_from_params(
         datetime_column=datetime_column,
         pagerank_column=pagerank_column,
         time_grouping=time_grouping,
+        barebones=barebones,
         additional_params=kwargs
     )

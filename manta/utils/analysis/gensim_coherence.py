@@ -37,7 +37,7 @@ def _get_word_cluster_for_doc_cluster(s_matrix: np.ndarray, doc_cluster_idx: int
     return np.argmax(s_matrix[doc_cluster_idx, :])
 
 
-def _extract_topic_word_scores_with_relevance(
+def extract_relevance_top_words(
     h_matrix: np.ndarray,
     w_matrix: np.ndarray,
     vocabulary: List[str],
@@ -146,6 +146,8 @@ def _get_top_words_by_relevance(
     for idx in top_indices:
         if relevance_masked[idx] > -np.inf and idx < len(vocabulary):
             word = vocabulary[idx]
+            if not isinstance(word, str):
+                word = " ".join(str(t) for t in word) if isinstance(word, (list, tuple)) else str(word)
             # Skip WordPiece subword tokens (## prefix)
             if word.startswith("##"):
                 continue
@@ -216,6 +218,10 @@ def calculate_gensim_cv_coherence(
         ValueError: If inputs are invalid
     """
     _fix_multiprocessing_fork()
+    # Get console
+    from manta.utils.console import get_console
+    _console = get_console()
+    _console.print_debug("Validate inputs", tag="COHERENCE")
 
     # Validate inputs
     if h_matrix is None or w_matrix is None:
@@ -231,8 +237,9 @@ def calculate_gensim_cv_coherence(
     if s_matrix is not None:
         s_matrix = np.asarray(s_matrix)
 
+    _console.print_debug("Extract topic words with relevance scores", tag="COHERENCE")
     # Extract topic words with relevance scores
-    topic_word_scores = _extract_topic_word_scores_with_relevance(
+    topic_word_scores = extract_relevance_top_words(
         h_matrix=h_matrix,
         w_matrix=w_matrix,
         vocabulary=vocabulary,
@@ -241,6 +248,7 @@ def calculate_gensim_cv_coherence(
         top_n=top_n_words
     )
 
+    _console.print_debug("Tokenize documents", tag="COHERENCE")
     # Tokenize documents
     tokenized_docs = _tokenize_documents(documents)
 
@@ -250,6 +258,7 @@ def calculate_gensim_cv_coherence(
     # Create Gensim dictionary from documents
     dictionary = Dictionary(tokenized_docs)
 
+    _console.print_debug("Calculate C_V coherence", tag="COHERENCE")
     # Calculate C_V coherence
     coherence_model = CoherenceModel(
         topics=topics_list,
@@ -260,6 +269,7 @@ def calculate_gensim_cv_coherence(
         processes=processes
     )
 
+    _console.print_debug("Calculate U_mass coherence", tag="COHERENCE")
     coherence_model_umass = CoherenceModel(
         topics=topics_list,
         texts=tokenized_docs,
@@ -269,13 +279,15 @@ def calculate_gensim_cv_coherence(
         processes=processes
     )
 
-
+    _console.print_debug("Get C_v coherence scores for each topic from coherence objects.", tag="COHERENCE")
     c_v_average = coherence_model.get_coherence()
     c_v_per_topic_scores = coherence_model.get_coherence_per_topic()
 
+    _console.print_debug("Get U_mass coherence scores for each topic from coherence objects.", tag="COHERENCE")
     u_mass_average = coherence_model_umass.get_coherence()
     u_mass_per_topic_scores = coherence_model_umass.get_coherence_per_topic()
 
+    _console.print_debug("Build per-topic coherence dictionary", tag="COHERENCE")
     # Build per-topic coherence dictionary
     topic_names = list(topic_word_scores.keys())
     c_v_per_topic = {}

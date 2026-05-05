@@ -16,11 +16,12 @@ class TextPipeline:
     
     @staticmethod
     def perform_text_processing(
-        df: pd.DataFrame, 
-        desired_columns: str, 
-        options: Dict[str, Any], 
-        console: Optional[ConsoleManager] = None
-    ) -> Tuple[Any, Any, Any, Any, Any, Dict[str, Any]]:
+        df: pd.DataFrame,
+        desired_columns: str,
+        options: Dict[str, Any],
+        console: Optional[ConsoleManager] = None,
+        datetime_series=None,
+    ) -> Tuple[Any, Any, Any, Any, Any, Any, Dict[str, Any]]:
         """
         Perform language-specific text processing and feature extraction.
 
@@ -57,7 +58,7 @@ class TextPipeline:
                 )
             )
         elif options["LANGUAGE"] == "EN":
-            tdm, vocab, counterized_data, text_array, options["emoji_map"] = process_english_file(
+            tdm, vocab, counterized_data, text_array, options["emoji_map"], non_empty_mask = process_english_file(
                 df,
                 desired_columns,
                 options["LEMMATIZE"],
@@ -72,10 +73,13 @@ class TextPipeline:
                 use_pmi=options.get("use_pmi", True),
                 console=console
             )
+            original_text_array = original_text_array[non_empty_mask]
+            if datetime_series is not None:
+                datetime_series = datetime_series[non_empty_mask]
         else:
             raise ValueError(f"Invalid language: {options['LANGUAGE']}")
 
         _console.print_status("Text processing completed", "success")
         del df 
         
-        return tdm, vocab, counterized_data, text_array, original_text_array, options
+        return tdm, vocab, counterized_data, text_array, original_text_array, datetime_series, options

@@ -1,111 +1,102 @@
-"""
-Topic modeling pipeline for MANTA topic analysis.
-"""
+"""Topic modeling pipeline for MANTA topic analysis."""
 
-from typing import Dict, Any, Optional, Tuple
-
-import pandas as pd
+import json
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
 from .._functions.common_language.topic_extractor import topic_extract
 from .._functions.nmf import run_nmf
+from ..config import TopicAnalysisConfig
 from ..utils.analysis.gensim_coherence import calculate_gensim_cv_coherence
-from ..utils.analysis.topic_correlation import build_correlation_graph
-from ..utils.analysis.topic_similarity import HybridTFIDFTopicSimilarity
 from ..utils.export.save_doc_score_pair import save_doc_score_pair
 from ..utils.export.save_word_score_pair import save_word_score_pair
 from ..utils.export.save_s_matrix import save_s_matrix
 from ..utils.console.console_manager import ConsoleManager, get_console
-from ..utils.visualization.topic_similarity_heatmap import plot_combined_similarity_analysis
-import json
-import numpy as np
-from pathlib import Path
+from ..utils.processing_utils import CachedData, PipelineContext
 
 
 class ModelingPipeline:
     """Handles NMF topic modeling and analysis."""
-    
+
     @staticmethod
     def perform_topic_modeling(
-        tdm,
-        options: Dict[str, Any],
-        vocab,
-        text_array,
-        original_text_array,
-        db_config,
-        table_name: str,
-        table_output_dir,
-        console: Optional[ConsoleManager] = None,
-        desired_columns: str = "text"
+        cached_data: CachedData,
+        config: TopicAnalysisConfig,
+        ctx: PipelineContext,
+        table_output_dir: Path,
     ) -> Tuple[Dict, Dict, Dict, Dict, Any]:
-        """
-        Perform NMF topic modeling and analysis.
+        """Perform NMF topic modeling and analysis.
 
         Args:
-            tdm: Term-document matrix (TF-IDF)
-            options: Configuration options
-            vocab: Vocabulary list
-            text_array: Preprocessed text array (for coherence calculation)
-            original_text_array: Original text array (for output files)
-            db_config: Database configuration
-            table_name: Name of the dataset/table
-            table_output_dir: Output directory for results
-            console: Console manager for status messages
-            desired_columns: Name of the text column
+            cached_data: TF-IDF matrix, vocabulary, and text arrays from the data stage
+            config: Typed analysis configuration
+            ctx: Pipeline context with paths, db config, console, and runtime state
+            table_output_dir: Directory for writing output files
 
         Returns:
             Tuple of (topic_word_scores, topic_doc_scores, coherence_scores, nmf_output, word_result)
         """
-        _console = console or get_console()
-        _console.print_status(f"Starting NMF processing ({options['nmf_type'].upper()})...", "processing")
-        
-        # NMF processing
+        _console = ctx.console or get_console()
+        table_name = ctx.paths.table_name
+        _console.print_status(f"Starting NMF processing ({config.nmf_method.upper()})...", "processing")
+
+        if config.barebones:
+            from ..utils.analysis.gensim_coherence import extract_relevance_top_words
+            nmf_output = run_nmf(
+                num_of_topics=int(config.topic_count),
+                sparse_matrix=cached_data.tdm,
+                norm_thresh=0.005,
+                nmf_method=config.nmf_method,
+            )
+            _console.print_status("Extracting relevance-scored top words (barebones mode)...", "processing")
+            relevance_top_words = extract_relevance_top_words(
+                h_matrix=nmf_output["H"],
+                w_matrix=nmf_output["W"],
+                vocabulary=cached_data.vocab,
+                s_matrix=nmf_output.get("S"),
+                lambda_val=0.6,
+                top_n=config.words_per_topic,
+            )
+            coherence_scores = {"relevance": relevance_top_words}
+            if table_output_dir and table_name:
+                output_path = Path(table_output_dir)
+                output_path.mkdir(parents=True, exist_ok=True)
+                coherence_file = output_path / f"{table_name}_relevance_top_words.json"
+                with open(coherence_file, "w", encoding="utf-8") as f:
+                    json.dump(coherence_scores, f, indent=4, ensure_ascii=False)
+                _console.print_debug(f"Relevance top words saved to: {coherence_file}", tag="COHERENCE")
+            return {}, {}, coherence_scores, nmf_output, None
+
         nmf_output = run_nmf(
-            num_of_topics=int(options["DESIRED_TOPIC_COUNT"]),
-            sparse_matrix=tdm,
+            num_of_topics=int(config.topic_count),
+            sparse_matrix=cached_data.tdm,
             norm_thresh=0.005,
-            nmf_method=options["nmf_type"],
+            nmf_method=config.nmf_method,
         )
 
         _console.print_status("Extracting topics from NMF results...", "processing")
-            
-        # Extract topics based on language
-        if options["LANGUAGE"] == "TR":
-            word_result, document_result = topic_extract(
-                H=nmf_output["H"],
-                W=nmf_output["W"],
-                s_matrix=nmf_output.get("S", None),
-                topic_count=int(options["DESIRED_TOPIC_COUNT"]),
-                vocab=vocab,
-                tokenizer=options["tokenizer"],
-                documents=text_array,
-                original_documents=original_text_array,
-                db_config=db_config,
-                data_frame_name=table_name,
-                word_per_topic=options["N_TOPICS"],
-                include_documents=True,
-                emoji_map=options["emoji_map"],
-            )
-        elif options["LANGUAGE"] == "EN":
-            word_result, document_result = topic_extract(
-                H=nmf_output["H"],
-                W=nmf_output["W"],
-                s_matrix=nmf_output.get("S", None),
-                topic_count=int(options["DESIRED_TOPIC_COUNT"]),
-                vocab=vocab,
-                documents=text_array,
-                original_documents=original_text_array,
-                db_config=db_config,
-                data_frame_name=table_name,
-                word_per_topic=options["N_TOPICS"],
-                include_documents=True,
-                emoji_map=options["emoji_map"],
-            )
-        else:
-            raise ValueError(f"Invalid language: {options['LANGUAGE']}")
+
+        extract_kwargs = dict(
+            H=nmf_output["H"],
+            W=nmf_output["W"],
+            s_matrix=nmf_output.get("S"),
+            topic_count=int(config.topic_count),
+            vocab=cached_data.vocab,
+            documents=cached_data.text_array,
+            original_documents=cached_data.original_text_array,
+            db_config=ctx.db_config,
+            data_frame_name=table_name,
+            word_per_topic=config.words_per_topic,
+            include_documents=True,
+            emoji_map=ctx.emoji_map,
+        )
+        if config.language == "TR":
+            extract_kwargs["tokenizer"] = ctx.tokenizer
+
+        word_result, document_result = topic_extract(**extract_kwargs)
 
         _console.print_status("Saving topic results...", "processing")
-            
-        # Convert the topics_data format to the desired format
+
         topic_word_scores = save_word_score_pair(
             base_dir=None,
             output_dir=table_output_dir,
@@ -113,10 +104,9 @@ class ModelingPipeline:
             topics_data=word_result,
             result=None,
             data_frame_name=table_name,
-            topics_db_eng=db_config.topics_db_engine,
+            topics_db_eng=ctx.db_config.topics_db_engine,
         )
-        
-        # Save document result to json
+
         topic_doc_scores = save_doc_score_pair(
             document_result,
             base_dir=None,
@@ -125,7 +115,6 @@ class ModelingPipeline:
             data_frame_name=table_name,
         )
 
-        # Save S matrix if present (for NMTF)
         if "S" in nmf_output:
             _console.print_status("Saving S matrix...", "processing")
             save_s_matrix(
@@ -134,10 +123,7 @@ class ModelingPipeline:
                 table_name=table_name,
                 data_frame_name=table_name,
             )
-
-            # Generate S matrix graph visualizations
             _console.print_status("Generating S matrix graph visualizations...", "processing")
-
             from ..utils.visualization.s_matrix_graph import visualize_s_matrix_graph
             visualize_s_matrix_graph(
                 s_matrix=nmf_output["S"],
@@ -146,40 +132,37 @@ class ModelingPipeline:
                 threshold=0.01,
                 layout="circular",
                 create_interactive=False,
-                create_heatmap=True
+                create_heatmap=True,
             )
 
         _console.print_status("Calculating coherence scores...", "processing")
 
-        # Calculate coherence scores using the clean, standalone function
         coherence_results = calculate_gensim_cv_coherence(
             h_matrix=nmf_output["H"],
             w_matrix=nmf_output["W"],
-            vocabulary=vocab,
-            documents=text_array,
-            s_matrix=nmf_output.get("S", None),
+            vocabulary=cached_data.vocab,
+            documents=cached_data.text_array,
+            s_matrix=nmf_output.get("S"),
             lambda_val=0.6,
-            top_n_words=options["N_TOPICS"],
+            top_n_words=config.words_per_topic,
         )
 
-        # Format coherence scores for compatibility with existing code
         coherence_scores = {
             "relevance": coherence_results["topic_word_scores"],
             "gensim": {
                 "c_v_average": coherence_results["c_v_average"],
                 "c_v_per_topic": coherence_results["c_v_per_topic"],
                 "u_mass_average": coherence_results["u_mass_average"],
-                "u_mass_per_topic": coherence_results["u_mass_per_topic"]
-            }
+                "u_mass_per_topic": coherence_results["u_mass_per_topic"],
+            },
         }
 
-        # Calculate simplified silhouette score in W-space (O(n × k²), scales to 900k+ docs)
         _console.print_status("Calculating simplified silhouette score...", "processing")
         try:
             import gc
             from ..utils.analysis.silhouette import calculate_simplified_silhouette
             silhouette_result = calculate_simplified_silhouette(nmf_output["W"])
-            gc.collect()  # release large temporary arrays before downstream allocation
+            gc.collect()
             coherence_scores["silhouette"] = silhouette_result
             if silhouette_result["average"] is not None:
                 _console.print_status(

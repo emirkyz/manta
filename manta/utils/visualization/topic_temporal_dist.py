@@ -792,6 +792,88 @@ def gen_temporal_plots_from_csv(
     return saved_paths
 
 
+def gen_normalized_temporal_topic_dist(
+    temporal_dist: pd.DataFrame,
+    datetime_series: pd.Series,
+    time_grouping: str,
+    output_dir: Union[str, Path],
+    table_name: str,
+    figsize: tuple = (22, 7),
+) -> Path:
+    """
+    Normalize a pre-computed temporal topic distribution by the total article count per period.
+
+    Each topic weight sum is divided by the number of documents in that period, yielding
+    a per-article topic weight. Saves both a CSV and a line-plot PNG.
+
+    Args:
+        temporal_dist: DataFrame with period index and Topic columns (output of gen_temporal_topic_dist).
+        datetime_series: Original datetime series used to build temporal_dist.
+        time_grouping: One of 'year', 'quarter', 'month', 'week'.
+        output_dir: Directory to save outputs.
+        table_name: Used to derive filenames.
+        figsize: Figure size for the plot.
+
+    Returns:
+        Path to the saved PNG file.
+    """
+    if not pd.api.types.is_datetime64_any_dtype(datetime_series):
+        datetime_series = pd.to_datetime(datetime_series, errors='coerce')
+
+    datetime_series = datetime_series.dropna()
+
+    # Build period labels matching gen_temporal_topic_dist logic
+    if time_grouping == 'year':
+        periods = datetime_series.dt.year.astype(str)
+    elif time_grouping == 'quarter':
+        periods = datetime_series.dt.to_period('Q').astype(str)
+    elif time_grouping == 'month':
+        periods = datetime_series.dt.to_period('M').astype(str)
+    elif time_grouping == 'week':
+        periods = datetime_series.dt.to_period('W').astype(str)
+    else:
+        raise ValueError(f"Invalid time_grouping: {time_grouping}")
+
+    article_counts = periods.value_counts().rename('article_count')
+    counts_aligned = article_counts.reindex(temporal_dist.index, fill_value=1)
+    normalized = temporal_dist.div(counts_aligned, axis=0)
+
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
+    csv_path = output_dir_path / f"{table_name}_temporal_topic_dist_{time_grouping}_normalized.csv"
+    normalized.reset_index().to_csv(csv_path, index=False)
+    print(f"Normalized temporal distribution saved to: {csv_path}")
+
+    # Plot
+    n_topics = len(normalized.columns)
+    distinct_colors = _generate_distinct_colors(n_topics)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    x = range(len(normalized))
+    for i, col in enumerate(normalized.columns):
+        ax.plot(x, normalized[col], marker='o', markersize=3, linewidth=1.2,
+                label=col, color=distinct_colors[i])
+
+    ax.set_title('Topic Distribution Over Time (Line Plot) [Normalized by Article Count]', fontsize=14, fontweight='bold')
+    ax.set_xlabel(f'Time ({time_grouping.capitalize()})', fontsize=11)
+    ax.set_ylabel('Normalized Topic Weight (per article)', fontsize=11)
+    ax.set_xlim(-0.5, len(normalized) - 0.5)
+    ax.set_xticks(range(len(normalized)))
+    ax.set_xticklabels(normalized.index, rotation=90, fontsize=5)
+    ax.grid(True, linestyle='--', alpha=0.5)
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.18),
+              ncol=min(5, n_topics), fontsize=9, frameon=False)
+    plt.tight_layout()
+
+    png_path = output_dir_path / f"{table_name}_temporal_topic_dist_{time_grouping}_normalized_line.png"
+    plt.savefig(png_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Normalized temporal topic distribution plot saved to: {png_path}")
+
+    return png_path
+
+
 if __name__ == "__main__":
     CSV ="/Users/emirkarayagiz/Downloads/nutrition_data_nmtf_bpe_26/nutrition_data_nmtf_bpe_26_temporal_topic_dist_quarter.csv"
     paths = gen_temporal_plots_from_csv(CSV, plot_types=["stacked_area", "line"])

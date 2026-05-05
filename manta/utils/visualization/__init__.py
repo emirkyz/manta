@@ -7,7 +7,7 @@ This module provides functions for generating wordclouds, topic distributions, a
 from .gen_cloud import generate_wordclouds
 from .topic_dist import gen_topic_dist
 from .s_matrix_graph import visualize_s_matrix_graph, load_s_matrix_from_json
-from .topic_temporal_dist import gen_temporal_topic_dist, gen_multi_temporal_plots
+from .topic_temporal_dist import gen_temporal_topic_dist, gen_multi_temporal_plots, gen_normalized_temporal_topic_dist
 from .word_tsne_output import word_tsne_visualization
 from .tsne_graph_output import tsne_graph_output
 from .umap_graph_output import umap_graph_output
@@ -19,6 +19,7 @@ __all__ = [
     "load_s_matrix_from_json",
     "gen_temporal_topic_dist",
     "gen_multi_temporal_plots",
+    "gen_normalized_temporal_topic_dist",
     "word_tsne_visualization",
     "tsne_graph_output",
     "umap_graph_output"

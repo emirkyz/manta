@@ -183,9 +183,11 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
     _console.print_debug(f"  Original documents: {original_doc_count}", tag="TEXT PROCESSING")
     _console.print_debug(f"  Non-empty after cleaning: {non_empty_docs}", tag="TEXT PROCESSING")
     _console.print_debug(f"  Empty after cleaning: {empty_docs}", tag="TEXT PROCESSING")
+    non_empty_mask = np.array([bool(t and t.strip()) for t in text_array])
     if empty_docs > 0:
         percent_empty = (empty_docs / original_doc_count * 100) if original_doc_count > 0 else 0
         _console.print_warning(f"{empty_docs} documents ({percent_empty:.1f}%) became empty during text cleaning!", tag="TEXT PROCESSING")
+        text_array = [t for t, keep in zip(text_array, non_empty_mask) if keep]
 
     _console.print_debug(f"Preprocess completed in {time.time() - START_TIME:.2f} seconds", tag="TEXT PROCESSING")
     vocab, N = create_english_vocab(text_array, desired_columns, lemmatize=lemmatize)
@@ -297,4 +299,4 @@ def process_english_file(df, desired_columns: str, lemmatize: bool, emoji_map=No
                          lemmatize=lemmatize, pagerank_weights=pagerank_weights)
 
     _console.print_debug(f"TF-IDF shape = {tdm.shape}, words = {tdm.shape[1]}, documents = {tdm.shape[0]}", tag="TF-IDF")
-    return tdm, vocab, counterized_data, text_array, emoji_map
+    return tdm, vocab, counterized_data, text_array, emoji_map, non_empty_mask

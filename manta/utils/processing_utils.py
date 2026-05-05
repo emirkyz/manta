@@ -1,8 +1,8 @@
 """Processing utilities and dataclasses for MANTA topic analysis."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, List
+from typing import Any, Optional, List
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
@@ -164,7 +164,7 @@ class ModelComponents:
 
     @classmethod
     def from_nmf_output(cls, nmf_output: dict, vocab: List[str],
-                       text_array: List[str]) -> 'ModelComponents':
+                        text_array: List[str]) -> 'ModelComponents':
         """Create ModelComponents from NMF pipeline output.
 
         Args:
@@ -182,3 +182,19 @@ class ModelComponents:
             text_array=text_array,
             S=nmf_output.get("S")  # None if not present (NMF vs NMTF)
         )
+
+
+@dataclass
+class PipelineContext:
+    """Bundles pipeline infrastructure and mutable runtime state for a single analysis run.
+
+    Replaces the pattern of passing paths, db_config, console, and column as separate
+    arguments through every stage function. The emoji_map and tokenizer fields are
+    mutable runtime state populated during the data stage.
+    """
+    paths: ProcessingPaths
+    db_config: Any
+    console: Any  # ConsoleManager — avoid circular import with string annotation
+    column: str
+    emoji_map: Optional[Any] = field(default=None)
+    tokenizer: Optional[Any] = field(default=None)
